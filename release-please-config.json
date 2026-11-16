@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "crossprobe-core",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "json", "path": "packages/kicad-sexpr/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/kicad-model/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/kicad-model/package.json", "jsonpath": "$.dependencies['@crossprobe/kicad-sexpr']" },
+        { "type": "json", "path": "apps/web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "apps/web/package.json", "jsonpath": "$.dependencies['@crossprobe/kicad-model']" },
+        { "type": "json", "path": "apps/web/package.json", "jsonpath": "$.dependencies['@crossprobe/kicad-sexpr']" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['packages/kicad-sexpr'].version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['packages/kicad-model'].version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['packages/kicad-model'].dependencies['@crossprobe/kicad-sexpr']" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['apps/web'].version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['apps/web'].dependencies['@crossprobe/kicad-model']" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages['apps/web'].dependencies['@crossprobe/kicad-sexpr']" }
+      ]
+    }
+  }
+}
