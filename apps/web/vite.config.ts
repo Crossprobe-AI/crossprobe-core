@@ -3,7 +3,8 @@ import { bundledFootprintFile, bundledFootprintIds, bundledSymbolLibraries, bund
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, resolve, sep } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
@@ -310,7 +311,8 @@ function demos(): Plugin {
 
 /** Serve / emit OpenCascade's STEP importer (wasm) under /occt/, next to public/occt/step-worker.js. */
 function occt(): Plugin {
-  const dir = fileURLToPath(new URL("../../node_modules/occt-import-js/dist/", import.meta.url));
+  // Wherever the package is installed (this repository's node_modules, or a workspace root above it).
+  const dir = dirname(createRequire(import.meta.url).resolve("occt-import-js"));
   const files = ["occt-import-js.js", "occt-import-js.wasm"];
   return {
     name: "crossprobe-occt",
