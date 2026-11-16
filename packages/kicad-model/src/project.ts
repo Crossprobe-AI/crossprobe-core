@@ -47,7 +47,7 @@ export interface Schematic {
   /** Real components (power symbols and other `#`-references excluded). */
   components: Component[];
   /** Every placed symbol unit per sheet instance, power symbols included. */
-  placements: Array<{ sheet: SheetInstance; symbol: PlacedSymbol; reference: string; unit: number; lib?: LibSymbol }>;
+  placements: Array<{ sheet: SheetInstance; symbol: PlacedSymbol; reference: string; unit: number; lib?: LibSymbol; /** The value, where the file keeps it per instance (KiCad 6). */ value?: string }>;
   warnings: string[];
 }
 
@@ -115,20 +115,23 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
     for (const symbol of sheet.data.symbols) {
       // KiCad 7+ stores per-instance references; the symbol's own Reference
       // property is only a fallback for files without instance data.
-      const inst = symbol.instances.find((i) => i.path === sheet.path);
+      // KiCad 6 (before 20221002) keeps them in the root file instead, with the value and
+      // footprint, under the symbol's path below the root sheet.
+      const legacy = rootData.version >= 20221002 ? undefined : rootData.legacyInstances.get(`${sheet.path.slice(root.path.length)}/${symbol.uuid}`);
+      const inst = symbol.instances.find((i) => i.path === sheet.path) ?? legacy;
       const reference = inst?.reference ?? symbol.properties["Reference"] ?? "?";
       const unit = inst?.unit ?? symbol.unit;
       const lib = sheet.data.libSymbols.get(symbol.libId);
       if (!lib) warnings.push(`${sheet.namePath}: missing library symbol ${symbol.libId} for ${reference}`);
-      placements.push({ sheet, symbol, reference, unit, lib });
+      placements.push({ sheet, symbol, reference, unit, lib, value: legacy?.value || undefined });
 
       if (reference.startsWith("#") || lib?.power) continue;
       let comp = byRef.get(reference);
       if (!comp) {
         comp = {
           reference,
-          value: symbol.properties["Value"] ?? "",
-          footprint: symbol.properties["Footprint"] ?? "",
+          value: legacy?.value || (symbol.properties["Value"] ?? ""),
+          footprint: legacy?.footprint || (symbol.properties["Footprint"] ?? ""),
           datasheet: symbol.properties["Datasheet"] ?? "",
           libId: symbol.libId,
           lib,

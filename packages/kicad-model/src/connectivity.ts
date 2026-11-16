@@ -329,7 +329,7 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
           at,
           symbolUuid: symbol.uuid,
           powerSymbol: !!lib.power || pl.reference.startsWith("#"),
-          powerName: lib.power ? (symbol.properties["Value"] ?? pin.name) : undefined,
+          powerName: lib.power ? (powerNetName(pl, pin)) : undefined,
           order: pinOrder++,
         },
         // Like KiCad's netlist, skip power symbols and parts excluded from the board.
@@ -338,7 +338,7 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
       const shown = pin.name && pin.name !== "~" && pin.name !== pin.number ? pin.name : "";
       namingHints.set(item.node, { shownName: shown, sharedName: (nameCount.get(pin.name)?.size ?? 0) > 1 });
       if (lib.power && pin.type === "power_in") {
-        item.power = { kind: lib.power, name: symbol.properties["Value"] ?? pin.name };
+        item.power = { kind: lib.power, name: powerNetName(pl, pin) };
       } else if (!lib.power && isImplicitPowerPin(pin)) {
         // Legacy behaviour: hidden power-input pins join the global net named
         // after the pin, without a wire.
@@ -487,6 +487,15 @@ export function unitLetter(unit: number): string {
 }
 
 /** Hidden power-input pins on ordinary symbols are implicitly global nets. */
+/**
+ * The net a power symbol's pin names. It is the symbol's value, except in files from before
+ * KiCad 7 (20230221), where KiCad still takes a hidden pin's own name.
+ */
+function powerNetName(pl: Schematic["placements"][number], pin: LibPin): string {
+  if (pin.hidden && pl.sheet.data.version < 20230221) return pin.name;
+  return pl.value ?? pl.symbol.properties["Value"] ?? pin.name;
+}
+
 function isImplicitPowerPin(pin: LibPin): boolean {
   return pin.type === "power_in" && pin.hidden;
 }

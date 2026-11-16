@@ -127,6 +127,18 @@ export interface SheetFile {
   labels: Label[];
   sheets: SheetRef[];
   busAliases: Map<string, string[]>;
+  /**
+   * KiCad 6 files: the root sheet's `symbol_instances`, keyed by the symbol's path below the root
+   * ("/<sheet uuid>…/<symbol uuid>"). Later versions keep this in each symbol's `instances`.
+   */
+  legacyInstances: Map<string, LegacySymbolInstance>;
+}
+
+export interface LegacySymbolInstance {
+  reference: string;
+  unit: number;
+  value?: string;
+  footprint?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +259,7 @@ export function parseSheetFile(source: string): SheetFile {
     labels: [],
     sheets: [],
     busAliases: new Map(),
+    legacyInstances: new Map(),
   };
 
   // As for boards: forms after a stray ")" still belong to the sheet.
@@ -309,6 +322,17 @@ export function parseSheetFile(source: string): SheetFile {
         });
         break;
       }
+      case "symbol_instances":
+        for (const path of findChildren(node, "path")) {
+          const value = findChild(path, "value"), footprint = findChild(path, "footprint");
+          sheet.legacyInstances.set(text(path), {
+            reference: text(findChild(path, "reference")),
+            unit: Number(arg(findChild(path, "unit"), 0) ?? 1),
+            value: value ? text(value) : undefined,
+            footprint: footprint ? text(footprint) : undefined,
+          });
+        }
+        break;
       case "bus_alias": {
         const members = findChild(node, "members");
         sheet.busAliases.set(text(node, 0), members ? members.children.slice(1).filter(isAtom).map(atomText) : []);
