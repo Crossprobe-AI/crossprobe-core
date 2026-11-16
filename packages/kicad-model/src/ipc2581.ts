@@ -132,7 +132,8 @@ export function ipc2581(board: Board, name: string, o: Ipc2581Options = {}): str
   const components = parts.map((fp) => {
     const bottom = fp.layer === "B.Cu";
     const mount = fp.attributes.mount === "smd" ? "SMT" : fp.attributes.mount === "through_hole" ? "THMT" : "OTHER";
-    const rot = ((fp.rotation % 360) + 360) % 360;
+    // A part on the back is mirrored about its own Y axis, so KiCad gives its angle as 180° minus the footprint's.
+    const rot = (((bottom ? 180 - fp.rotation : fp.rotation) % 360) + 360) % 360;
     return `<Component refDes="${esc(refOf(fp))}" packageRef="${esc(packageOf(fp))}" part="${esc(part(fp))}" layerRef="${esc(lname(bottom ? copper[copper.length - 1]! : copper[0]!))}" mountType="${mount}"><Xform rotation="${n(rot)}"${bottom ? ' mirror="true"' : ""}/><Location x="${n(fp.at.x)}" y="${n(Y(fp.at.y))}"/></Component>`;
   });
 
