@@ -2,9 +2,9 @@
 
 A KiCad editor that runs in the browser. Open a KiCad project folder, view and
 edit its schematic and board, and save it back as KiCad files: unmodified files
-are written back byte for byte, and edits produce minimal diffs. KiCad's
-behaviour is reimplemented in TypeScript and checked against KiCad itself
-(`kicad-cli`).
+are written back byte for byte, and edits produce minimal diffs. The goal is
+parity with KiCad: its behaviour is reimplemented in TypeScript and checked against
+what KiCad itself does with the same projects.
 
 Website: <https://crossprobe.dev>
 
@@ -58,9 +58,9 @@ npm test
 | [`apps/web`](apps/web) | The browser app |
 | [`apps/web/src/extensions`](apps/web/src/extensions/api.ts) | The editor's extension points: inspector tabs, places to open and keep projects, sections of the Review tab |
 
-Many tests compare results with KiCad itself on KiCad's bundled demo projects.
-They skip when KiCad is not installed. Point them at KiCad and other projects
-with `KICAD_CLI=/path/to/kicad-cli` and `KICAD_CORPUS=/path/a:/path/b`. The
+Many tests compare results with KiCad's own on its bundled demo projects. They
+skip when KiCad is not installed. `KICAD_CLI` and `KICAD_CORPUS` say where KiCad
+and other projects to test on are. The
 browser scripts in `scripts/e2e-*.mjs` drive the app end to end
 ([docs/end-to-end.md](docs/end-to-end.md)).
 
@@ -69,8 +69,8 @@ browser scripts in `scripts/e2e-*.mjs` drive the app end to end
 What a KiCad user can expect, compared with KiCad 9 and 10. Update this list in
 the same change that adds or completes a feature.
 
-- **Works**: implemented, and checked against KiCad itself (a test or an
-  end-to-end script compares the result with `kicad-cli` or pcbnew).
+- **Works**: implemented, and checked against KiCad (a test or an end-to-end
+  script compares the result with what KiCad gives for the same project).
 - **Partly**: usable, with the limits given.
 - **View only**: existing items are read, drawn, plotted and kept on save, but
   can't be made or changed here.
@@ -99,7 +99,7 @@ the same change that adds or completes a feature.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Connectivity and net names as KiCad computes them | Works | Compared pin for pin with `kicad-cli`'s netlist, hierarchy and buses included |
+| Connectivity and net names as KiCad computes them | Works | Compared pin for pin with KiCad's netlist, hierarchy and buses included |
 | Wires, junctions, no-connects | Works | Dragging keeps connections |
 | Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
 | Local and hierarchical labels | Works | |
@@ -121,7 +121,7 @@ the same change that adds or completes a feature.
 | Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
 | Find | Partly | Parts and nets; no text search or replace |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
-| ERC | Partly | 15 checks, at least 98% agreement with `kicad-cli` on its demos: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, hierarchical label mismatches, bus conflicts, library and footprint link issues. Severities are read from the project; no exclusions |
+| ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, hierarchical label mismatches, bus conflicts, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export, SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
 | Page settings and title block | Works | |
@@ -131,7 +131,7 @@ the same change that adds or completes a feature.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Place, move, rotate, flip, lock footprints | Works | Compared with pcbnew |
+| Place, move, rotate, flip, lock footprints | Works | Compared with KiCad's result for the same move |
 | Update PCB from schematic, update schematic from PCB | Works | |
 | Update footprints from the library | Works | |
 | Schematic ↔ board parity, ratsnest | Works | A few zone-to-pad cases over-report unconnected items |
@@ -174,7 +174,7 @@ the same change that adds or completes a feature.
 | Symbols: units, unit names, body styles, jumper pin groups, power symbols | Works | |
 | Symbols: update placed symbols from the library | Works | Wires on moved pins are not re-attached |
 | Symbols: derived symbols, alternate pin functions, import and export | No | Derived symbols in existing libraries are read |
-| Footprints: pads singly, in rows and in grids; move, rotate, mirror, renumber | Works | Compared with pcbnew |
+| Footprints: pads singly, in rows and in grids; move, rotate, mirror, renumber | Works | Compared with KiCad's result |
 | Footprints: pad types and shapes | Partly | SMD, through-hole and NPTH; rectangle, rounded rectangle, circle, oval, custom polygon. No trapezoid, chamfered or slotted pads |
 | Footprints: mask and paste overrides, paste windows | Works | |
 | Footprints: graphics on silkscreen, fab and courtyard; automatic courtyard | Works | No free text, fields only |
@@ -202,7 +202,7 @@ the same change that adds or completes a feature.
 | Pick-and-place (CSV) | Works | Identical to KiCad's |
 | BOM (CSV) | Partly | Grouped by value, footprint and part number; no presets |
 | IPC-2581, ODB++ | Works | Compared with KiCad's by what CAM tools read |
-| IPC-D-356 | Works | Byte-identical to `kicad-cli` on its demo boards |
+| IPC-D-356 | Works | Byte-identical to KiCad's on its demo boards |
 | STEP | Works | Volume within 0.1% of KiCad's; holes and arcs are polygons |
 | GLB, STL, PLY | Works | |
 | Board and schematic plots: SVG, PDF | Works | PDF through the browser's print dialog; few plot options |
@@ -232,4 +232,4 @@ the same change that adds or completes a feature.
 
 Apache-2.0 (see [LICENSE](LICENSE)). Third-party material keeps its own licence;
 see [NOTICE](NOTICE). No KiCad source code is included: KiCad's behaviour is
-reimplemented and checked against `kicad-cli`, never copied.
+reimplemented and compared with KiCad's results, never copied.

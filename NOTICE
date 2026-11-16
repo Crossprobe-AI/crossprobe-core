@@ -43,4 +43,4 @@ permission to use them for other products (section 6).
 
 No KiCad source code is included. KiCad (GPL-3.0) is used only as an external
 program: the app reads KiCad's installed libraries and demos when they are present,
-and tests compare results with kicad-cli.
+and tests compare results with KiCad's.

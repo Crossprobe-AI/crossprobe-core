@@ -70,20 +70,20 @@ shapes within 1% (most exactly), the holes are the same, and position files are
 identical. Text is drawn in KiCad's own stroke font (Newstroke, which its author
 released as CC0) and laid out as KiCad does; TrueType text comes from the glyph
 outlines KiCad caches in the file. The zip also carries the IPC-D-356 test netlist
-(`<board>.d356`). It is byte-identical to `kicad-cli pcb export ipcd356` on all 19 demo
+(`<board>.d356`). It is byte-identical to KiCad's own IPC-D-356 export on all 19 demo
 boards (`test/ipc356.test.ts`).
 
 It also carries KiCad's Gerber job file (`<board>-job.gbrjob`). The file gives the board's
 size, layer count, thickness and finish, plus its clearances, minimum track widths, each
 Gerber's function and the material stackup. On all 19 demo boards, its specs, design rules and
-stackup equal those in kicad-cli's job file. On three boards the whole file does, character
+stackup equal those in KiCad's job file. On three boards the whole file does, character
 for character after the header (`test/gbrjob.test.ts`). The Gerbers' `%TF.ProjectId` uses
 KiCad's GUID and the title block's revision.
 
 ## IPC-2581 and ODB++
 
 `scripts/e2e-fab-formats.mjs` turns on both options in pic_programmer's Fab outputs. The zip
-carries `pic_programmer-IPC-2581.xml` and a `pic_programmer-odb/` tree. Each equals kicad-cli's
+carries `pic_programmer-IPC-2581.xml` and a `pic_programmer-odb/` tree. Each equals KiCad's
 own export by what CAM tools read: 63 parts, 112 nets, 251 holes. The zip's Gerber job file
 equals KiCad's after the header, so the project's design rules reach it.
 
@@ -99,7 +99,7 @@ The 3D view seats parts where KiCad's 3D viewer does: at z 1.585 mm on top (body
 ## Mesh exports (GLB, STL, PLY)
 
 `scripts/e2e-mesh-export.mjs` exports pic_programmer as GLB, STL and PLY from the 3D view. Each
-has the board and 56 part models, the two VRML-only ones included. Against kicad-cli's exports
+has the board and 56 part models, the two VRML-only ones included. Against KiCad's exports
 (`--subst-models`):
 - GLB: the same 56 parts, each part's box within 0.014 mm, the whole board's box identical;
 - STL and PLY: the whole box identical (mm, Z up), and the PLY has a colour per vertex;
@@ -112,7 +112,7 @@ has the board and 56 part models, the two VRML-only ones included. Against kicad
 PDF. The PDF goes through the browser's print dialog, with a page per sheet or layer at its own
 size, so it stays vector.
 - Board layers are drawn by the same layer plot as the Gerbers. `scripts/check-plot-svg.mjs`
-  rasterizes ours and `kicad-cli pcb export svg` for 3 demo boards × 6 layers, and they match
+  rasterizes ours and KiCad's SVG export for 3 demo boards × 6 layers, and they match
   to the pixel, drill marks included.
 - `scripts/e2e-plot.mjs` drives the dialog on pic_programmer. It checks one SVG per sheet, a
   PDF with a page per sheet at A4, and front and back copper with the back mirrored.
@@ -237,7 +237,7 @@ don't have:
 5. Select it on the board, "Edit footprint", make the pads bigger, and "Update 1 on the
    board".
 
-kicad-cli loads the project library, and its DRC finds the board's copy the same as the
+KiCad loads the project library, and its DRC finds the board's copy the same as the
 library's (no `lib_footprint_mismatch`), with the board in sync with the schematic.
 
 ## More footprint editing
@@ -248,7 +248,7 @@ library's (no `lib_footprint_mismatch`), with the board in sync with the schemat
 3. Renumbers them backwards as P1–P3.
 4. Sets a 3D model with an offset.
 
-pcbnew's `FootprintLoad` reads all of it back.
+KiCad reads all of it back.
 
 ## The 3D model preview
 
@@ -283,12 +283,12 @@ schematic's copy the same as the library's.
 - "Microvias" on F.Cu places a microvia from F.Cu to In1.Cu;
 - "Blind/buried" on In1.Cu places a buried via from In1.Cu to In2.Cu.
 
-kicad-cli's drill export of the saved board makes the same span files as our fab zip.
+KiCad's drill export of the saved board makes the same span files as our fab zip.
 
 ## Update schematic from PCB
 
 `scripts/e2e-backannotate.mjs` renames R1 to R50 and makes C2 330uF on pic_programmer's board.
-"Update schematic" lists both changes, and applies them in one step. kicad-cli's parity check
+"Update schematic" lists both changes, and applies them in one step. KiCad's parity check
 of the saved project then finds nothing, as before the edits.
 
 ## Renumbering the board by position
@@ -298,22 +298,22 @@ of the saved project then finds nothing, as before the edits.
 1. Update schematic sends the new references to the schematic.
 2. Update PCB sends the net names made from them.
 
-kicad-cli's parity check of the saved project then finds nothing. `test/board-reannotate.test.ts`
+KiCad's parity check of the saved project then finds nothing. `test/board-reannotate.test.ts`
 covers directions, grid rounding, the mirrored back, exclusions, prefixes and start numbers.
 
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
 and 8 tracks inside pads, and the board goes from 370 tracks to 357. Undo brings them back.
-kicad-cli's DRC of the saved board stays at 0 violations and 0 unconnected.
+KiCad's DRC of the saved board stays at 0 violations and 0 unconnected.
 
 ## Page settings
 
 `scripts/e2e-page.mjs` sets pic_programmer's root sheet to A3 with a new title block, copied
-to the other sheet and the board, each keeping its own paper. kicad-cli's SVG export shows both
+to the other sheet and the board, each keeping its own paper. KiCad's SVG export shows both
 sheets with the new title block and the root sheet on A3. The board file carries the title
 block too. `test/page-settings.test.ts` checks paper sizes (named, portrait, user) and
-title-block text in kicad-cli's schematic and board SVGs.
+title-block text in KiCad's schematic and board SVGs.
 
 ## Buses
 

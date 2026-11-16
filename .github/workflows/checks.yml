@@ -1,6 +1,6 @@
 # Build, type-check and test on every pull request and push to main.
 #
-# The runner has no KiCad, so the tests that compare with kicad-cli or read KiCad's
+# The runner has no KiCad, so the tests that compare with KiCad or read KiCad's
 # demo projects skip themselves here. Run those locally (npm test with KiCad
 # installed) for changes to the model, the checks or the exports.
 name: Checks

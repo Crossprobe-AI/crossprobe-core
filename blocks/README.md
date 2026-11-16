@@ -47,7 +47,7 @@ edit blocks here, never there.
 3. **Review:** a person compares each value with its cited page and the
    rendered schematic, then sets `"status": "reviewed"`, `reviewedBy` and
    `reviewedAt`. Until then the block is a `draft` and is shown as one.
-4. **Tests** (`npm test`) use KiCad as the oracle: `kicad-cli` must load every
+4. **Tests** (`npm test`) use KiCad as the oracle: KiCad must load every
    block, its netlist must equal the spec, and ERC may report only the
    unavoidable "power input not driven" (a block has no supply). Inserting a
    block into a KiCad demo project must give a netlist that KiCad and our code
