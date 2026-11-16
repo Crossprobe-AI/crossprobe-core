@@ -1,0 +1,37 @@
+# Releases, by semantic versioning from the commit messages (Conventional Commits).
+#
+# Every push to main updates a release pull request: the next version (fix: a patch,
+# feat: a minor, a breaking change a major; before 1.0 a breaking change is a minor),
+# the changelog, and the version in every package. Merging that pull request tags
+# vX.Y.Z and publishes the GitHub release. One version covers the whole repository
+# (release-please-config.json).
+#
+# The repository setting "Allow GitHub Actions to create and approve pull requests"
+# must be on. Pull requests opened with the workflow's own token don't start other
+# workflows, so the checks don't run on the release pull request by themselves; give
+# the action a token of your own (a secret named RELEASE_TOKEN) to have them run.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
