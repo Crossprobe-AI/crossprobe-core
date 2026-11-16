@@ -58,16 +58,36 @@ npm test
 | [`apps/web`](apps/web) | The browser app |
 | [`apps/web/src/extensions`](apps/web/src/extensions/api.ts) | The editor's extension points: inspector tabs, places to open and keep projects, sections of the Review tab |
 
-Many tests compare results with KiCad's own on its bundled demo projects. They
-skip when KiCad is not installed. `KICAD_CLI` and `KICAD_CORPUS` say where KiCad
-and other projects to test on are. The
-browser scripts in `scripts/e2e-*.mjs` drive the app end to end
-([docs/end-to-end.md](docs/end-to-end.md)).
+Many tests compare results with KiCad's own on its demo projects, and skip when
+KiCad or the demos are missing. KiCad and its libraries are found in the usual
+places on macOS and Linux ([test-setup.ts](test-setup.ts)). The demos are not
+part of every installer: they are the `demos` folder of KiCad's source, so point
+the tests at a copy.
+
+| Variable | What it points at |
+|---|---|
+| `KICAD_CLI` | KiCad's command-line program, when it is not in the usual place |
+| `KICAD_DEMOS` | KiCad's demo projects |
+| `KICAD_CORPUS` | A folder of other projects to compare on, in place of the demos (the file round trip takes several, colon-separated) |
+| `KICAD_QA` | The `qa/data` folder of KiCad's source, for the netlist edge cases |
+
+The tests that compare with KiCad don't run on GitHub (the runner has no
+KiCad): run `npm test` with the demos before changing the model, the checks or
+the exports. The browser scripts in `scripts/e2e-*.mjs` drive the app end to
+end ([docs/end-to-end.md](docs/end-to-end.md)).
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org)
+(`fix:`, `feat:`, `feat!:` for a breaking change, and `docs:`, `test:`, `ci:`
+for the rest). Releases are made from them: each push to `main` updates a release
+pull request with the next version and the changelog, and merging it tags
+`vX.Y.Z` and publishes the release
+([release.yml](.github/workflows/release.yml)).
 
 ## KiCad parity
 
-What a KiCad user can expect, compared with KiCad 9 and 10. Update this list in
-the same change that adds or completes a feature.
+What a KiCad user can expect, compared with KiCad 9 and 10. The comparisons were
+last run with KiCad 10.0.5. Update this list in the same change that adds or
+completes a feature.
 
 - **Works**: implemented, and checked against KiCad (a test or an end-to-end
   script compares the result with what KiCad gives for the same project).
@@ -86,11 +106,11 @@ the same change that adds or completes a feature.
 | `.kicad_pro` | Partly | Net classes, design-rule minimums, severities, DRC exclusions and the pin conflict map are read and written; other settings are kept, with no way to edit them |
 | New project, open a folder, save in place | Works | Saving in place needs a Chromium browser; others download the changed files. New files are written as KiCad 10 |
 | Unsaved changes survive a reload | Works | |
-| File versions before KiCad 9 | Untested | Tests run on the demo projects of the installed KiCad |
+| File versions before KiCad 9 | Partly | KiCad 6, 7 and 8 files are read: every file in KiCad's own test data is written back byte for byte, and netlists (of annotated designs) and IPC-D-356 files match KiCad's on them. Editing and saving such files is untested |
 | KiCad's installed libraries (symbols, footprints, 3D models) | Partly | Served by the dev server or the Docker image; your own path variables are not resolved |
 | Library tables | Partly | Project tables with `${KIPRJMOD}` entries; no table editor |
 | Custom design rules (`.kicad_dru`) | Partly | Read and applied for some constraints (see PCB editor); no editor |
-| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | No | Shown and plotted as written |
+| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | Partly | Resolved where they name nets (labels, power symbols, sheet pins): sheet number, name and path, file and project names, the sheet symbol's fields, project variables. Shown and plotted as written |
 | Custom drawing sheets (`.kicad_wks`) | No | A default frame is drawn |
 | Legacy formats (`.sch`, `.brd`, `.lib`), importers (Eagle, Altium, EasyEDA, …) | No | |
 | Design variants, jobsets, embedded files, project templates and archives | No | |
@@ -99,7 +119,7 @@ the same change that adds or completes a feature.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Connectivity and net names as KiCad computes them | Works | Compared pin for pin with KiCad's netlist, hierarchy and buses included |
+| Connectivity and net names as KiCad computes them | Works | Compared pin for pin and name for name with KiCad's netlist: hierarchy, buses, jumper pins and stacked pin numbers included |
 | Wires, junctions, no-connects | Works | Dragging keeps connections |
 | Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
 | Local and hierarchical labels | Works | |
@@ -121,7 +141,7 @@ the same change that adds or completes a feature.
 | Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
 | Find | Partly | Parts and nets; no text search or replace |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
-| ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, hierarchical label mismatches, bus conflicts, library and footprint link issues. Severities are read from the project; no exclusions |
+| ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, units of one part on different nets, hierarchical label mismatches, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export, SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
 | Page settings and title block | Works | |
@@ -156,7 +176,7 @@ the same change that adds or completes a feature.
 | Text boxes, images, tables, groups | No | |
 | DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
 | DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
-| Net inspector | Works | Lengths per layer, vias, CSV |
+| Net inspector | Works | Lengths per layer, vias, CSV. Lengths follow KiCad 10.0; KiCad 10.0.5 measures a few nets up to 0.2 mm shorter |
 | Selection filter, layer visibility, flip view, measure tool | Works | No layer colours, presets or net colours |
 | Copy, paste, duplicate | Works | Its own clipboard |
 | Cleanup tracks and vias, geographic reannotation, board statistics | Works | |
