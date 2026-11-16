@@ -5,7 +5,7 @@
  */
 import ClipperLib from "clipper-lib";
 import type { Board, Footprint, Graphic, Pad, Via } from "./board.js";
-import { buildArea, copperItems, edgeChains, graphicShapes, shapeBox, shapeDistance, type CopperItem, type DesignRules, type DrcItem, type Shape } from "./drc.js";
+import { buildArea, copperItems, edgeChains, graphicShapes, padShapes, shapeBox, shapeDistance, type CopperItem, type DesignRules, type DrcItem, type Shape } from "./drc.js";
 import { hasCopper, knockoutText, onLayer, textOutline, textPen, textStrokes } from "./fab.js";
 import type { Point } from "./geometry.js";
 import { boardArea, connectionOf, padPolygons } from "./zone-fill.js";
@@ -678,7 +678,8 @@ function maskOpenings(board: Board, layer: "F.Mask" | "B.Mask"): Array<{ item: D
     for (const pad of fp.pads) {
       if (!onLayer(pad.layers, layer)) continue;
       // KiCad tests silk against the pad's own shape here, without its mask margin.
-      const shapes = padPolygons(pad, 0).map((poly) => buildArea(poly));
+      // Its exact shape, too: silk that only touches a round pad doesn't overlap it.
+      const shapes = padShapes(pad);
       if (shapes.length) out.push({ shapes, item: { kind: "pad", net: pad.net, reference: fp.reference, pad: pad.number, uuid: pad.uuid, description: `Pad ${pad.number} [${pad.net || "<no net>"}] of ${fp.reference} on ${layer}` } });
     }
     for (const g of fp.graphics) if (g.layer === layer) out.push({ shapes: graphicShapes(g), item: { kind: "graphic", net: "", reference: fp.reference, uuid: g.uuid, description: `${g.kind} of ${fp.reference} on ${layer}` } });
