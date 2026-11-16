@@ -13,13 +13,15 @@ Website: <https://crossprobe.dev>
 - Schematic, PCB and 3D views, with cross-probing between them.
 - Schematic editing: wires, labels, buses, hierarchical sheets, parts from KiCad's
   libraries, annotation, ERC.
-- PCB editing: placement, routing with 45° tracks and vias, zones, Update PCB from
-  schematic, DRC, schematic ↔ board parity.
+- PCB editing: placement, interactive routing (45° tracks, vias, differential pairs,
+  length tuning), zones, Update PCB from schematic, DRC, schematic ↔ board parity.
 - Symbol and footprint editors; plotting; fabrication outputs (Gerber, drill, BOM,
   pick-and-place, IPC-2581, ODB++, STEP, GLB).
 - [Design blocks](blocks/README.md) (reference circuits with cited checklists),
   [requirements](docs/requirements.md) and [compatibility](docs/compatibility.md)
   checks, and datasheet evidence pinned to parts.
+
+What works and what doesn't yet, feature by feature: [KiCad parity](#kicad-parity).
 
 ## Run it
 
@@ -61,6 +63,170 @@ They skip when KiCad is not installed. Point them at KiCad and other projects
 with `KICAD_CLI=/path/to/kicad-cli` and `KICAD_CORPUS=/path/a:/path/b`. The
 browser scripts in `scripts/e2e-*.mjs` drive the app end to end
 ([docs/end-to-end.md](docs/end-to-end.md)).
+
+## KiCad parity
+
+What a KiCad user can expect, compared with KiCad 9 and 10. Update this list in
+the same change that adds or completes a feature.
+
+- **Works**: implemented, and checked against KiCad itself (a test or an
+  end-to-end script compares the result with `kicad-cli` or pcbnew).
+- **Partly**: usable, with the limits given.
+- **View only**: existing items are read, drawn, plotted and kept on save, but
+  can't be made or changed here.
+- **No**: not there. Unless noted, such items in an existing file are left
+  untouched when you save, but are not shown.
+
+### Files and projects
+
+| Feature | Status | Notes |
+|---|---|---|
+| `.kicad_sch`, `.kicad_pcb` read and write | Works | Unchanged files are written back byte for byte; edits change only the lines they touch |
+| Project symbol and footprint libraries (`.kicad_sym`, `.pretty`) | Works | Derived symbols are resolved |
+| `.kicad_pro` | Partly | Net classes, design-rule minimums, severities, DRC exclusions and the pin conflict map are read and written; other settings are kept, with no way to edit them |
+| New project, open a folder, save in place | Works | Saving in place needs a Chromium browser; others download the changed files. New files are written as KiCad 10 |
+| Unsaved changes survive a reload | Works | |
+| File versions before KiCad 9 | Untested | Tests run on the demo projects of the installed KiCad |
+| KiCad's installed libraries (symbols, footprints, 3D models) | Partly | Served by the dev server or the Docker image; your own path variables are not resolved |
+| Library tables | Partly | Project tables with `${KIPRJMOD}` entries; no table editor |
+| Custom design rules (`.kicad_dru`) | Partly | Read and applied for some constraints (see PCB editor); no editor |
+| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | No | Shown and plotted as written |
+| Custom drawing sheets (`.kicad_wks`) | No | A default frame is drawn |
+| Legacy formats (`.sch`, `.brd`, `.lib`), importers (Eagle, Altium, EasyEDA, …) | No | |
+| Design variants, jobsets, embedded files, project templates and archives | No | |
+
+### Schematic editor
+
+| Feature | Status | Notes |
+|---|---|---|
+| Connectivity and net names as KiCad computes them | Works | Compared pin for pin with `kicad-cli`'s netlist, hierarchy and buses included |
+| Wires, junctions, no-connects | Works | Dragging keeps connections |
+| Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
+| Local and hierarchical labels | Works | |
+| Global labels | View only | Read, drawn and netlisted; no tool to place one |
+| Power symbols, PWR_FLAG | Works | |
+| Hierarchical sheets and sheet pins | Works | No sheet properties dialog, no "sync sheet pins" |
+| Placing symbols from project and KiCad libraries | Works | |
+| Multi-unit symbols | Works | |
+| Body styles (De Morgan) | Partly | Made in the symbol editor and drawn; a placed symbol's style can't be switched |
+| Alternate pin functions | No | |
+| Move, rotate, mirror, delete, box select, copy, paste, duplicate | Works | Its own clipboard: not the system's, not between projects |
+| Undo and redo | Works | |
+| Fields, and the symbol fields table | Works | No per-field visibility, position or style; no BOM presets |
+| DNP, exclude from BOM, exclude from board | View only | Shown as flags |
+| Annotation | Works | Unannotated only, or all by X or Y; no scope or start number |
+| Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
+| Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |
+| Images | View only | |
+| Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
+| Find | Partly | Parts and nets; no text search or replace |
+| Cross-probing and net highlighting | Works | Between schematic, board and 3D |
+| ERC | Partly | 15 checks, at least 98% agreement with `kicad-cli` on its demos: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, hierarchical label mismatches, bus conflicts, library and footprint link issues. Severities are read from the project; no exclusions |
+| Netlist export, SPICE simulation | No | |
+| Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
+| Page settings and title block | Works | |
+| Plot to SVG and PDF | Works | PDF through the browser's print dialog. No PostScript, DXF or HPGL |
+
+### PCB editor
+
+| Feature | Status | Notes |
+|---|---|---|
+| Place, move, rotate, flip, lock footprints | Works | Compared with pcbnew |
+| Update PCB from schematic, update schematic from PCB | Works | |
+| Update footprints from the library | Works | |
+| Schematic ↔ board parity, ratsnest | Works | A few zone-to-pad cases over-report unconnected items |
+| Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB |
+| Stackup | Partly | Read and used; written only from the presets; no editor |
+| Custom rules | Partly | `clearance`, `hole_size`, `annular_width`, `track_width`, `via_diameter`, with the common condition functions. Not: length, skew, differential pair gap, edge, silk and courtyard clearance, `disallow` |
+| Interactive routing with 45° tracks | Works | Posture, width, via and layer change while routing |
+| Router modes | Partly | Highlight collisions and walkaround work; shove moves up to three tracks, along the grid |
+| Arc tracks | View only | Drawn, measured and plotted; can't be routed |
+| Dragging tracks | Partly | Track ends, and tracks follow a moved footprint; no segment drag |
+| Vias: through, blind, buried, micro | Works | No tenting or via-in-pad options |
+| Differential pairs | Partly | Coupled routing with paired vias; they don't shove |
+| Length tuning | Partly | Single-track meanders to a target, and matching a pair; not saved as KiCad tuning patterns |
+| Teardrops | Partly | Straight-edged; all or none |
+| Zones: draw, fill, refill | Works | Priorities, thermal reliefs, island removal and keepouts are honoured; fills compared with KiCad's by area and by its DRC |
+| Zone properties | Partly | Net, layers and pad connection; clearance, minimum width, priority and thermal sizes are honoured, with no way to edit them. No outline vertex editing. Hatched fills are kept, not refilled |
+| Keepout and rule areas | View only | Honoured by the fill, the DRC and custom rules |
+| Board outline | Works | Rectangle, rounded rectangle, polygon, mounting holes |
+| Graphics on other layers | View only | Movable; no drawing tools beyond the outline |
+| Text | Partly | Silkscreen text can be placed and edited; knockout and TrueType text are view only |
+| Dimensions | Partly | Aligned and orthogonal can be placed; radial, leader and centre are view only |
+| Text boxes, images, tables, groups | No | |
+| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
+| DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
+| Net inspector | Works | Lengths per layer, vias, CSV |
+| Selection filter, layer visibility, flip view, measure tool | Works | No layer colours, presets or net colours |
+| Copy, paste, duplicate | Works | Its own clipboard |
+| Cleanup tracks and vias, geographic reannotation, board statistics | Works | |
+| Pad properties | Partly | Size, shape, drill and net; not margins or zone connection |
+| Logo footprint from a bitmap | Works | No smoothing |
+| Arrays, align and distribute, position relative | No | |
+| DXF and SVG import, footprint wizard, component classes, repeated layout | No | |
+| Python scripting, action plugins, the IPC API | No | |
+
+### Symbol and footprint editors
+
+| Feature | Status | Notes |
+|---|---|---|
+| Symbols: pins (all electrical types and shapes), pin table, body graphics, fields | Works | Beziers are view only |
+| Symbols: units, unit names, body styles, jumper pin groups, power symbols | Works | |
+| Symbols: update placed symbols from the library | Works | Wires on moved pins are not re-attached |
+| Symbols: derived symbols, alternate pin functions, import and export | No | Derived symbols in existing libraries are read |
+| Footprints: pads singly, in rows and in grids; move, rotate, mirror, renumber | Works | Compared with pcbnew |
+| Footprints: pad types and shapes | Partly | SMD, through-hole and NPTH; rectangle, rounded rectangle, circle, oval, custom polygon. No trapezoid, chamfered or slotted pads |
+| Footprints: mask and paste overrides, paste windows | Works | |
+| Footprints: graphics on silkscreen, fab and courtyard; automatic courtyard | Works | No free text, fields only |
+| Footprints: 3D model with offset, rotation, scale and a preview | Works | |
+| Footprints: update placed footprints from the library | Works | |
+| Symbol and footprint checks | Partly | Their own lists, not KiCad's checkers |
+| Editing KiCad's own libraries, library management | No | A library part is copied into the project's library first |
+
+### 3D viewer
+
+| Feature | Status | Notes |
+|---|---|---|
+| Board with holes, copper, mask and silkscreen; STEP and VRML models | Works | Models placed as in KiCad's viewer; a missing model is shown as a box |
+| Orbit, pan, zoom, view presets; click a part to select it | Works | |
+| Layer visibility, colours, appearance presets | No | Parts can be hidden |
+| Raytracing, render to an image | No | |
+
+### Outputs
+
+| Feature | Status | Notes |
+|---|---|---|
+| Gerber X2 | Works | Each layer within 1% of KiCad's plot by area. Fixed options; no X1 |
+| Excellon drill files | Works | PTH, NPTH and a file per blind or buried span. No Gerber drill files, map or report |
+| Gerber job file | Works | |
+| Pick-and-place (CSV) | Works | Identical to KiCad's |
+| BOM (CSV) | Partly | Grouped by value, footprint and part number; no presets |
+| IPC-2581, ODB++ | Works | Compared with KiCad's by what CAM tools read |
+| IPC-D-356 | Works | Byte-identical to `kicad-cli` on its demo boards |
+| STEP | Works | Volume within 0.1% of KiCad's; holes and arcs are polygons |
+| GLB, STL, PLY | Works | |
+| Board and schematic plots: SVG, PDF | Works | PDF through the browser's print dialog; few plot options |
+| DXF, PostScript, HPGL, VRML, GenCAD, 3D PDF | No | |
+
+### KiCad's other tools
+
+| Feature | Status | Notes |
+|---|---|---|
+| Calculator | Partly | Track current and microstrip impedance, in Board setup |
+| Gerber viewer, drawing sheet editor, plugin and content manager | No | |
+| A command line like `kicad-cli` | No | `@crossprobe/kicad-model` can be used as a library from Node |
+| Preferences, hotkey editor | No | Shortcuts follow KiCad's defaults |
+
+### Not in KiCad
+
+- An autorouter: single connections, and "Route all" with fan-out and stitching to
+  pours.
+- ERC, DRC and parity run after every edit; one-click fixes for common ERC findings.
+- [Design blocks](blocks/README.md) with cited checklists, [requirements](docs/requirements.md)
+  and [compatibility](docs/compatibility.md) checks, and datasheet evidence pinned to
+  parts.
+- Land patterns generated from datasheet dimensions.
+- A pre-flight check before fabrication files are made, with JLCPCB presets and files.
 
 ## Licence
 
