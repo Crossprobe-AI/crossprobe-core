@@ -54,13 +54,15 @@ export function ipcD356(board: Board): string {
       if (!on.length) continue;
       const access = on.includes("F.Cu") && on.includes("B.Cu") ? 0 : on.includes("F.Cu") ? 1 : on.includes("B.Cu") ? copper.length : layerId(on[0]!) + 1;
       const drill = p.drillSize ? Math.min(p.drillSize.x, p.drillSize.y) : (p.drill ?? 0);
-      // KiCad writes −angle, then truncates it to whole degrees.
-      let rot = -p.rotation;
+      // KiCad keeps the pad's angle in 0–360 and writes its negative, truncated to whole
+      // degrees and then brought back into 0–360 (so 251.8° gives 109, and −74.1° gives 75).
+      let rot = Math.trunc(-(((p.rotation % 360) + 360) % 360));
       if (rot < 0) rot += 360;
       recs.push({
         net: p.net,
         refdes: fp.reference,
-        pin: p.number,
+        // A hole without plating has no pin, whatever number the file gives its pad.
+        pin: p.type === "np_thru_hole" ? "" : p.number,
         midpoint: false,
         hole: drill !== 0,
         drill: nm(drill),
@@ -71,7 +73,7 @@ export function ipcD356(board: Board): string {
         y: nm(origin.y) - nm(p.at.y),
         w: nm(p.size.x),
         h: p.shape === "circle" ? 0 : nm(p.size.y),
-        rotation: Math.trunc(rot),
+        rotation: rot,
         mask: 3 & ~(p.layers.some((l) => l === "F.Mask" || l === "*.Mask") ? 1 : 0) & ~(p.layers.some((l) => l === "B.Mask" || l === "*.Mask") ? 2 : 0),
       });
     }
