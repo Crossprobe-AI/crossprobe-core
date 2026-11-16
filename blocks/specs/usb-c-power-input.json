@@ -1,0 +1,447 @@
+{
+  "id": "usb-c-power-input",
+  "title": "USB-C power input (5 V, USB 2.0)",
+  "description": "A USB-C receptacle for a device that takes 5 V from a USB-C source and uses USB 2.0 data: the two 5.1 kΩ pull-downs on CC1 and CC2, the VBUS, ground and data pins bussed as the Type-C specification requires, and the unused SBU pins left open.",
+  "keywords": [
+    "USB-C",
+    "USB Type-C",
+    "power input",
+    "5V",
+    "CC pull-down",
+    "5.1k",
+    "USB 2.0",
+    "receptacle",
+    "sink"
+  ],
+  "category": "Connector",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "USB-C power input reference schematic for KiCad",
+    "description": "KiCad schematic for a USB-C 5 V power input with USB 2.0 data: 5.1 kΩ CC pull-downs and bussed pins, from the USB Type-C specification. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "USB Type-C Cable and Connector Specification, Release 2.0 (August 2019)",
+      "url": "https://www.usb.org/sites/default/files/USB%20Type-C%20Spec%20R2.0%20-%20August%202019.pdf",
+      "publisher": "USB 3.0 Promoter Group",
+      "note": "Page numbers are the PDF's. Requirements are quoted as facts, with page numbers; the circuit is drawn here, not copied."
+    }
+  ],
+  "power": {
+    "VBUS": "power:VBUS",
+    "GND": "power:GND"
+  },
+  "parts": [
+    {
+      "ref": "J1",
+      "symbol": "Connector:USB_C_Receptacle_USB2.0_16P",
+      "value": "USB-C receptacle",
+      "footprint": "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12",
+      "at": [
+        63.5,
+        88.9
+      ],
+      "pins": {
+        "A4": "VBUS",
+        "A9": "VBUS",
+        "B4": "VBUS",
+        "B9": "VBUS",
+        "A1": "GND",
+        "A12": "GND",
+        "B1": "GND",
+        "B12": "GND",
+        "SH": "GND",
+        "A5": "Net-(J1-CC1)",
+        "B5": "Net-(J1-CC2)",
+        "A7": "USB_DM",
+        "B7": "USB_DM",
+        "A6": "USB_DP",
+        "B6": "USB_DP"
+      },
+      "otherPins": "no_connect",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 69,
+        "where": "Table 3-5, receptacle pin assignments for USB 2.0-only support"
+      },
+      "note": "Any USB-C receptacle with this pinout works: change the footprint to the part you buy. The shell is tied to ground, as is usual."
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "5.1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        106.68,
+        82.55
+      ],
+      "pins": {
+        "1": "Net-(J1-CC1)",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 236,
+        "where": "Table 4-25, Rd 5.1 kOhm"
+      },
+      "note": "Rd on CC1. Use 1% or at least 10%: see the checklist."
+    },
+    {
+      "ref": "R2",
+      "symbol": "Device:R",
+      "value": "5.1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        96.52,
+        85.09
+      ],
+      "pins": {
+        "1": "Net-(J1-CC2)",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 236,
+        "where": "Table 4-25, Rd 5.1 kOhm"
+      },
+      "note": "Rd on CC2."
+    }
+  ],
+  "join": [
+    [
+      "J1.A7",
+      "J1.B7"
+    ],
+    [
+      "J1.A6",
+      "J1.B6"
+    ],
+    [
+      "J1.A1",
+      "J1.SH"
+    ],
+    [
+      "R1.1",
+      "J1.A5"
+    ],
+    [
+      "R2.1",
+      "J1.B5"
+    ]
+  ],
+  "notes": [
+    {
+      "at": [
+        45.72,
+        50.8
+      ],
+      "text": "USB-C sink, USB 2.0",
+      "heading": true
+    },
+    {
+      "at": [
+        45.72,
+        54.61
+      ],
+      "text": "5.1k from CC1 and from CC2 to ground (pp. 156, 236)"
+    },
+    {
+      "at": [
+        45.72,
+        58.42
+      ],
+      "text": "VBUS, ground and both D pairs bussed (p. 69)"
+    },
+    {
+      "at": [
+        86.36,
+        107.95
+      ],
+      "text": "SBU1 and SBU2: not connected (p. 69)"
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "A device that takes power from a USB-C port terminates both CC1 and CC2 to ground with pull-down resistors, called Rd. A source recognises the sink by Rd, and the sink knows a source is attached by power appearing on VBUS.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 156,
+        "where": "Sink functional model, Figure 4-9"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Rd is 5.1 kOhm. A +/-20% resistor works, but with it the sink cannot detect the current the source advertises; a +/-10% resistor can (Table 4-25). Use 1% resistors and you can add current detection later.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 236,
+        "where": "Table 4-25 Sink CC Termination (Rd) Requirements"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Connect all four VBUS pins together and all four ground pins together at the receptacle, on the board. Unused contact locations must be left unconnected.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 69,
+        "where": "Table 3-5, notes 1, 4 and 5"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "For USB 2.0 the receptacle has two D+ pins (A6, B6) and two D- pins (A7, B7), because the plug can go in either way. Connect the two D+ pins together and the two D- pins together, as close to the receptacle as possible. The shorting trace should be no longer than 3.5 mm.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 69,
+        "where": "Table 3-5, note 2"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Leave SBU1 and SBU2 not connected unless you need them for a specific purpose, such as audio adapter accessory mode.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 69,
+        "where": "Table 3-5, note 3"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "A USB 2.0-only sink that needs only default power, and does not use USB Power Delivery or accessories, may treat VBUS appearing as the connection. You then get default USB power only; the Type-C specification defers the limits to the USB 2.0 specification.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 171,
+        "where": "Sec. 4.5.2.2.3.2; Table 4-17 on p. 217"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "This block is a sink with Rd only. It does not negotiate: no USB Power Delivery, no 9 V, 12 V or 20 V, and no 1.5 A or 3 A. For those you need a PD controller on CC, and the choice of Rd tolerance and extra circuitry changes.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 236,
+        "where": "Table 4-25"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "Add ESD protection on VBUS and the data lines close to the receptacle, and bulk capacitance on VBUS as your regulator's datasheet asks. Neither is in this block; both are common practice.",
+      "basis": "convention"
+    }
+  ],
+  "layout": {
+    "parts": {
+      "J1": {
+        "at": [
+          20,
+          25
+        ]
+      },
+      "R1": {
+        "at": [
+          18,
+          31.2
+        ],
+        "rotate": 180
+      },
+      "R2": {
+        "at": [
+          22.5,
+          31.2
+        ]
+      }
+    },
+    "tracks": [
+      {
+        "net": "VBUS",
+        "width": 0.4,
+        "path": [
+          "J1.A4",
+          [
+            17.55,
+            18.5
+          ],
+          [
+            22.45,
+            18.5
+          ],
+          "J1.A9"
+        ]
+      },
+      {
+        "net": "USB_DP",
+        "width": 0.2,
+        "path": [
+          "J1.A6",
+          [
+            19.75,
+            19.4
+          ],
+          [
+            20.75,
+            19.4
+          ],
+          "J1.B6"
+        ]
+      },
+      {
+        "net": "USB_DM",
+        "width": 0.2,
+        "path": [
+          "J1.B7",
+          [
+            19.25,
+            22.2
+          ],
+          [
+            20.25,
+            22.2
+          ],
+          "J1.A7"
+        ]
+      },
+      {
+        "net": "Net-(J1-CC1)",
+        "width": 0.2,
+        "path": [
+          "J1.A5",
+          [
+            18.75,
+            31.2
+          ],
+          "R1.1"
+        ]
+      },
+      {
+        "net": "Net-(J1-CC2)",
+        "width": 0.2,
+        "path": [
+          "J1.B5",
+          [
+            21.75,
+            31.2
+          ],
+          "R2.1"
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.3,
+        "path": [
+          "J1.A1",
+          [
+            15.68,
+            21.87
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.3,
+        "path": [
+          "J1.A12",
+          [
+            24.32,
+            21.87
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.2,
+        "path": [
+          "R1.2",
+          [
+            17.515,
+            32.4
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.2,
+        "path": [
+          "R2.2",
+          [
+            22.985,
+            32.4
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "layer": "B.Cu",
+        "width": 0.3,
+        "path": [
+          [
+            15.68,
+            21.87
+          ],
+          [
+            15.68,
+            32.4
+          ],
+          [
+            24.32,
+            32.4
+          ],
+          [
+            24.32,
+            21.87
+          ]
+        ]
+      }
+    ],
+    "vias": [
+      {
+        "net": "GND",
+        "at": [
+          17.515,
+          32.4
+        ]
+      },
+      {
+        "net": "GND",
+        "at": [
+          22.985,
+          32.4
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "severity": "required",
+        "text": "Place the receptacle at the board edge, with its shield tabs through the board. The shell is tied to ground through the through-hole shield pads, joined on the back layer.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Route D+ and D- together, short, and on one layer where you can. Here the two D+ pads are joined north of the pad row and the two D- pads south of it, so neither pair crosses the other.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Keep the two 5.1 k CC resistors close to the receptacle; their ground return runs to the back layer through a via each.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "The VBUS bar is a 0.4 mm track for the pads' sake only. Size VBUS copper for the current you draw (0.5 A at 5 V for a default USB device, up to 3 A advertised).",
+        "basis": "convention"
+      }
+    ]
+  }
+}

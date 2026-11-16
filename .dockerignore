@@ -1,0 +1,14 @@
+# Keep the build context small: only what the Dockerfile copies is needed.
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.DS_Store
+.git
+.github
+e2e-out
+**/e2e-out
+.env
+.env.*
+Dockerfile
+compose.yaml
+.dockerignore

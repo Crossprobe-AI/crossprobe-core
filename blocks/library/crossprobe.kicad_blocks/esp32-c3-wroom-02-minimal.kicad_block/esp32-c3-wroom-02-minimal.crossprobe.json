@@ -1,0 +1,846 @@
+{
+  "id": "esp32-c3-wroom-02-minimal",
+  "title": "ESP32-C3-WROOM-02 minimal system",
+  "description": "ESP32-C3-WROOM-02 module with the peripheral circuit from Espressif's datasheet: 3V3 decoupling, EN reset network and button, the boot-strap pull-ups, USB D+/D- with series resistors, UART, JTAG and a boot-option header.",
+  "keywords": [
+    "ESP32-C3",
+    "ESP32-C3-WROOM-02",
+    "Espressif",
+    "RISC-V",
+    "Wi-Fi",
+    "Bluetooth LE",
+    "module",
+    "reference design",
+    "USB",
+    "JTAG",
+    "UART"
+  ],
+  "category": "MCU module",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "ESP32-C3-WROOM-02 reference schematic for KiCad",
+    "description": "KiCad schematic for the ESP32-C3-WROOM-02 module: decoupling, EN reset, boot straps, USB, UART and JTAG, after Espressif's datasheet. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "ESP32-C3-WROOM-02 & ESP32-C3-WROOM-02U Datasheet v1.7",
+      "url": "https://documentation.espressif.com/esp32-c3-wroom-02_datasheet_en.pdf",
+      "publisher": "Espressif Systems",
+      "note": "Values and pin assignments are quoted as facts, with page numbers; the circuit is drawn here, not copied."
+    }
+  ],
+  "layout": {
+    "footprints": 18,
+    "tracks": 6,
+    "vias": 0,
+    "routed": false,
+    "rules": [
+      {
+        "severity": "required",
+        "text": "Keep copper, tracks, vias and other parts out of the antenna zone: the 28.5 mm wide, 11.5 mm deep area beyond the module's antenna end, drawn as part of the footprint's courtyard. Put the antenna end at, or just past, the board edge.",
+        "basis": "convention"
+      },
+      {
+        "severity": "required",
+        "text": "Do not place a ground plane or copper under the antenna part of the module on any layer.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "The 10 uF and 0.1 uF decoupling capacitors sit at the module's 3V3 pin, on the side away from the antenna.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "Partly routed: the 0.1 uF decoupling capacitor at the 3V3 pin, the module's ground pin and the EN pull-up and capacitor are routed on the front layer. The rest is positioned and left as a ratsnest (including the 10 uF capacitor: put it within a few millimetres of the 3V3 pin). Route it yourself, with ground pour under and around the module body except at the antenna.",
+        "basis": "convention"
+      }
+    ]
+  },
+  "pins": [
+    {
+      "ref": "C1",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C1",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C2",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C2",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C3",
+      "number": "1",
+      "name": "",
+      "net": "EN"
+    },
+    {
+      "ref": "C3",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C4",
+      "number": "1",
+      "name": "",
+      "net": "RESET_BTN"
+    },
+    {
+      "ref": "C4",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C5",
+      "number": "1",
+      "name": "",
+      "net": "DP_CONN"
+    },
+    {
+      "ref": "C5",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C6",
+      "number": "1",
+      "name": "",
+      "net": "DM_CONN"
+    },
+    {
+      "ref": "C6",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "JP1",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "TMS"
+    },
+    {
+      "ref": "JP1",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "TDI"
+    },
+    {
+      "ref": "JP1",
+      "number": "3",
+      "name": "Pin_3",
+      "net": "TCK"
+    },
+    {
+      "ref": "JP1",
+      "number": "4",
+      "name": "Pin_4",
+      "net": "TDO"
+    },
+    {
+      "ref": "JP2",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "IO9"
+    },
+    {
+      "ref": "JP2",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "GND"
+    },
+    {
+      "ref": "JP3",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "DP_CONN"
+    },
+    {
+      "ref": "JP3",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "DM_CONN"
+    },
+    {
+      "ref": "JP4",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "+3V3"
+    },
+    {
+      "ref": "JP4",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "TXD0"
+    },
+    {
+      "ref": "JP4",
+      "number": "3",
+      "name": "Pin_3",
+      "net": "RXD0"
+    },
+    {
+      "ref": "JP4",
+      "number": "4",
+      "name": "Pin_4",
+      "net": "GND"
+    },
+    {
+      "ref": "R1",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "R1",
+      "number": "2",
+      "name": "",
+      "net": "EN"
+    },
+    {
+      "ref": "R2",
+      "number": "1",
+      "name": "",
+      "net": "EN"
+    },
+    {
+      "ref": "R2",
+      "number": "2",
+      "name": "",
+      "net": "RESET_BTN"
+    },
+    {
+      "ref": "R4",
+      "number": "1",
+      "name": "",
+      "net": "DP_CONN"
+    },
+    {
+      "ref": "R4",
+      "number": "2",
+      "name": "",
+      "net": "USB_DP"
+    },
+    {
+      "ref": "R6",
+      "number": "1",
+      "name": "",
+      "net": "DM_CONN"
+    },
+    {
+      "ref": "R6",
+      "number": "2",
+      "name": "",
+      "net": "USB_DM"
+    },
+    {
+      "ref": "R8",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "R8",
+      "number": "2",
+      "name": "",
+      "net": "IO8"
+    },
+    {
+      "ref": "R9",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "R9",
+      "number": "2",
+      "name": "",
+      "net": "IO2"
+    },
+    {
+      "ref": "SW1",
+      "number": "1",
+      "name": "1",
+      "net": "RESET_BTN"
+    },
+    {
+      "ref": "SW1",
+      "number": "2",
+      "name": "2",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "1",
+      "name": "3V3",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "2",
+      "name": "EN",
+      "net": "EN"
+    },
+    {
+      "ref": "U1",
+      "number": "3",
+      "name": "IO4",
+      "net": "TMS"
+    },
+    {
+      "ref": "U1",
+      "number": "4",
+      "name": "IO5",
+      "net": "TDI"
+    },
+    {
+      "ref": "U1",
+      "number": "5",
+      "name": "IO6",
+      "net": "TCK"
+    },
+    {
+      "ref": "U1",
+      "number": "6",
+      "name": "IO7",
+      "net": "TDO"
+    },
+    {
+      "ref": "U1",
+      "number": "7",
+      "name": "IO8",
+      "net": "IO8"
+    },
+    {
+      "ref": "U1",
+      "number": "8",
+      "name": "IO9",
+      "net": "IO9"
+    },
+    {
+      "ref": "U1",
+      "number": "9",
+      "name": "GND",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "11",
+      "name": "IO20/RXD",
+      "net": "RXD0"
+    },
+    {
+      "ref": "U1",
+      "number": "12",
+      "name": "IO21/TXD",
+      "net": "TXD0"
+    },
+    {
+      "ref": "U1",
+      "number": "13",
+      "name": "IO18",
+      "net": "USB_DM"
+    },
+    {
+      "ref": "U1",
+      "number": "14",
+      "name": "IO19",
+      "net": "USB_DP"
+    },
+    {
+      "ref": "U1",
+      "number": "16",
+      "name": "IO2",
+      "net": "IO2"
+    },
+    {
+      "ref": "U1",
+      "number": "19",
+      "name": "GND",
+      "net": "GND"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+3V3",
+      "pins": [
+        "C1.1",
+        "C2.1",
+        "JP4.1",
+        "R1.1",
+        "R8.1",
+        "R9.1",
+        "U1.1"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2",
+        "C3.2",
+        "C4.2",
+        "C5.2",
+        "C6.2",
+        "JP2.2",
+        "JP4.4",
+        "SW1.2",
+        "U1.9",
+        "U1.19"
+      ]
+    },
+    {
+      "name": "DM_CONN",
+      "pins": [
+        "C6.1",
+        "JP3.2",
+        "R6.1"
+      ]
+    },
+    {
+      "name": "DP_CONN",
+      "pins": [
+        "C5.1",
+        "JP3.1",
+        "R4.1"
+      ]
+    },
+    {
+      "name": "EN",
+      "pins": [
+        "C3.1",
+        "R1.2",
+        "R2.1",
+        "U1.2"
+      ]
+    },
+    {
+      "name": "IO2",
+      "pins": [
+        "R9.2",
+        "U1.16"
+      ]
+    },
+    {
+      "name": "IO8",
+      "pins": [
+        "R8.2",
+        "U1.7"
+      ]
+    },
+    {
+      "name": "IO9",
+      "pins": [
+        "JP2.1",
+        "U1.8"
+      ]
+    },
+    {
+      "name": "RESET_BTN",
+      "pins": [
+        "C4.1",
+        "R2.2",
+        "SW1.1"
+      ]
+    },
+    {
+      "name": "RXD0",
+      "pins": [
+        "JP4.3",
+        "U1.11"
+      ]
+    },
+    {
+      "name": "TCK",
+      "pins": [
+        "JP1.3",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "TDI",
+      "pins": [
+        "JP1.2",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "TDO",
+      "pins": [
+        "JP1.4",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "TMS",
+      "pins": [
+        "JP1.1",
+        "U1.3"
+      ]
+    },
+    {
+      "name": "TXD0",
+      "pins": [
+        "JP4.2",
+        "U1.12"
+      ]
+    },
+    {
+      "name": "USB_DM",
+      "pins": [
+        "R6.2",
+        "U1.13"
+      ]
+    },
+    {
+      "name": "USB_DP",
+      "pins": [
+        "R4.2",
+        "U1.14"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "RF_Module:ESP32-C3-WROOM-02",
+      "value": "ESP32-C3-WROOM-02",
+      "footprint": "RF_Module:ESP32-C3-WROOM-02",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1 Peripheral Schematics; pin table p. 11"
+      },
+      "note": "IO0, IO1, IO3 and IO10 are not used by the reference circuit and are marked no-connect (X). IO0 and IO1 can carry a 32.768 kHz crystal, not fitted in the figure."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "10uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, C1 on VDD33"
+      }
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "0.1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, C2 on VDD33"
+      }
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1 R1 (value TBD there); note: RC delay at EN, usually R = 10 kOhm"
+      },
+      "note": "The figure leaves R1 and C3 as TBD. The 10 kOhm and 1 uF come from the note under the figure; adjust them to your power-up timing."
+    },
+    {
+      "ref": "C3",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1 C3 (value TBD there); note: RC delay at EN, usually C = 1 uF"
+      }
+    },
+    {
+      "ref": "R2",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, R2 in series with the reset switch"
+      }
+    },
+    {
+      "ref": "SW1",
+      "symbol": "Switch:SW_Push",
+      "value": "RESET",
+      "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, SW1"
+      },
+      "note": "Pulls EN low to reset. The footprint is C&K's KMR2 tact switch from KiCad's library; use the switch you prefer."
+    },
+    {
+      "ref": "C4",
+      "symbol": "Device:C",
+      "value": "0.1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, C4 across the reset switch"
+      }
+    },
+    {
+      "ref": "R9",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, R9 pull-up on IO2"
+      }
+    },
+    {
+      "ref": "R8",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, R8 pull-up on IO8"
+      }
+    },
+    {
+      "ref": "JP3",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "USB",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, JP3 USB (pin 1 USB_D+, pin 2 USB_D-)"
+      },
+      "note": "Replace with your USB connector. The figure shows only the two data lines."
+    },
+    {
+      "ref": "R6",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, R6 in series with USB_D-"
+      }
+    },
+    {
+      "ref": "C6",
+      "symbol": "Device:C",
+      "value": "TBD",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "dnp": true,
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, C6 (TBD, not fitted)"
+      },
+      "note": "Footprint for tuning only; the datasheet gives no value and shows it as not fitted."
+    },
+    {
+      "ref": "R4",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, R4 in series with USB_D+"
+      }
+    },
+    {
+      "ref": "C5",
+      "symbol": "Device:C",
+      "value": "TBD",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "dnp": true,
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, C5 (TBD, not fitted)"
+      },
+      "note": "Footprint for tuning only; the datasheet gives no value and shows it as not fitted."
+    },
+    {
+      "ref": "JP4",
+      "symbol": "Connector_Generic:Conn_01x04",
+      "value": "UART",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, JP4 UART (VDD33, TXD, RXD, GND)"
+      }
+    },
+    {
+      "ref": "JP1",
+      "symbol": "Connector_Generic:Conn_01x04",
+      "value": "JTAG",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, JP1 JTAG; pin functions p. 11 (IO4 MTMS, IO5 MTDI, IO6 MTCK, IO7 MTDO)"
+      }
+    },
+    {
+      "ref": "JP2",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "Boot Option",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1, JP2 Boot Option (IO9 to GND)"
+      },
+      "note": "Bridge while resetting to start the serial/USB bootloader (Joint Download Boot, p. 13)."
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "Supply VDD33 within 3.0 to 3.6 V (3.3 V typical) and able to deliver at least 0.5 A.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 22,
+        "where": "Recommended Operating Conditions"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Fit 10 uF and 0.1 uF on the 3V3 pin as in the reference schematic.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "Place C1 and C2 as close to the module's 3V3 pin as practical, with a short return to the ground pad.",
+      "basis": "convention"
+    },
+    {
+      "severity": "required",
+      "text": "Never leave EN floating. Add the RC delay (usually 10 kOhm and 1 uF) so the supply is stable before the chip starts, and check it against your power-up timing: the rails need at least 50 us to stabilise before EN goes high, and EN must stay low for at least 50 us to reset.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "EN pin p. 11; note under Figure 9-1; timing Table 4-6, p. 15"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "GPIO2, GPIO8 and GPIO9 are strapping pins, read at reset. For normal boot from flash GPIO2 and GPIO9 must be high (GPIO8 can be anything); for download boot GPIO2 and GPIO8 must be high and GPIO9 low. GPIO2 and GPIO8 float by default and GPIO9 has a weak pull-up, so the reference circuit pulls GPIO2 and GPIO8 up with 10 kOhm resistors (R9, R8). The datasheet recommends the GPIO2 pull-up because of glitches.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 13,
+        "where": "Tables 4-1 and 4-3; Figure 9-1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "To start the bootloader, hold GPIO9 low while EN is released: bridge JP2, then reset. Both UART0 and the USB port work as the download interface in this mode. The strapping pins must hold their level for at least 3 ms after EN goes high, so do not drive them from anything else at that moment.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 13,
+        "where": "Table 4-2 and Table 4-3, Joint Download Boot"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "USB uses IO18 (D-, pin 13) and IO19 (D+, pin 14). The reference keeps 0 ohm series resistors R6 and R4 on both lines; C5 and C6 are placeholders with no value and not fitted.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1; pin table p. 11"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "UART0 (RXD = GPIO20 on pin 11, TXD = GPIO21 on pin 12) is on JP4 for firmware download and log output. JTAG is on IO4 (MTMS), IO5 (MTDI), IO6 (MTCK) and IO7 (MTDO), on JP1.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "Figure 9-1; pin table p. 11"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "Soldering the exposed ground pad (EPAD) is optional but improves thermal performance. Use the right amount of solder paste: too much lifts the module and spoils the other joints.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 34,
+        "where": "note under Figure 9-1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "The ESP32-C3-WROOM-02 has an on-board antenna, with a keep-out zone marked on the pin diagram (the -02U has none, for an external antenna). Keep copper, ground pour and components out of the keep-out zone and place the module as the Hardware Design Guidelines describe. Check the footprint against the recommended land pattern.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "Note A; Sec. 11.2 p. 39; land pattern p. 38"
+      }
+    }
+  ]
+}

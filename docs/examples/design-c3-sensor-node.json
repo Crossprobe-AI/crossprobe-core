@@ -1,0 +1,35 @@
+{
+  "name": "c3-sensor-node",
+  "title": "ESP32-C3 sensor node",
+  "description": "USB-C powered ESP32-C3 board with a Qwiic-style I2C header, reset and boot buttons and a status LED. 45 x 35 mm, 2 layers.",
+  "board": { "width": 45, "height": 35, "trackWidths": [{ "nets": ["VBUS", "+3V3"], "width": 0.4 }] },
+  "powerFlags": ["VBUS", "GND"],
+  "parts": [
+    { "ref": "J1", "symbol": "Connector:USB_C_Receptacle_USB2.0_16P", "value": "USB-C", "footprint": "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12", "group": "USB input", "place": { "edge": "left" },
+      "pins": { "A4": "VBUS", "A9": "VBUS", "B4": "VBUS", "B9": "VBUS", "A1": "GND", "A12": "GND", "B1": "GND", "B12": "GND", "SH": "GND", "A5": "CC1", "B5": "CC2", "A7": "USB_DM", "B7": "USB_DM", "A6": "USB_DP", "B6": "USB_DP" }, "otherPins": "no_connect" },
+    { "ref": "R1", "symbol": "Device:R", "value": "5.1k", "footprint": "Resistor_SMD:R_0402_1005Metric", "pins": { "1": "CC1", "2": "GND" }, "group": "USB input" },
+    { "ref": "R2", "symbol": "Device:R", "value": "5.1k", "footprint": "Resistor_SMD:R_0402_1005Metric", "pins": { "1": "CC2", "2": "GND" }, "group": "USB input" },
+    { "ref": "U2", "symbol": "Regulator_Linear:AP2112K-3.3", "value": "AP2112K-3.3", "footprint": "Package_TO_SOT_SMD:SOT-23-5", "pins": { "1": "VBUS", "3": "VBUS", "5": "+3V3", "2": "GND" }, "otherPins": "no_connect", "group": "3.3 V regulator" },
+    { "ref": "C1", "symbol": "Device:C", "value": "1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "VBUS", "2": "GND" }, "group": "3.3 V regulator" },
+    { "ref": "C2", "symbol": "Device:C", "value": "1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "+3V3", "2": "GND" }, "group": "3.3 V regulator" },
+    { "ref": "U1", "symbol": "RF_Module:ESP32-C3-WROOM-02", "value": "ESP32-C3-WROOM-02", "footprint": "RF_Module:ESP32-C3-WROOM-02", "group": "MCU", "place": { "edge": "right" },
+      "pins": { "1": "+3V3", "2": "EN", "9": "GND", "19": "GND", "8": "IO9", "13": "USB_DM", "14": "USB_DP", "5": "SDA", "6": "SCL", "4": "LED", "7": "IO8", "16": "IO2" }, "otherPins": "no_connect" },
+    { "ref": "C3", "symbol": "Device:C", "value": "10uF", "footprint": "Capacitor_SMD:C_0805_2012Metric", "pins": { "1": "+3V3", "2": "GND" }, "group": "MCU" },
+    { "ref": "C4", "symbol": "Device:C", "value": "0.1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "+3V3", "2": "GND" }, "group": "MCU" },
+    { "ref": "R3", "symbol": "Device:R", "value": "10k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "EN" }, "group": "MCU" },
+    { "ref": "C5", "symbol": "Device:C", "value": "1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "EN", "2": "GND" }, "group": "MCU" },
+    { "ref": "R4", "symbol": "Device:R", "value": "10k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "IO8" }, "group": "MCU" },
+    { "ref": "R5", "symbol": "Device:R", "value": "10k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "IO2" }, "group": "MCU" },
+    { "ref": "SW1", "symbol": "Switch:SW_Push", "value": "RESET", "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2", "pins": { "1": "EN", "2": "GND" }, "group": "Buttons" },
+    { "ref": "SW2", "symbol": "Switch:SW_Push", "value": "BOOT", "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2", "pins": { "1": "IO9", "2": "GND" }, "group": "Buttons" },
+    { "ref": "J2", "symbol": "Connector_Generic:Conn_01x04", "value": "I2C", "footprint": "Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal", "pins": { "1": "GND", "2": "+3V3", "3": "SDA", "4": "SCL" }, "group": "I2C", "place": { "edge": "bottom" } },
+    { "ref": "R6", "symbol": "Device:R", "value": "4.7k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "SDA" }, "group": "I2C" },
+    { "ref": "R7", "symbol": "Device:R", "value": "4.7k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "SCL" }, "group": "I2C" },
+    { "ref": "R8", "symbol": "Device:R", "value": "1k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "LED", "2": "LED_A" }, "group": "Status LED" },
+    { "ref": "D1", "symbol": "Device:LED", "value": "green", "footprint": "LED_SMD:LED_0603_1608Metric", "pins": { "A": "LED_A", "K": "GND" }, "group": "Status LED" }
+  ],
+  "requirements": [
+    { "id": "size", "title": "Fits 45 x 35 mm", "kind": "board_size", "maxWidthMm": 45, "maxHeightMm": 35 },
+    { "id": "i2c", "title": "I2C on J2", "kind": "connector_nets", "reference": "J2", "nets": ["SDA", "SCL", "+3V3", "GND"] }
+  ]
+}

@@ -1,0 +1,1270 @@
+<?xml version="1.0" standalone="no"?>
+ <svg
+ 
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+ 
+  version="1.1"
+  width="54.769mm" height="54.069mm" viewBox="19.73 30.5 54.769 54.069">
+<rect x="19.73" y="30.5" width="54.769" height="54.069" fill="#1b1d22" />
+<title>ESP32-S3-WROOM-1 minimal system: PCB layout</title>
+  <desc>PCB layout of ESP32-S3-WROOM-1 minimal system</desc>
+<g style="fill:#000000; fill-opacity:1.000;stroke:#000000; stroke-opacity:1.000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,54.940
+39.500,54.040
+41.000,54.040
+41.000,54.940
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,56.210
+39.500,55.310
+41.000,55.310
+41.000,56.210
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,57.480
+39.500,56.580
+41.000,56.580
+41.000,57.480
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,58.750
+39.500,57.850
+41.000,57.850
+41.000,58.750
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,60.020
+39.500,59.120
+41.000,59.120
+41.000,60.020
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,61.290
+39.500,60.390
+41.000,60.390
+41.000,61.290
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,62.560
+39.500,61.660
+41.000,61.660
+41.000,62.560
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,63.830
+39.500,62.930
+41.000,62.930
+41.000,63.830
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,65.100
+39.500,64.200
+41.000,64.200
+41.000,65.100
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,66.370
+39.500,65.470
+41.000,65.470
+41.000,66.370
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,67.640
+39.500,66.740
+41.000,66.740
+41.000,67.640
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,68.910
+39.500,68.010
+41.000,68.010
+41.000,68.910
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.500,70.180
+39.500,69.280
+41.000,69.280
+41.000,70.180
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 41.000,70.550
+41.000,71.450
+39.500,71.450
+39.500,70.550
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 41.565,71.500
+42.465,71.500
+42.465,73.000
+41.565,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 42.835,71.500
+43.735,71.500
+43.735,73.000
+42.835,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 44.105,71.500
+45.005,71.500
+45.005,73.000
+44.105,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 45.375,71.500
+46.275,71.500
+46.275,73.000
+45.375,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 46.645,71.500
+47.545,71.500
+47.545,73.000
+46.645,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 47.915,71.500
+48.815,71.500
+48.815,73.000
+47.915,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 49.185,71.500
+50.085,71.500
+50.085,73.000
+49.185,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 50.455,71.500
+51.355,71.500
+51.355,73.000
+50.455,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 51.725,71.500
+52.625,71.500
+52.625,73.000
+51.725,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 52.995,71.500
+53.895,71.500
+53.895,73.000
+52.995,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 54.265,71.500
+55.165,71.500
+55.165,73.000
+54.265,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 55.535,71.500
+56.435,71.500
+56.435,73.000
+55.535,73.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,71.450
+57.000,70.550
+58.500,70.550
+58.500,71.450
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,70.180
+57.000,69.280
+58.500,69.280
+58.500,70.180
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,68.910
+57.000,68.010
+58.500,68.010
+58.500,68.910
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,67.640
+57.000,66.740
+58.500,66.740
+58.500,67.640
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,66.370
+57.000,65.470
+58.500,65.470
+58.500,66.370
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,65.100
+57.000,64.200
+58.500,64.200
+58.500,65.100
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,63.830
+57.000,62.930
+58.500,62.930
+58.500,63.830
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,62.560
+57.000,61.660
+58.500,61.660
+58.500,62.560
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,61.290
+57.000,60.390
+58.500,60.390
+58.500,61.290
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,60.020
+57.000,59.120
+58.500,59.120
+58.500,60.020
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,58.750
+57.000,57.850
+58.500,57.850
+58.500,58.750
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,57.480
+57.000,56.580
+58.500,56.580
+58.500,57.480
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,56.210
+57.000,55.310
+58.500,55.310
+58.500,56.210
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 57.000,54.940
+57.000,54.040
+58.500,54.040
+58.500,54.940
+Z" /> 
+</g>
+<g style="fill:#C83434; fill-opacity:1.000; stroke:none;">
+<circle cx="46.100" cy="61.510" r="0.300" /> 
+<circle cx="46.100" cy="62.910" r="0.300" /> 
+<circle cx="46.800" cy="60.810" r="0.300" /> 
+<circle cx="46.800" cy="62.210" r="0.300" /> 
+<circle cx="46.800" cy="63.610" r="0.300" /> 
+<circle cx="47.500" cy="61.510" r="0.300" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 45.550,60.260
+49.450,60.260
+49.450,64.160
+45.550,64.160
+Z" /> 
+<circle cx="47.500" cy="62.910" r="0.300" /> 
+<circle cx="48.200" cy="60.810" r="0.300" /> 
+<circle cx="48.200" cy="62.210" r="0.300" /> 
+<circle cx="48.200" cy="63.610" r="0.300" /> 
+<circle cx="48.900" cy="61.510" r="0.300" /> 
+<circle cx="48.900" cy="62.910" r="0.300" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 37.950,60.225
+37.931,60.320
+37.876,60.401
+37.795,60.456
+37.700,60.475
+37.200,60.475
+37.104,60.456
+37.023,60.401
+36.969,60.320
+36.950,60.225
+36.950,59.275
+36.969,59.179
+37.023,59.098
+37.104,59.044
+37.200,59.025
+37.700,59.025
+37.795,59.044
+37.876,59.098
+37.931,59.179
+37.950,59.275
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 36.050,60.225
+36.031,60.320
+35.976,60.401
+35.895,60.456
+35.800,60.475
+35.300,60.475
+35.204,60.456
+35.123,60.401
+35.069,60.320
+35.050,60.225
+35.050,59.275
+35.069,59.179
+35.123,59.098
+35.204,59.044
+35.300,59.025
+35.800,59.025
+35.895,59.044
+35.976,59.098
+36.031,59.179
+36.050,59.275
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 37.725,56.000
+37.707,56.086
+37.659,56.159
+37.586,56.207
+37.500,56.225
+37.050,56.225
+36.963,56.207
+36.890,56.159
+36.842,56.086
+36.825,56.000
+36.825,55.500
+36.842,55.413
+36.890,55.340
+36.963,55.292
+37.050,55.275
+37.500,55.275
+37.586,55.292
+37.659,55.340
+37.707,55.413
+37.725,55.500
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 36.175,56.000
+36.157,56.086
+36.109,56.159
+36.036,56.207
+35.950,56.225
+35.500,56.225
+35.413,56.207
+35.340,56.159
+35.292,56.086
+35.275,56.000
+35.275,55.500
+35.292,55.413
+35.340,55.340
+35.413,55.292
+35.500,55.275
+35.950,55.275
+36.036,55.292
+36.109,55.340
+36.157,55.413
+36.175,55.500
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 35.275,63.475
+35.290,63.398
+35.333,63.333
+35.398,63.290
+35.475,63.275
+35.875,63.275
+35.951,63.290
+36.016,63.333
+36.059,63.398
+36.075,63.475
+36.075,64.025
+36.059,64.101
+36.016,64.166
+35.951,64.209
+35.875,64.225
+35.475,64.225
+35.398,64.209
+35.333,64.166
+35.290,64.101
+35.275,64.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 36.925,63.475
+36.940,63.398
+36.983,63.333
+37.048,63.290
+37.125,63.275
+37.525,63.275
+37.601,63.290
+37.666,63.333
+37.709,63.398
+37.725,63.475
+37.725,64.025
+37.709,64.101
+37.666,64.166
+37.601,64.209
+37.525,64.225
+37.125,64.225
+37.048,64.209
+36.983,64.166
+36.940,64.101
+36.925,64.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 37.725,68.000
+37.707,68.086
+37.659,68.159
+37.586,68.207
+37.500,68.225
+37.050,68.225
+36.963,68.207
+36.890,68.159
+36.842,68.086
+36.825,68.000
+36.825,67.500
+36.842,67.413
+36.890,67.340
+36.963,67.292
+37.050,67.275
+37.500,67.275
+37.586,67.292
+37.659,67.340
+37.707,67.413
+37.725,67.500
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 36.175,68.000
+36.157,68.086
+36.109,68.159
+36.036,68.207
+35.950,68.225
+35.500,68.225
+35.413,68.207
+35.340,68.159
+35.292,68.086
+35.275,68.000
+35.275,67.500
+35.292,67.413
+35.340,67.340
+35.413,67.292
+35.500,67.275
+35.950,67.275
+36.036,67.292
+36.109,67.340
+36.157,67.413
+36.175,67.500
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 37.725,72.025
+37.709,72.101
+37.666,72.166
+37.601,72.209
+37.525,72.225
+37.125,72.225
+37.048,72.209
+36.983,72.166
+36.940,72.101
+36.925,72.025
+36.925,71.475
+36.940,71.398
+36.983,71.333
+37.048,71.290
+37.125,71.275
+37.525,71.275
+37.601,71.290
+37.666,71.333
+37.709,71.398
+37.725,71.475
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 36.075,72.025
+36.059,72.101
+36.016,72.166
+35.951,72.209
+35.875,72.225
+35.475,72.225
+35.398,72.209
+35.333,72.166
+35.290,72.101
+35.275,72.025
+35.275,71.475
+35.290,71.398
+35.333,71.333
+35.398,71.290
+35.475,71.275
+35.875,71.275
+35.951,71.290
+36.016,71.333
+36.059,71.398
+36.075,71.475
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 26.500,57.450
+26.500,56.450
+27.400,56.450
+27.400,57.450
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 30.600,57.450
+30.600,56.450
+31.500,56.450
+31.500,57.450
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 26.500,59.050
+26.500,58.050
+27.400,58.050
+27.400,59.050
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 30.600,59.050
+30.600,58.050
+31.500,58.050
+31.500,59.050
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 27.775,62.500
+27.792,62.413
+27.840,62.340
+27.913,62.292
+28.000,62.275
+28.450,62.275
+28.536,62.292
+28.609,62.340
+28.657,62.413
+28.675,62.500
+28.675,63.000
+28.657,63.086
+28.609,63.159
+28.536,63.207
+28.450,63.225
+28.000,63.225
+27.913,63.207
+27.840,63.159
+27.792,63.086
+27.775,63.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 29.325,62.500
+29.342,62.413
+29.390,62.340
+29.463,62.292
+29.550,62.275
+30.000,62.275
+30.086,62.292
+30.159,62.340
+30.207,62.413
+30.225,62.500
+30.225,63.000
+30.207,63.086
+30.159,63.159
+30.086,63.207
+30.000,63.225
+29.550,63.225
+29.463,63.207
+29.390,63.159
+29.342,63.086
+29.325,63.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 22.150,79.600
+22.150,77.900
+23.850,77.900
+23.850,79.600
+Z" /> 
+<circle cx="23.000" cy="81.290" r="0.850" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 33.775,76.475
+33.790,76.398
+33.833,76.333
+33.898,76.290
+33.975,76.275
+34.375,76.275
+34.451,76.290
+34.516,76.333
+34.559,76.398
+34.575,76.475
+34.575,77.025
+34.559,77.101
+34.516,77.166
+34.451,77.209
+34.375,77.225
+33.975,77.225
+33.898,77.209
+33.833,77.166
+33.790,77.101
+33.775,77.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 35.425,76.475
+35.440,76.398
+35.483,76.333
+35.548,76.290
+35.625,76.275
+36.025,76.275
+36.101,76.290
+36.166,76.333
+36.209,76.398
+36.225,76.475
+36.225,77.025
+36.209,77.101
+36.166,77.166
+36.101,77.209
+36.025,77.225
+35.625,77.225
+35.548,77.209
+35.483,77.166
+35.440,77.101
+35.425,77.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 33.775,80.475
+33.790,80.398
+33.833,80.333
+33.898,80.290
+33.975,80.275
+34.375,80.275
+34.451,80.290
+34.516,80.333
+34.559,80.398
+34.575,80.475
+34.575,81.025
+34.559,81.101
+34.516,81.166
+34.451,81.209
+34.375,81.225
+33.975,81.225
+33.898,81.209
+33.833,81.166
+33.790,81.101
+33.775,81.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 35.425,80.475
+35.440,80.398
+35.483,80.333
+35.548,80.290
+35.625,80.275
+36.025,80.275
+36.101,80.290
+36.166,80.333
+36.209,80.398
+36.225,80.475
+36.225,81.025
+36.209,81.101
+36.166,81.166
+36.101,81.209
+36.025,81.225
+35.625,81.225
+35.548,81.209
+35.483,81.166
+35.440,81.101
+35.425,81.025
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 27.775,76.500
+27.792,76.413
+27.840,76.340
+27.913,76.292
+28.000,76.275
+28.450,76.275
+28.536,76.292
+28.609,76.340
+28.657,76.413
+28.675,76.500
+28.675,77.000
+28.657,77.086
+28.609,77.159
+28.536,77.207
+28.450,77.225
+28.000,77.225
+27.913,77.207
+27.840,77.159
+27.792,77.086
+27.775,77.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 29.325,76.500
+29.342,76.413
+29.390,76.340
+29.463,76.292
+29.550,76.275
+30.000,76.275
+30.086,76.292
+30.159,76.340
+30.207,76.413
+30.225,76.500
+30.225,77.000
+30.207,77.086
+30.159,77.159
+30.086,77.207
+30.000,77.225
+29.550,77.225
+29.463,77.207
+29.390,77.159
+29.342,77.086
+29.325,77.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 27.775,80.500
+27.792,80.413
+27.840,80.340
+27.913,80.292
+28.000,80.275
+28.450,80.275
+28.536,80.292
+28.609,80.340
+28.657,80.413
+28.675,80.500
+28.675,81.000
+28.657,81.086
+28.609,81.159
+28.536,81.207
+28.450,81.225
+28.000,81.225
+27.913,81.207
+27.840,81.159
+27.792,81.086
+27.775,81.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 29.325,80.500
+29.342,80.413
+29.390,80.340
+29.463,80.292
+29.550,80.275
+30.000,80.275
+30.086,80.292
+30.159,80.340
+30.207,80.413
+30.225,80.500
+30.225,81.000
+30.207,81.086
+30.159,81.159
+30.086,81.207
+30.000,81.225
+29.550,81.225
+29.463,81.207
+29.390,81.159
+29.342,81.086
+29.325,81.000
+Z" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 64.150,56.600
+64.150,54.900
+65.850,54.900
+65.850,56.600
+Z" /> 
+<circle cx="65.000" cy="58.290" r="0.850" /> 
+<circle cx="65.000" cy="60.830" r="0.850" /> 
+<circle cx="65.000" cy="63.370" r="0.850" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 69.150,56.600
+69.150,54.900
+70.850,54.900
+70.850,56.600
+Z" /> 
+<circle cx="70.000" cy="58.290" r="0.850" /> 
+<circle cx="70.000" cy="60.830" r="0.850" /> 
+<circle cx="70.000" cy="63.370" r="0.850" /> 
+<path style="fill:#C83434; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 64.150,70.600
+64.150,68.900
+65.850,68.900
+65.850,70.600
+Z" /> 
+<circle cx="65.000" cy="72.290" r="0.850" /> 
+</g>
+<g style="fill:none; 
+stroke:#C83434; stroke-width:0.250; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M37.275 55.750
+L40.250 55.760
+" />
+<path d="M37.450 59.750
+L38.200 59.750
+" />
+<path d="M38.200 59.750
+L38.200 55.760
+" />
+<path d="M40.250 54.490
+L34.600 54.490
+" />
+<path d="M34.600 54.490
+L34.600 67.750
+" />
+<path d="M34.600 67.750
+L35.725 67.750
+" />
+<path d="M35.725 55.750
+L34.600 55.750
+" />
+<path d="M35.550 59.750
+L34.600 59.750
+" />
+<path d="M40.250 57.030
+L39.000 57.030
+" />
+<path d="M39.000 57.030
+L39.000 71.750
+" />
+<path d="M37.325 63.750
+L39.000 63.750
+" />
+<path d="M37.275 67.750
+L39.000 67.750
+" />
+<path d="M37.325 71.750
+L39.000 71.750
+" />
+</g>
+<g style="fill:#4D7FC4; fill-opacity:1.000; stroke:none;">
+<circle cx="46.100" cy="61.510" r="0.300" /> 
+<circle cx="46.100" cy="62.910" r="0.300" /> 
+<circle cx="46.800" cy="60.810" r="0.300" /> 
+<circle cx="46.800" cy="62.210" r="0.300" /> 
+<circle cx="46.800" cy="63.610" r="0.300" /> 
+<circle cx="47.500" cy="61.510" r="0.300" /> 
+<circle cx="47.500" cy="62.910" r="0.300" /> 
+<circle cx="48.200" cy="60.810" r="0.300" /> 
+<circle cx="48.200" cy="62.210" r="0.300" /> 
+<circle cx="48.200" cy="63.610" r="0.300" /> 
+<circle cx="48.900" cy="61.510" r="0.300" /> 
+<circle cx="48.900" cy="62.910" r="0.300" /> 
+<path style="fill:#4D7FC4; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 22.150,79.600
+22.150,77.900
+23.850,77.900
+23.850,79.600
+Z" /> 
+<circle cx="23.000" cy="81.290" r="0.850" /> 
+<path style="fill:#4D7FC4; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 64.150,56.600
+64.150,54.900
+65.850,54.900
+65.850,56.600
+Z" /> 
+<circle cx="65.000" cy="58.290" r="0.850" /> 
+<circle cx="65.000" cy="60.830" r="0.850" /> 
+<circle cx="65.000" cy="63.370" r="0.850" /> 
+<path style="fill:#4D7FC4; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 69.150,56.600
+69.150,54.900
+70.850,54.900
+70.850,56.600
+Z" /> 
+<circle cx="70.000" cy="58.290" r="0.850" /> 
+<circle cx="70.000" cy="60.830" r="0.850" /> 
+<circle cx="70.000" cy="63.370" r="0.850" /> 
+<path style="fill:#4D7FC4; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 64.150,70.600
+64.150,68.900
+65.850,68.900
+65.850,70.600
+Z" /> 
+<circle cx="65.000" cy="72.290" r="0.850" /> 
+</g>
+<g style="fill:none; 
+stroke:#F2EDA1; stroke-width:0.120; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M39.800 46.850
+L39.800 53.050
+" />
+<path d="M39.800 46.850
+L58.200 46.850
+" />
+<path d="M39.800 71.700
+L39.800 72.700
+" />
+<path d="M39.800 72.700
+L41.300 72.700
+" />
+<path d="M58.200 46.850
+L58.200 53.050
+" />
+<path d="M58.200 72.700
+L56.700 72.700
+" />
+<path d="M58.200 72.700
+L58.200 71.700
+" />
+<path style="fill:none; 
+stroke:#F2EDA1; stroke-width:0.120; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 39.800,53.725
+39.300,53.725
+39.800,53.225
+Z" /> 
+<path style="fill:#F2EDA1; fill-opacity:1.000; stroke:none;fill-rule:evenodd;"
+d="M 39.800,53.725
+39.300,53.725
+39.800,53.225
+Z" /> 
+</g>
+<g style="fill:none; 
+stroke:#F2EDA1; stroke-width:0.120; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M36.761 60.485
+L36.238 60.485
+" />
+<path d="M36.761 59.015
+L36.238 59.015
+" />
+<path d="M36.640 56.260
+L36.359 56.260
+" />
+<path d="M36.640 55.240
+L36.359 55.240
+" />
+<path d="M36.262 63.227
+L36.737 63.227
+" />
+<path d="M36.262 64.272
+L36.737 64.272
+" />
+<path d="M36.640 68.260
+L36.359 68.260
+" />
+<path d="M36.640 67.240
+L36.359 67.240
+" />
+<path d="M36.737 72.272
+L36.262 72.272
+" />
+<path d="M36.737 71.227
+L36.262 71.227
+" />
+<path d="M26.800 57.800
+L26.800 57.700
+" />
+<path d="M26.800 59.300
+L31.200 59.300
+" />
+<path d="M31.200 56.200
+L26.800 56.200
+" />
+<path d="M31.200 57.800
+L31.200 57.700
+" />
+<path d="M28.859 62.240
+L29.140 62.240
+" />
+<path d="M28.859 63.260
+L29.140 63.260
+" />
+<path d="M21.620 77.370
+L23.000 77.370
+" />
+<path d="M21.620 78.750
+L21.620 77.370
+" />
+<path d="M21.620 80.020
+L21.620 82.670
+" />
+<path d="M21.620 80.020
+L24.380 80.020
+" />
+<path d="M21.620 82.670
+L24.380 82.670
+" />
+<path d="M24.380 80.020
+L24.380 82.670
+" />
+<path d="M34.762 76.227
+L35.237 76.227
+" />
+<path d="M34.762 77.272
+L35.237 77.272
+" />
+<path d="M34.762 80.227
+L35.237 80.227
+" />
+<path d="M34.762 81.272
+L35.237 81.272
+" />
+<path d="M28.859 76.240
+L29.140 76.240
+" />
+<path d="M28.859 77.260
+L29.140 77.260
+" />
+<path d="M28.859 80.240
+L29.140 80.240
+" />
+<path d="M28.859 81.260
+L29.140 81.260
+" />
+<path d="M63.620 54.370
+L65.000 54.370
+" />
+<path d="M63.620 55.750
+L63.620 54.370
+" />
+<path d="M63.620 57.020
+L63.620 64.750
+" />
+<path d="M63.620 57.020
+L66.380 57.020
+" />
+<path d="M63.620 64.750
+L66.380 64.750
+" />
+<path d="M66.380 57.020
+L66.380 64.750
+" />
+<path d="M68.620 54.370
+L70.000 54.370
+" />
+<path d="M68.620 55.750
+L68.620 54.370
+" />
+<path d="M68.620 57.020
+L68.620 64.750
+" />
+<path d="M68.620 57.020
+L71.380 57.020
+" />
+<path d="M68.620 64.750
+L71.380 64.750
+" />
+<path d="M71.380 57.020
+L71.380 64.750
+" />
+<path d="M63.620 68.370
+L65.000 68.370
+" />
+<path d="M63.620 69.750
+L63.620 68.370
+" />
+<path d="M63.620 71.020
+L63.620 73.670
+" />
+<path d="M63.620 71.020
+L66.380 71.020
+" />
+<path d="M63.620 73.670
+L66.380 73.670
+" />
+<path d="M66.380 71.020
+L66.380 73.670
+" />
+</g>
+<g style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M25.000 32.000
+L25.000 53.000
+" />
+<path d="M25.000 53.000
+L39.250 53.000
+" />
+<path d="M39.250 73.200
+L39.250 53.000
+" />
+<path d="M39.250 73.200
+L58.750 73.200
+" />
+<path d="M58.750 53.000
+L58.750 73.200
+" />
+<path d="M58.750 53.000
+L73.000 53.000
+" />
+<path d="M73.000 32.000
+L25.000 32.000
+" />
+<path d="M73.000 53.000
+L73.000 32.000
+" />
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 34.800,58.770
+38.200,58.770
+38.200,60.730
+34.800,60.730
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 35.020,55.020
+37.980,55.020
+37.980,56.480
+35.020,56.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 35.020,63.020
+37.980,63.020
+37.980,64.480
+35.020,64.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 35.020,67.020
+37.980,67.020
+37.980,68.480
+35.020,68.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 35.020,71.020
+37.980,71.020
+37.980,72.480
+35.020,72.480
+Z" /> 
+<path d="M26.200 55.950
+L31.800 55.950
+" />
+<path d="M26.200 59.550
+L26.200 55.950
+" />
+<path d="M31.800 55.950
+L31.800 59.550
+" />
+<path d="M31.800 59.550
+L26.200 59.550
+" />
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 27.520,62.020
+30.480,62.020
+30.480,63.480
+27.520,63.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 21.230,76.980
+24.770,76.980
+24.770,83.070
+21.230,83.070
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 33.520,76.020
+36.480,76.020
+36.480,77.480
+33.520,77.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 33.520,80.020
+36.480,80.020
+36.480,81.480
+33.520,81.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 27.520,76.020
+30.480,76.020
+30.480,77.480
+27.520,77.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 27.520,80.020
+30.480,80.020
+30.480,81.480
+27.520,81.480
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 63.230,53.980
+66.770,53.980
+66.770,65.140
+63.230,65.140
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 68.230,53.980
+71.770,53.980
+71.770,65.140
+68.230,65.140
+Z" /> 
+<path style="fill:none; 
+stroke:#FF26E2; stroke-width:0.050; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 63.230,67.980
+66.770,67.980
+66.770,74.070
+63.230,74.070
+Z" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="46.100" cy="61.510" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="46.100" cy="62.910" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="46.800" cy="60.810" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="46.800" cy="62.210" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="46.800" cy="63.610" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="47.500" cy="61.510" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="47.500" cy="62.910" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="48.200" cy="60.810" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="48.200" cy="62.210" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="48.200" cy="63.610" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="48.900" cy="61.510" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="48.900" cy="62.910" r="0.100" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="23.000" cy="78.750" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="23.000" cy="81.290" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="55.750" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="58.290" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="60.830" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="63.370" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="70.000" cy="55.750" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="70.000" cy="58.290" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="70.000" cy="60.830" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="70.000" cy="63.370" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="69.750" r="0.500" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.000; stroke:none;">
+<circle cx="65.000" cy="72.290" r="0.500" /> 
+</g> 
+</svg>

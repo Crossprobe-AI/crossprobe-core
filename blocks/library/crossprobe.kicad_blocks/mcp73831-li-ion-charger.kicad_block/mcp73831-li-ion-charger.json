@@ -1,0 +1,5 @@
+{
+  "description": "MCP73831-2 single-cell Li-ion/Li-polymer charger with the typical application circuit from Microchip's datasheet: 4.7 µF input and output capacitors, 2 kΩ programming resistor for 500 mA, and a status LED.",
+  "keywords": "MCP73831 Li-ion charger LiPo battery charger 500 mA Microchip SOT-23-5 USB charging",
+  "fields": {}
+}

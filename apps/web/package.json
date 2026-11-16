@@ -1,0 +1,58 @@
+{
+  "name": "@crossprobe/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./analyze": "./src/analyze.ts",
+    "./compat/compat": "./src/compat/compat.ts",
+    "./datasheet/checks": "./src/datasheet/checks.ts",
+    "./datasheet/evidence": "./src/datasheet/evidence.ts",
+    "./datasheet/extract": "./src/datasheet/extract.ts",
+    "./datasheet/ocr": "./src/datasheet/ocr.ts",
+    "./datasheet/open": "./src/datasheet/open.ts",
+    "./datasheet/search": "./src/datasheet/search.ts",
+    "./datasheet/types": "./src/datasheet/types.ts",
+    "./edit/ops": "./src/edit/ops.ts",
+    "./extensions": "./src/extensions/index.ts",
+    "./extensions/api": "./src/extensions/api.ts",
+    "./extensions/slots": "./src/extensions/slots.tsx",
+    "./load": "./src/load.ts",
+    "./persist": "./src/persist.ts",
+    "./plot/plot": "./src/plot/plot.ts",
+    "./render/types": "./src/render/types.ts",
+    "./requirements/requirements": "./src/requirements/requirements.ts",
+    "./server/bundled-libs": "./server/bundled-libs.ts",
+    "./ui/FootprintChooser": "./src/ui/FootprintChooser.tsx",
+    "./ui/Menu": "./src/ui/Menu.tsx",
+    "./ui/fields": "./src/ui/fields.ts",
+    "./ui/icons": "./src/ui/icons.tsx",
+    "./ui/selection": "./src/ui/selection.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@crossprobe/kicad-model": "0.1.0",
+    "@crossprobe/kicad-sexpr": "0.1.0",
+    "fflate": "^0.8.3",
+    "occt-import-js": "^0.0.23",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tesseract.js": "^7.0.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "vite": "^8.3.6"
+  },
+  "license": "Apache-2.0"
+}

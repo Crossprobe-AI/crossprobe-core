@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Crossprobe">
+  <rect width="64" height="64" rx="10" fill="#0e3b2d"/>
+  <!-- Two traces with 45° bends that cross at a via: the "cross" in cross-probing. -->
+  <g fill="none" stroke="#f4f7f5" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 20H20L44 44H52"/>
+    <path d="M12 44H20L44 20H52"/>
+  </g>
+  <g fill="#f4f7f5">
+    <circle cx="11" cy="20" r="4.5"/><circle cx="11" cy="44" r="4.5"/>
+    <circle cx="53" cy="20" r="4.5"/><circle cx="53" cy="44" r="4.5"/>
+  </g>
+  <!-- The probe point: a via ringed in highlighter yellow, the mark of what is selected. -->
+  <circle cx="32" cy="32" r="7" fill="#0e3b2d" stroke="#ffd84a" stroke-width="4.5"/>
+</svg>

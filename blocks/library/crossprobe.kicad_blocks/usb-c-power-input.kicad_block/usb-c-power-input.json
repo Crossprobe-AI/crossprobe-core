@@ -1,0 +1,5 @@
+{
+  "description": "A USB-C receptacle for a device that takes 5 V from a USB-C source and uses USB 2.0 data: the two 5.1 kΩ pull-downs on CC1 and CC2, the VBUS, ground and data pins bussed as the Type-C specification requires, and the unused SBU pins left open.",
+  "keywords": "USB-C USB Type-C power input 5V CC pull-down 5.1k USB 2.0 receptacle sink",
+  "fields": {}
+}

@@ -1,0 +1,1063 @@
+{
+  "id": "rp2040-minimal",
+  "title": "RP2040 minimal system",
+  "description": "RP2040 with the circuit from Raspberry Pi's minimal design: supply decoupling, the internal regulator capacitors, a W25Q128JVS flash, the 12 MHz crystal, USB with series resistors and a BOOTSEL header. It takes 3.3 V from outside.",
+  "keywords": [
+    "RP2040",
+    "Raspberry Pi",
+    "Pico",
+    "microcontroller",
+    "12 MHz crystal",
+    "QSPI flash",
+    "W25Q128JVS",
+    "USB",
+    "BOOTSEL",
+    "reference design"
+  ],
+  "category": "MCU",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "RP2040 minimal reference schematic for KiCad",
+    "description": "KiCad schematic for an RP2040 board: flash, 12 MHz crystal, USB, decoupling and BOOTSEL, drawn after Raspberry Pi's minimal design. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "Hardware design with RP2040 (Raspberry Pi Ltd, 2022-2026)",
+      "url": "https://datasheets.raspberrypi.com/rp2040/hardware-design-with-rp2040.pdf",
+      "publisher": "Raspberry Pi Ltd",
+      "note": "Page numbers are the printed ones, one lower than the PDF viewer's. Values are quoted as facts; the circuit is drawn here, not copied."
+    },
+    {
+      "id": "files",
+      "title": "RP2040 Minimal KiCad design, R3-S1 (design files)",
+      "url": "https://datasheets.raspberrypi.com/rp2040/Minimal-KiCAD.zip",
+      "publisher": "Raspberry Pi Ltd",
+      "note": "MIT license. Used to check which pins carry which capacitors and the part values."
+    }
+  ],
+  "power": {
+    "+3V3": "power:+3V3",
+    "+1V1": "power:+1V1",
+    "GND": "power:GND",
+    "VBUS": "power:VBUS"
+  },
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "MCU_RaspberryPi:RP2040",
+      "value": "RP2040",
+      "footprint": "Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP3.2x3.2mm",
+      "at": [
+        190.5,
+        114.3
+      ],
+      "pins": {
+        "1": "+3V3",
+        "10": "+3V3",
+        "22": "+3V3",
+        "33": "+3V3",
+        "42": "+3V3",
+        "49": "+3V3",
+        "43": "+3V3",
+        "44": "+3V3",
+        "48": "+3V3",
+        "45": "+1V1",
+        "23": "+1V1",
+        "50": "+1V1",
+        "19": "GND",
+        "57": "GND",
+        "20": "XIN",
+        "21": "XOUT",
+        "26": "RUN",
+        "24": "SWCLK",
+        "25": "SWDIO",
+        "46": "USB_DM",
+        "47": "USB_DP",
+        "51": "QSPI_SD3",
+        "52": "QSPI_SCLK",
+        "53": "QSPI_SD0",
+        "54": "QSPI_SD2",
+        "55": "QSPI_SD1",
+        "56": "QSPI_SS"
+      },
+      "otherPins": "no_connect",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 13,
+        "where": "Figure 11, complete schematic"
+      },
+      "note": "GPIO0 to GPIO29 are free: marked no-connect (X). Remove a marker to use the pin. TESTEN (pin 19) and the exposed pad (57) go to ground."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        45.72,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        53.339999999999996,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C3",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        60.96,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C4",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        68.58,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C5",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        76.2,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C6",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        83.82,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C7",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        91.44,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C8",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        132.08,
+        106.68
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "flash supply decoupling, Figure 7 (p. 8)"
+      }
+    },
+    {
+      "ref": "C9",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        111.76,
+        50.8
+      ],
+      "pins": {
+        "1": "+1V1",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "DVDD decoupling (p. 7; design files)"
+      }
+    },
+    {
+      "ref": "C10",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        119.38,
+        50.8
+      ],
+      "pins": {
+        "1": "+1V1",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "DVDD decoupling (p. 7; design files)"
+      }
+    },
+    {
+      "ref": "C11",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        127,
+        50.8
+      ],
+      "pins": {
+        "1": "+1V1",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "1 uF close to VREG_VOUT (p. 8)"
+      },
+      "note": "Small ceramic chip capacitor: the regulator limits ESR."
+    },
+    {
+      "ref": "C12",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        137.16,
+        50.8
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "1 uF close to VREG_VIN (p. 8)"
+      },
+      "note": "Small ceramic chip capacitor: the regulator limits ESR."
+    },
+    {
+      "ref": "U2",
+      "symbol": "Memory_Flash:W25Q128JVS",
+      "value": "W25Q128JVS",
+      "footprint": "Package_SO:SOIC-8_5.3x5.3mm_P1.27mm",
+      "at": [
+        116.84,
+        111.76
+      ],
+      "pins": {
+        "1": "QSPI_SS",
+        "2": "QSPI_SD1",
+        "3": "QSPI_SD2",
+        "4": "GND",
+        "5": "QSPI_SD0",
+        "6": "QSPI_SCLK",
+        "7": "QSPI_SD3",
+        "8": "+3V3"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Flash storage, Figure 7"
+      },
+      "note": "128 Mbit (16 MB), the largest RP2040 supports. A smaller, cheaper quad SPI flash works too."
+    },
+    {
+      "ref": "X1",
+      "symbol": "Device:Crystal_GND24",
+      "value": "12MHz",
+      "footprint": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+      "at": [
+        60.96,
+        152.4
+      ],
+      "pins": {
+        "1": "XIN",
+        "3": "XTAL",
+        "2": "GND",
+        "4": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "Crystal oscillator, Figure 8; Table 1"
+      },
+      "note": "Abracon ABM8-272-T3 in the reference design: 12 MHz, 30 ppm, ESR 50 ohm max, 10 pF load."
+    },
+    {
+      "ref": "C13",
+      "symbol": "Device:C",
+      "value": "15pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        45.72,
+        154.94
+      ],
+      "pins": {
+        "1": "XIN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "load capacitors C2 and C3, Figure 8"
+      }
+    },
+    {
+      "ref": "C14",
+      "symbol": "Device:C",
+      "value": "15pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "at": [
+        76.2,
+        154.94
+      ],
+      "pins": {
+        "1": "XTAL",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "load capacitors C2 and C3, Figure 8"
+      }
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        88.9,
+        154.94
+      ],
+      "pins": {
+        "1": "XTAL",
+        "2": "XOUT"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "series resistor R5, Figure 8"
+      },
+      "note": "Keeps the crystal from being over-driven at 3.3 V."
+    },
+    {
+      "ref": "J1",
+      "symbol": "Connector:USB_B_Micro",
+      "value": "USB Micro-B",
+      "footprint": "Connector_USB:USB_Micro-B_Amphenol_10103594-0001LF_Horizontal",
+      "at": [
+        45.72,
+        104.14
+      ],
+      "pins": {
+        "1": "VBUS",
+        "2": "DM_J",
+        "3": "DP_J",
+        "5": "GND",
+        "SH": "GND"
+      },
+      "otherPins": "no_connect",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "Input supply: J1 Micro-USB, Figure 4"
+      },
+      "note": "The reference design's connector (Amphenol 10103594-0001LF). VBUS can feed your 3.3 V regulator."
+    },
+    {
+      "ref": "R2",
+      "symbol": "Device:R",
+      "value": "27",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        66.04,
+        109.22
+      ],
+      "pins": {
+        "1": "DP_J",
+        "2": "USB_DP"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "series termination R3, Figure 9"
+      }
+    },
+    {
+      "ref": "R3",
+      "symbol": "Device:R",
+      "value": "27",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        73.66,
+        109.22
+      ],
+      "pins": {
+        "1": "DM_J",
+        "2": "USB_DM"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "series termination R4, Figure 9"
+      }
+    },
+    {
+      "ref": "R4",
+      "symbol": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        106.68,
+        148.59
+      ],
+      "pins": {
+        "1": "QSPI_SS",
+        "2": "USB_BOOT"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "USB_BOOT circuit R1, Figure 7"
+      },
+      "rotate": 90
+    },
+    {
+      "ref": "J2",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "USB_BOOT",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "at": [
+        128.27,
+        148.59
+      ],
+      "pins": {
+        "1": "USB_BOOT",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "USB_BOOT header J2, Figure 7"
+      },
+      "note": "Bridge it, then reset, to start in BOOTSEL mode."
+    },
+    {
+      "ref": "R5",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "at": [
+        147.32,
+        148.59
+      ],
+      "dnp": true,
+      "pins": {
+        "1": "+3V3",
+        "2": "QSPI_SS"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "pull-up R2, marked DNF, Figure 7"
+      },
+      "note": "Not fitted in the reference design: it found the pull-up unnecessary for this flash. Fit it if your flash needs it."
+    },
+    {
+      "ref": "SW1",
+      "symbol": "Switch:SW_Push",
+      "value": "RESET",
+      "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2",
+      "at": [
+        143.51,
+        83.82
+      ],
+      "pins": {
+        "1": "RUN",
+        "2": "GND"
+      },
+      "basis": "convention",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "restarting by toggling RUN"
+      },
+      "note": "An addition: the reference design brings RUN out to a header."
+    },
+    {
+      "ref": "J3",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "value": "SWD",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "at": [
+        140.97,
+        182.88
+      ],
+      "pins": {
+        "1": "SWCLK",
+        "2": "GND",
+        "3": "SWDIO"
+      },
+      "basis": "convention",
+      "note": "An addition: the reference design routes SWCLK and SWD to its I/O header."
+    }
+  ],
+  "join": [
+    [
+      "U1.48",
+      "U1.43"
+    ],
+    [
+      "U1.1",
+      "U1.44"
+    ],
+    [
+      "U1.45",
+      "U1.23"
+    ],
+    [
+      "C1.1",
+      "C2.1",
+      "C3.1",
+      "C4.1",
+      "C5.1",
+      "C6.1",
+      "C7.1"
+    ],
+    [
+      "C1.2",
+      "C2.2",
+      "C3.2",
+      "C4.2",
+      "C5.2",
+      "C6.2",
+      "C7.2"
+    ],
+    [
+      "C9.1",
+      "C10.1",
+      "C11.1"
+    ],
+    [
+      "C9.2",
+      "C10.2",
+      "C11.2"
+    ],
+    [
+      "J1.5",
+      "J1.SH"
+    ],
+    [
+      "R4.2",
+      "J2.1"
+    ]
+  ],
+  "notes": [
+    {
+      "at": [
+        45.72,
+        30.48
+      ],
+      "text": "Supply decoupling",
+      "heading": true
+    },
+    {
+      "at": [
+        45.72,
+        34.29
+      ],
+      "text": "100 nF on each 3.3 V pin, 7 here (pins 48 and 49 share"
+    },
+    {
+      "at": [
+        45.72,
+        38.1
+      ],
+      "text": "one); place them close to the pins (pp. 7-8)"
+    },
+    {
+      "at": [
+        111.76,
+        30.48
+      ],
+      "text": "1.1 V core regulator",
+      "heading": true
+    },
+    {
+      "at": [
+        111.76,
+        34.29
+      ],
+      "text": "1 uF close to VREG_VIN and VREG_VOUT (p. 8)"
+    },
+    {
+      "at": [
+        45.72,
+        83.82
+      ],
+      "text": "USB",
+      "heading": true
+    },
+    {
+      "at": [
+        45.72,
+        87.63
+      ],
+      "text": "27 ohm in series with each data line, close"
+    },
+    {
+      "at": [
+        45.72,
+        91.44
+      ],
+      "text": "to the chip; no external pull-ups (p. 11)"
+    },
+    {
+      "at": [
+        96.52,
+        77.47
+      ],
+      "text": "Flash",
+      "heading": true
+    },
+    {
+      "at": [
+        96.52,
+        81.28
+      ],
+      "text": "QSPI wired directly, short (p. 9)"
+    },
+    {
+      "at": [
+        45.72,
+        137.16
+      ],
+      "text": "12 MHz crystal",
+      "heading": true
+    },
+    {
+      "at": [
+        45.72,
+        140.97
+      ],
+      "text": "15 pF load capacitors, 1k series (p. 10)"
+    },
+    {
+      "at": [
+        101.6,
+        137.16
+      ],
+      "text": "BOOTSEL",
+      "heading": true
+    },
+    {
+      "at": [
+        101.6,
+        140.97
+      ],
+      "text": "QSPI_SS low at reset = USB boot (p. 9)"
+    },
+    {
+      "at": [
+        136.0,
+        77.47
+      ],
+      "text": "Reset",
+      "heading": true
+    },
+    {
+      "at": [
+        129.54,
+        175.26
+      ],
+      "text": "SWD debug header",
+      "heading": true
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "RP2040 needs two supplies: 3.3 V for the I/O and 1.1 V for the core. An internal regulator makes the 1.1 V from the 3.3 V, so you only supply 3.3 V. This block takes 3.3 V from outside; the reference design makes it from USB 5 V with an NCP1117 3.3 V regulator (1 A) that has a 10 uF capacitor on its input and output.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 6,
+        "where": "Sec. 2.1; input supply p. 7"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Decouple with a 100 nF capacitor on each power pin, close to the pins. The reference design makes one exception: pins 48 and 49 share one capacitor, which saves routing space at the cost of some decoupling.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "Sec. 2.1.2; exception p. 8"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Connect VREG_VOUT to the DVDD pins, and fit 1 uF close to both VREG_VIN and VREG_VOUT. The regulator limits capacitor ESR; small ceramic chip capacitors meet it.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "Sec. 2.1.3"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Use a quad SPI flash and wire the QSPI pins to it directly with short connections. The W25Q128JVS (128 Mbit) is the largest size RP2040 supports; a smaller, cheaper part is fine if you need less space.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "QSPI_SS is a boot strap. If it is low at reset, RP2040 starts in BOOTSEL mode and appears as a USB drive. Keep the 1 kOhm series resistor between QSPI_SS and the BOOTSEL header so the pin can still drive against the pull-down while booting. The flash wants its chip select at its supply voltage during power-up: the reference design has a 10 kOhm pull-up footprint for that, not fitted for this flash.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2, Figure 7"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Use the 12 MHz crystal circuit as drawn: 15 pF capacitors to ground on each side and a 1 kOhm series resistor on XOUT. It is tuned for the Abracon ABM8-272-T3 (ESR 50 ohm max, 10 pF load capacitance) at IOVDD = 3.3 V. A different crystal, or another I/O voltage, needs testing over temperature.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "Sec. 2.3 and 2.3.1, Table 1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Put 27 ohm series resistors on USB_DP and USB_DM, close to the chip. The pins have their own pull-ups and pull-downs, so no external ones are needed. Aim for 90 ohm differential impedance: on a 1 mm board that is about 0.8 mm tracks with a 0.15 mm gap, over solid ground. A thicker board changes this.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "Sec. 2.4.1"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "RP2040 comes in a 56-pin 7 x 7 mm QFN with 0.4 mm pitch, which is hard to hand-solder. The reference design is two layers with all parts on the top side.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 5,
+        "where": "Sec. 2"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "The reset button from RUN to ground and the SWD header are additions to the reference design, which brings RUN, SWCLK and SWD out to its I/O header. Toggling RUN restarts the chip.",
+      "basis": "convention",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2"
+      }
+    }
+  ],
+  "layout": {
+    "routed": false,
+    "parts": {
+      "U1": {
+        "at": [
+          50,
+          50
+        ]
+      },
+      "C1": {
+        "at": [
+          44.4,
+          46.5
+        ]
+      },
+      "C8": {
+        "at": [
+          44.4,
+          49
+        ]
+      },
+      "C2": {
+        "at": [
+          44.4,
+          51.5
+        ]
+      },
+      "C4": {
+        "at": [
+          55.6,
+          51.5
+        ]
+      },
+      "C5": {
+        "at": [
+          55.6,
+          46.5
+        ]
+      },
+      "C9": {
+        "at": [
+          46.6,
+          44.9
+        ]
+      },
+      "C6": {
+        "at": [
+          49.2,
+          44.9
+        ]
+      },
+      "C10": {
+        "at": [
+          51.8,
+          44.9
+        ]
+      },
+      "C7": {
+        "at": [
+          54.4,
+          44.9
+        ]
+      },
+      "C11": {
+        "at": [
+          47.6,
+          55.2
+        ]
+      },
+      "C3": {
+        "at": [
+          50.2,
+          55.2
+        ]
+      },
+      "C12": {
+        "at": [
+          52.8,
+          55.2
+        ]
+      },
+      "X1": {
+        "at": [
+          50,
+          59.5
+        ]
+      },
+      "C13": {
+        "at": [
+          46.2,
+          59.5
+        ]
+      },
+      "C14": {
+        "at": [
+          53.8,
+          59.5
+        ]
+      },
+      "R1": {
+        "at": [
+          50,
+          63
+        ]
+      },
+      "U2": {
+        "at": [
+          38,
+          42
+        ]
+      },
+      "R4": {
+        "at": [
+          37,
+          48
+        ]
+      },
+      "R5": {
+        "at": [
+          40,
+          48
+        ]
+      },
+      "J1": {
+        "at": [
+          28,
+          60
+        ]
+      },
+      "R2": {
+        "at": [
+          40,
+          57
+        ]
+      },
+      "R3": {
+        "at": [
+          40,
+          60
+        ]
+      },
+      "J2": {
+        "at": [
+          63,
+          42
+        ]
+      },
+      "J3": {
+        "at": [
+          63,
+          50
+        ]
+      },
+      "SW1": {
+        "at": [
+          62,
+          60
+        ]
+      }
+    },
+    "rules": [
+      {
+        "severity": "recommended",
+        "text": "Place each 100 nF capacitor at the supply pin it serves, on the same side of the board as the chip, with the ground end going to the pad through its own via. The 1 uF capacitors for the regulator output and input sit next to pins 45 and 43/44.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Keep the 12 MHz crystal, its two 15 pF capacitors and the 1 k series resistor close to XIN and XOUT (pins 20 and 21), with nothing else routed under them.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Keep the QSPI flash close to the chip and the six QSPI traces short and about equal in length.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "Placement only: the chip's pitch is 0.4 mm, so fan-out depends on your design rules and stack-up. Parts are positioned and the nets are left as a ratsnest. Connect the exposed pad to ground with several vias.",
+        "basis": "convention"
+      }
+    ],
+    "fabReferences": true
+  }
+}

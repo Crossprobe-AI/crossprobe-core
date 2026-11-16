@@ -1,0 +1,887 @@
+{
+  "id": "esp32-s3-wroom-1-minimal",
+  "title": "ESP32-S3-WROOM-1 minimal system",
+  "description": "ESP32-S3-WROOM-1 module with the peripheral circuit from Espressif's datasheet: 3V3 decoupling, EN reset network and button, USB D+/D- with series resistors, UART, JTAG and boot-option headers.",
+  "keywords": [
+    "ESP32-S3",
+    "ESP32-S3-WROOM-1",
+    "Espressif",
+    "Wi-Fi",
+    "Bluetooth LE",
+    "module",
+    "reference design",
+    "USB",
+    "JTAG",
+    "UART"
+  ],
+  "category": "MCU module",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "ESP32-S3-WROOM-1 reference schematic for KiCad",
+    "description": "KiCad schematic for the ESP32-S3-WROOM-1 module: 3V3 decoupling, EN reset, USB, UART, JTAG and boot header, after Espressif's datasheet. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet v1.8",
+      "url": "https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+      "publisher": "Espressif Systems",
+      "note": "Values and pin assignments are quoted as facts, with page numbers; the circuit is drawn here, not copied."
+    }
+  ],
+  "power": {
+    "+3V3": "power:+3V3",
+    "GND": "power:GND"
+  },
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "RF_Module:ESP32-S3-WROOM-1",
+      "value": "ESP32-S3-WROOM-1",
+      "footprint": "RF_Module:ESP32-S3-WROOM-1",
+      "at": [
+        127,
+        101.6
+      ],
+      "pins": {
+        "1": "GND",
+        "40": "GND",
+        "41": "GND",
+        "2": "+3V3",
+        "3": "EN",
+        "27": "IO0",
+        "13": "USB_DM",
+        "14": "USB_DP",
+        "37": "TXD0",
+        "36": "RXD0",
+        "35": "TMS",
+        "34": "TDI",
+        "33": "TDO",
+        "32": "TCK"
+      },
+      "otherPins": "no_connect",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1 Peripheral Schematics; pin table pp. 10-11"
+      },
+      "note": "Pins not used by the reference circuit are marked no-connect (X), so the block adds no ERC warnings. Remove the marker to use a pin. Choose the module variant (flash and PSRAM size) in the Value field."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "22uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "at": [
+        35.56,
+        45.72
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, C1 on VDD33"
+      }
+    },
+    {
+      "ref": "C3",
+      "symbol": "Device:C",
+      "value": "0.1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "at": [
+        45.72,
+        45.72
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, C3 on VDD33"
+      }
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "at": [
+        35.56,
+        83.82
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "EN"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1 R1 (value TBD there); note: RC delay at EN, usually R = 10 kOhm"
+      },
+      "note": "The figure leaves R1 and C2 as TBD. The 10 kOhm and 1 uF come from the note under the figure and should be adjusted to your power-up timing."
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "at": [
+        45.72,
+        91.44
+      ],
+      "pins": {
+        "1": "EN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1 C2 (value TBD there); note: RC delay at EN, usually C = 1 uF"
+      }
+    },
+    {
+      "ref": "R7",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "at": [
+        58.42,
+        83.82
+      ],
+      "pins": {
+        "1": "EN",
+        "2": "RESET_BTN"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, R7 in series with the reset switch"
+      }
+    },
+    {
+      "ref": "SW1",
+      "symbol": "Switch:SW_Push",
+      "value": "RESET",
+      "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2",
+      "at": [
+        58.42,
+        95.25
+      ],
+      "pins": {
+        "1": "RESET_BTN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, SW1"
+      },
+      "note": "Pulls EN low to reset. The footprint is C&K's KMR2 tact switch from KiCad's library; use the switch you prefer.",
+      "rotate": 270
+    },
+    {
+      "ref": "C8",
+      "symbol": "Device:C",
+      "value": "0.1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "at": [
+        68.58,
+        93.98
+      ],
+      "pins": {
+        "1": "RESET_BTN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, C8 across the reset switch"
+      }
+    },
+    {
+      "ref": "JP3",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "USB OTG",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "at": [
+        45.72,
+        134.62
+      ],
+      "pins": {
+        "1": "DM_CONN",
+        "2": "DP_CONN"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, JP3 USB OTG (pin 1 USB_D-, pin 2 USB_D+)"
+      },
+      "note": "Replace with your USB connector. The figure only shows the two data lines."
+    },
+    {
+      "ref": "R6",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "at": [
+        66.04,
+        134.62
+      ],
+      "pins": {
+        "1": "DM_CONN",
+        "2": "USB_DM"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, R6 in series with USB_D-"
+      }
+    },
+    {
+      "ref": "R4",
+      "symbol": "Device:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "at": [
+        91.44,
+        134.62
+      ],
+      "pins": {
+        "1": "DP_CONN",
+        "2": "USB_DP"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, R4 in series with USB_D+"
+      }
+    },
+    {
+      "ref": "C6",
+      "symbol": "Device:C",
+      "value": "TBD",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "dnp": true,
+      "at": [
+        76.2,
+        134.62
+      ],
+      "pins": {
+        "1": "DM_CONN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, C6 (TBD, not fitted)"
+      },
+      "note": "Footprint for tuning only; the datasheet gives no value and shows it as not fitted."
+    },
+    {
+      "ref": "C5",
+      "symbol": "Device:C",
+      "value": "TBD",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "dnp": true,
+      "at": [
+        101.6,
+        134.62
+      ],
+      "pins": {
+        "1": "DP_CONN",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, C5 (TBD, not fitted)"
+      },
+      "note": "Footprint for tuning only; the datasheet gives no value and shows it as not fitted."
+    },
+    {
+      "ref": "JP1",
+      "symbol": "Connector_Generic:Conn_01x04",
+      "value": "UART",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "at": [
+        182.88,
+        53.34
+      ],
+      "pins": {
+        "1": "+3V3",
+        "2": "TXD0",
+        "3": "RXD0",
+        "4": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, JP1 UART (VDD33, TXD0, RXD0, GND)"
+      }
+    },
+    {
+      "ref": "JP2",
+      "symbol": "Connector_Generic:Conn_01x04",
+      "value": "JTAG",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "at": [
+        182.88,
+        86.36
+      ],
+      "pins": {
+        "1": "TMS",
+        "2": "TDI",
+        "3": "TDO",
+        "4": "TCK"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, JP2 JTAG (TMS IO42, TDI IO41, TDO IO40, TCK IO39)"
+      }
+    },
+    {
+      "ref": "JP4",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "Boot Option",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "at": [
+        182.88,
+        119.38
+      ],
+      "pins": {
+        "1": "IO0",
+        "2": "GND"
+      },
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1, JP4 Boot Option (IO0 to GND)"
+      },
+      "note": "Bridge while resetting to start the serial/USB bootloader (Joint Download Boot)."
+    }
+  ],
+  "notes": [
+    {
+      "at": [
+        30.48,
+        25.4
+      ],
+      "text": "3V3 supply",
+      "heading": true
+    },
+    {
+      "at": [
+        30.48,
+        29.21
+      ],
+      "text": "22uF + 0.1uF on VDD33 (Fig. 9-1, p. 41)"
+    },
+    {
+      "at": [
+        30.48,
+        33.02
+      ],
+      "text": "Supply 3.0-3.6 V, at least 0.5 A (p. 27)"
+    },
+    {
+      "at": [
+        30.48,
+        63.5
+      ],
+      "text": "EN and reset button",
+      "heading": true
+    },
+    {
+      "at": [
+        30.48,
+        67.31
+      ],
+      "text": "RC delay, usually 10k and 1uF (p. 41)"
+    },
+    {
+      "at": [
+        30.48,
+        71.12
+      ],
+      "text": "Adjust to your power-up timing (p. 16)"
+    },
+    {
+      "at": [
+        30.48,
+        111.76
+      ],
+      "text": "USB data lines",
+      "heading": true
+    },
+    {
+      "at": [
+        30.48,
+        115.57
+      ],
+      "text": "IO19 = D-, IO20 = D+, 0R in series (p. 41)"
+    },
+    {
+      "at": [
+        165.1,
+        35.56
+      ],
+      "text": "UART, JTAG and boot option",
+      "heading": true
+    },
+    {
+      "at": [
+        165.1,
+        39.37
+      ],
+      "text": "JP1, JP2 and JP4 (Fig. 9-1, p. 41)"
+    },
+    {
+      "at": [
+        165.1,
+        139.7
+      ],
+      "text": "Antenna",
+      "heading": true
+    },
+    {
+      "at": [
+        165.1,
+        143.51
+      ],
+      "text": "Keep the area clear of copper, parts and"
+    },
+    {
+      "at": [
+        165.1,
+        147.32
+      ],
+      "text": "ground (datasheet p. 45, Hardware Design"
+    },
+    {
+      "at": [
+        165.1,
+        151.13
+      ],
+      "text": "Guidelines)."
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "Supply VDD33 within 3.0 to 3.6 V (3.3 V typical) and able to deliver at least 0.5 A.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 27,
+        "where": "Recommended Operating Conditions"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Fit 22 uF and 0.1 uF on the 3V3 pin as in the reference schematic.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "Place C1 and C3 as close to the module's 3V3 pin as practical, with a short return to the ground pad.",
+      "basis": "convention"
+    },
+    {
+      "severity": "required",
+      "text": "EN needs the RC delay (usually 10 kOhm and 1 uF) so the supply is stable before the chip starts. Check it against your power-up timing: the rails need at least 50 us to stabilise before EN goes high, and EN must stay low for at least 50 us to reset.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "note under Figure 9-1; timing in Table 4-6, p. 16"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "To enter download mode, GPIO0 must be low (and GPIO46 low, its default) while EN is released. GPIO0 has a weak internal pull-up, so with nothing connected the chip boots from flash.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 14,
+        "where": "Tables 4-1 and 4-3"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Strapping pins GPIO0, GPIO3, GPIO45 and GPIO46 are read at reset (hold time at least 3 ms after EN goes high). Do not let connected circuits drive them to a level you did not intend at that moment.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 14,
+        "where": "Table 4-2"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "GPIO45 selects the flash/PSRAM voltage (VDD_SPI) and GPIO3 the JTAG signal source. Leave both at their defaults (weak pull-down and floating) unless you know why you need otherwise.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 13,
+        "where": "Table 4-1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "USB uses IO19 (D-) and IO20 (D+), pins 13 and 14. The reference keeps 0 ohm series resistors R6 and R4 on both lines; C5 and C6 are placeholders with no value and not fitted.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "UART0 (TXD0 pin 37, RXD0 pin 36) is on JP1 for programming and logs. JTAG (TMS IO42, TDI IO41, TDO IO40, TCK IO39) is on JP2.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "Figure 9-1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "On modules with octal PSRAM (R8 and R16V variants), IO35, IO36 and IO37 are connected to the PSRAM and unavailable. Do not use pins IO35 to IO37 with those variants.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 12,
+        "where": "pin table note b"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "On the R16V variants, IO47 and IO48 work at 1.8 V, not 3.3 V.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 12,
+        "where": "pin table note c; also Figure 9-1"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "Soldering the exposed ground pad (EPAD) is optional but improves thermal performance. Use the right amount of solder paste: too much lifts the module and spoils the other joints.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 41,
+        "where": "note under Figure 9-1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "The module has an on-board antenna. Keep the antenna area free of copper, ground pour and components, and place the module at the board edge as the Hardware Design Guidelines describe. Check the footprint against the recommended land pattern.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 45,
+        "where": "Figure 11-1 (antenna area); keepout zone note, p. 10"
+      }
+    }
+  ],
+  "join": [
+    [
+      "C1.1",
+      "C3.1"
+    ],
+    [
+      "C1.2",
+      "C3.2"
+    ],
+    [
+      "R1.2",
+      "C2.1"
+    ],
+    [
+      "C8.1",
+      "SW1.1"
+    ],
+    [
+      "SW1.1",
+      "R7.2"
+    ],
+    [
+      "R6.1",
+      "C6.1"
+    ],
+    [
+      "R4.1",
+      "C5.1"
+    ]
+  ],
+  "layout": {
+    "routed": false,
+    "parts": {
+      "U1": {
+        "at": [
+          25,
+          32
+        ]
+      },
+      "C3": {
+        "at": [
+          12.5,
+          28
+        ],
+        "rotate": 180
+      },
+      "C1": {
+        "at": [
+          12.5,
+          32
+        ],
+        "rotate": 180
+      },
+      "R1": {
+        "at": [
+          12.5,
+          36
+        ]
+      },
+      "C2": {
+        "at": [
+          12.5,
+          40
+        ],
+        "rotate": 180
+      },
+      "R7": {
+        "at": [
+          12.5,
+          44
+        ],
+        "rotate": 180
+      },
+      "R6": {
+        "at": [
+          11,
+          49
+        ]
+      },
+      "R4": {
+        "at": [
+          11,
+          53
+        ]
+      },
+      "SW1": {
+        "at": [
+          5,
+          30
+        ]
+      },
+      "C8": {
+        "at": [
+          5,
+          35
+        ]
+      },
+      "C6": {
+        "at": [
+          5,
+          49
+        ]
+      },
+      "C5": {
+        "at": [
+          5,
+          53
+        ]
+      },
+      "JP3": {
+        "at": [
+          -1,
+          51
+        ]
+      },
+      "JP1": {
+        "at": [
+          41,
+          28
+        ]
+      },
+      "JP2": {
+        "at": [
+          46,
+          28
+        ]
+      },
+      "JP4": {
+        "at": [
+          41,
+          42
+        ]
+      }
+    },
+    "rules": [
+      {
+        "severity": "required",
+        "text": "Keep copper, tracks, vias and other parts out of the antenna zone: the 48 mm wide, 21 mm deep area beyond the module's antenna end, which is part of the footprint's courtyard (KiCad's footprint draws it). Put the antenna end at, or just past, the board edge.",
+        "basis": "convention"
+      },
+      {
+        "severity": "required",
+        "text": "Do not place a ground plane or copper under the antenna part of the module on any layer.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "The 22 uF and 0.1 uF decoupling capacitors sit at the module's 3V3 pin, on the side away from the antenna.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "Partly routed: the 3V3 decoupling capacitors, the module's ground pin and the EN reset network (pull-up resistor, capacitor, series resistor) are routed on the front layer. The rest is positioned and left as a ratsnest. Route it yourself, with ground pour under and around the module body except at the antenna.",
+        "basis": "convention"
+      }
+    ],
+    "tracks": [
+      {
+        "net": "+3V3",
+        "width": 0.25,
+        "path": [
+          "C3.1",
+          "U1.2"
+        ]
+      },
+      {
+        "net": "+3V3",
+        "width": 0.25,
+        "path": [
+          "C1.1",
+          [
+            14.2,
+            32
+          ],
+          [
+            14.2,
+            28.01
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.25,
+        "path": [
+          "U1.1",
+          [
+            10.6,
+            26.74
+          ],
+          [
+            10.6,
+            40
+          ],
+          "C2.2"
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.25,
+        "path": [
+          "C3.2",
+          [
+            10.6,
+            28
+          ]
+        ]
+      },
+      {
+        "net": "GND",
+        "width": 0.25,
+        "path": [
+          "C1.2",
+          [
+            10.6,
+            32
+          ]
+        ]
+      },
+      {
+        "net": "EN",
+        "width": 0.25,
+        "path": [
+          "U1.3",
+          [
+            15,
+            29.28
+          ],
+          [
+            15,
+            44
+          ]
+        ]
+      },
+      {
+        "net": "EN",
+        "width": 0.25,
+        "path": [
+          "R1.2",
+          [
+            15,
+            36
+          ]
+        ]
+      },
+      {
+        "net": "EN",
+        "width": 0.25,
+        "path": [
+          "C2.1",
+          [
+            15,
+            40
+          ]
+        ]
+      },
+      {
+        "net": "EN",
+        "width": 0.25,
+        "path": [
+          "R7.1",
+          [
+            15,
+            44
+          ]
+        ]
+      }
+    ],
+    "fabReferences": true
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "paths": {
+      "@crossprobe/kicad-sexpr": ["../../packages/kicad-sexpr/src/index.ts"],
+      "@crossprobe/kicad-model": ["../../packages/kicad-model/src/index.ts"],
+      "@crossprobe/extensions": ["./src/extensions/none.ts"]
+    }
+  },
+  "include": ["src", "server"]
+}

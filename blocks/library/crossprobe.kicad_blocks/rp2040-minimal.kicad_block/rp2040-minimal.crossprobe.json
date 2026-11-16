@@ -1,0 +1,1213 @@
+{
+  "id": "rp2040-minimal",
+  "title": "RP2040 minimal system",
+  "description": "RP2040 with the circuit from Raspberry Pi's minimal design: supply decoupling, the internal regulator capacitors, a W25Q128JVS flash, the 12 MHz crystal, USB with series resistors and a BOOTSEL header. It takes 3.3 V from outside.",
+  "keywords": [
+    "RP2040",
+    "Raspberry Pi",
+    "Pico",
+    "microcontroller",
+    "12 MHz crystal",
+    "QSPI flash",
+    "W25Q128JVS",
+    "USB",
+    "BOOTSEL",
+    "reference design"
+  ],
+  "category": "MCU",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "RP2040 minimal reference schematic for KiCad",
+    "description": "KiCad schematic for an RP2040 board: flash, 12 MHz crystal, USB, decoupling and BOOTSEL, drawn after Raspberry Pi's minimal design. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "Hardware design with RP2040 (Raspberry Pi Ltd, 2022-2026)",
+      "url": "https://datasheets.raspberrypi.com/rp2040/hardware-design-with-rp2040.pdf",
+      "publisher": "Raspberry Pi Ltd",
+      "note": "Page numbers are the printed ones, one lower than the PDF viewer's. Values are quoted as facts; the circuit is drawn here, not copied."
+    },
+    {
+      "id": "files",
+      "title": "RP2040 Minimal KiCad design, R3-S1 (design files)",
+      "url": "https://datasheets.raspberrypi.com/rp2040/Minimal-KiCAD.zip",
+      "publisher": "Raspberry Pi Ltd",
+      "note": "MIT license. Used to check which pins carry which capacitors and the part values."
+    }
+  ],
+  "layout": {
+    "footprints": 26,
+    "tracks": 0,
+    "vias": 0,
+    "routed": false,
+    "rules": [
+      {
+        "severity": "recommended",
+        "text": "Place each 100 nF capacitor at the supply pin it serves, on the same side of the board as the chip, with the ground end going to the pad through its own via. The 1 uF capacitors for the regulator output and input sit next to pins 45 and 43/44.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Keep the 12 MHz crystal, its two 15 pF capacitors and the 1 k series resistor close to XIN and XOUT (pins 20 and 21), with nothing else routed under them.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Keep the QSPI flash close to the chip and the six QSPI traces short and about equal in length.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "Placement only: the chip's pitch is 0.4 mm, so fan-out depends on your design rules and stack-up. Parts are positioned and the nets are left as a ratsnest. Connect the exposed pad to ground with several vias.",
+        "basis": "convention"
+      }
+    ]
+  },
+  "pins": [
+    {
+      "ref": "C1",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C1",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C2",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C2",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C3",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C3",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C4",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C4",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C5",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C5",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C6",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C6",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C7",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C7",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C8",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C8",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C9",
+      "number": "1",
+      "name": "",
+      "net": "+1V1"
+    },
+    {
+      "ref": "C9",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C10",
+      "number": "1",
+      "name": "",
+      "net": "+1V1"
+    },
+    {
+      "ref": "C10",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C11",
+      "number": "1",
+      "name": "",
+      "net": "+1V1"
+    },
+    {
+      "ref": "C11",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C12",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C12",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C13",
+      "number": "1",
+      "name": "",
+      "net": "XIN"
+    },
+    {
+      "ref": "C13",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C14",
+      "number": "1",
+      "name": "",
+      "net": "XTAL"
+    },
+    {
+      "ref": "C14",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "J1",
+      "number": "1",
+      "name": "VBUS",
+      "net": "VBUS"
+    },
+    {
+      "ref": "J1",
+      "number": "2",
+      "name": "D-",
+      "net": "DM_J"
+    },
+    {
+      "ref": "J1",
+      "number": "3",
+      "name": "D+",
+      "net": "DP_J"
+    },
+    {
+      "ref": "J1",
+      "number": "5",
+      "name": "GND",
+      "net": "GND"
+    },
+    {
+      "ref": "J1",
+      "number": "SH",
+      "name": "Shield",
+      "net": "GND"
+    },
+    {
+      "ref": "J2",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "USB_BOOT"
+    },
+    {
+      "ref": "J2",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "GND"
+    },
+    {
+      "ref": "J3",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "SWCLK"
+    },
+    {
+      "ref": "J3",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "GND"
+    },
+    {
+      "ref": "J3",
+      "number": "3",
+      "name": "Pin_3",
+      "net": "SWDIO"
+    },
+    {
+      "ref": "R1",
+      "number": "1",
+      "name": "",
+      "net": "XTAL"
+    },
+    {
+      "ref": "R1",
+      "number": "2",
+      "name": "",
+      "net": "XOUT"
+    },
+    {
+      "ref": "R2",
+      "number": "1",
+      "name": "",
+      "net": "DP_J"
+    },
+    {
+      "ref": "R2",
+      "number": "2",
+      "name": "",
+      "net": "USB_DP"
+    },
+    {
+      "ref": "R3",
+      "number": "1",
+      "name": "",
+      "net": "DM_J"
+    },
+    {
+      "ref": "R3",
+      "number": "2",
+      "name": "",
+      "net": "USB_DM"
+    },
+    {
+      "ref": "R4",
+      "number": "1",
+      "name": "",
+      "net": "QSPI_SS"
+    },
+    {
+      "ref": "R4",
+      "number": "2",
+      "name": "",
+      "net": "USB_BOOT"
+    },
+    {
+      "ref": "R5",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "R5",
+      "number": "2",
+      "name": "",
+      "net": "QSPI_SS"
+    },
+    {
+      "ref": "SW1",
+      "number": "1",
+      "name": "1",
+      "net": "RUN"
+    },
+    {
+      "ref": "SW1",
+      "number": "2",
+      "name": "2",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "1",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "10",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "19",
+      "name": "TESTEN",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "20",
+      "name": "XIN",
+      "net": "XIN"
+    },
+    {
+      "ref": "U1",
+      "number": "21",
+      "name": "XOUT",
+      "net": "XOUT"
+    },
+    {
+      "ref": "U1",
+      "number": "22",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "23",
+      "name": "DVDD",
+      "net": "+1V1"
+    },
+    {
+      "ref": "U1",
+      "number": "24",
+      "name": "SWCLK",
+      "net": "SWCLK"
+    },
+    {
+      "ref": "U1",
+      "number": "25",
+      "name": "SWDIO",
+      "net": "SWDIO"
+    },
+    {
+      "ref": "U1",
+      "number": "26",
+      "name": "RUN",
+      "net": "RUN"
+    },
+    {
+      "ref": "U1",
+      "number": "33",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "42",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "43",
+      "name": "ADC_AVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "44",
+      "name": "VREG_VIN",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "45",
+      "name": "VREG_VOUT",
+      "net": "+1V1"
+    },
+    {
+      "ref": "U1",
+      "number": "46",
+      "name": "USB_DM",
+      "net": "USB_DM"
+    },
+    {
+      "ref": "U1",
+      "number": "47",
+      "name": "USB_DP",
+      "net": "USB_DP"
+    },
+    {
+      "ref": "U1",
+      "number": "48",
+      "name": "USB_VDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "49",
+      "name": "IOVDD",
+      "net": "+3V3"
+    },
+    {
+      "ref": "U1",
+      "number": "50",
+      "name": "DVDD",
+      "net": "+1V1"
+    },
+    {
+      "ref": "U1",
+      "number": "51",
+      "name": "QSPI_SD3",
+      "net": "QSPI_SD3"
+    },
+    {
+      "ref": "U1",
+      "number": "52",
+      "name": "QSPI_SCLK",
+      "net": "QSPI_SCLK"
+    },
+    {
+      "ref": "U1",
+      "number": "53",
+      "name": "QSPI_SD0",
+      "net": "QSPI_SD0"
+    },
+    {
+      "ref": "U1",
+      "number": "54",
+      "name": "QSPI_SD2",
+      "net": "QSPI_SD2"
+    },
+    {
+      "ref": "U1",
+      "number": "55",
+      "name": "QSPI_SD1",
+      "net": "QSPI_SD1"
+    },
+    {
+      "ref": "U1",
+      "number": "56",
+      "name": "~{QSPI_SS}",
+      "net": "QSPI_SS"
+    },
+    {
+      "ref": "U1",
+      "number": "57",
+      "name": "GND",
+      "net": "GND"
+    },
+    {
+      "ref": "U2",
+      "number": "1",
+      "name": "~{CS}",
+      "net": "QSPI_SS"
+    },
+    {
+      "ref": "U2",
+      "number": "2",
+      "name": "DO/IO_{1}",
+      "net": "QSPI_SD1"
+    },
+    {
+      "ref": "U2",
+      "number": "3",
+      "name": "~{WP}/IO_{2}",
+      "net": "QSPI_SD2"
+    },
+    {
+      "ref": "U2",
+      "number": "4",
+      "name": "GND",
+      "net": "GND"
+    },
+    {
+      "ref": "U2",
+      "number": "5",
+      "name": "DI/IO_{0}",
+      "net": "QSPI_SD0"
+    },
+    {
+      "ref": "U2",
+      "number": "6",
+      "name": "CLK",
+      "net": "QSPI_SCLK"
+    },
+    {
+      "ref": "U2",
+      "number": "7",
+      "name": "~{HOLD}/~{RESET}/IO_{3}",
+      "net": "QSPI_SD3"
+    },
+    {
+      "ref": "U2",
+      "number": "8",
+      "name": "VCC",
+      "net": "+3V3"
+    },
+    {
+      "ref": "X1",
+      "number": "1",
+      "name": "1",
+      "net": "XIN"
+    },
+    {
+      "ref": "X1",
+      "number": "2",
+      "name": "G",
+      "net": "GND"
+    },
+    {
+      "ref": "X1",
+      "number": "3",
+      "name": "3",
+      "net": "XTAL"
+    },
+    {
+      "ref": "X1",
+      "number": "4",
+      "name": "G",
+      "net": "GND"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+3V3",
+      "pins": [
+        "C1.1",
+        "C2.1",
+        "C3.1",
+        "C4.1",
+        "C5.1",
+        "C6.1",
+        "C7.1",
+        "C8.1",
+        "C12.1",
+        "R5.1",
+        "U1.1",
+        "U1.10",
+        "U1.22",
+        "U1.33",
+        "U1.42",
+        "U1.43",
+        "U1.44",
+        "U1.48",
+        "U1.49",
+        "U2.8"
+      ]
+    },
+    {
+      "name": "+1V1",
+      "pins": [
+        "C9.1",
+        "C10.1",
+        "C11.1",
+        "U1.23",
+        "U1.45",
+        "U1.50"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2",
+        "C3.2",
+        "C4.2",
+        "C5.2",
+        "C6.2",
+        "C7.2",
+        "C8.2",
+        "C9.2",
+        "C10.2",
+        "C11.2",
+        "C12.2",
+        "C13.2",
+        "C14.2",
+        "J1.5",
+        "J1.SH",
+        "J2.2",
+        "J3.2",
+        "SW1.2",
+        "U1.19",
+        "U1.57",
+        "U2.4",
+        "X1.2",
+        "X1.4"
+      ]
+    },
+    {
+      "name": "VBUS",
+      "pins": [
+        "J1.1"
+      ]
+    },
+    {
+      "name": "DM_J",
+      "pins": [
+        "J1.2",
+        "R3.1"
+      ]
+    },
+    {
+      "name": "DP_J",
+      "pins": [
+        "J1.3",
+        "R2.1"
+      ]
+    },
+    {
+      "name": "QSPI_SCLK",
+      "pins": [
+        "U1.52",
+        "U2.6"
+      ]
+    },
+    {
+      "name": "QSPI_SD0",
+      "pins": [
+        "U1.53",
+        "U2.5"
+      ]
+    },
+    {
+      "name": "QSPI_SD1",
+      "pins": [
+        "U1.55",
+        "U2.2"
+      ]
+    },
+    {
+      "name": "QSPI_SD2",
+      "pins": [
+        "U1.54",
+        "U2.3"
+      ]
+    },
+    {
+      "name": "QSPI_SD3",
+      "pins": [
+        "U1.51",
+        "U2.7"
+      ]
+    },
+    {
+      "name": "QSPI_SS",
+      "pins": [
+        "R4.1",
+        "R5.2",
+        "U1.56",
+        "U2.1"
+      ]
+    },
+    {
+      "name": "RUN",
+      "pins": [
+        "SW1.1",
+        "U1.26"
+      ]
+    },
+    {
+      "name": "SWCLK",
+      "pins": [
+        "J3.1",
+        "U1.24"
+      ]
+    },
+    {
+      "name": "SWDIO",
+      "pins": [
+        "J3.3",
+        "U1.25"
+      ]
+    },
+    {
+      "name": "USB_BOOT",
+      "pins": [
+        "J2.1",
+        "R4.2"
+      ]
+    },
+    {
+      "name": "USB_DM",
+      "pins": [
+        "R3.2",
+        "U1.46"
+      ]
+    },
+    {
+      "name": "USB_DP",
+      "pins": [
+        "R2.2",
+        "U1.47"
+      ]
+    },
+    {
+      "name": "XIN",
+      "pins": [
+        "C13.1",
+        "U1.20",
+        "X1.1"
+      ]
+    },
+    {
+      "name": "XOUT",
+      "pins": [
+        "R1.2",
+        "U1.21"
+      ]
+    },
+    {
+      "name": "XTAL",
+      "pins": [
+        "C14.1",
+        "R1.1",
+        "X1.3"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "MCU_RaspberryPi:RP2040",
+      "value": "RP2040",
+      "footprint": "Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP3.2x3.2mm",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 13,
+        "where": "Figure 11, complete schematic"
+      },
+      "note": "GPIO0 to GPIO29 are free: marked no-connect (X). Remove a marker to use the pin. TESTEN (pin 19) and the exposed pad (57) go to ground."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C3",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C4",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C5",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C6",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C7",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "one 100 nF per 3.3 V supply pin; pins 48 and 49 share one (pp. 7-8)"
+      }
+    },
+    {
+      "ref": "C8",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "flash supply decoupling, Figure 7 (p. 8)"
+      }
+    },
+    {
+      "ref": "C9",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "DVDD decoupling (p. 7; design files)"
+      }
+    },
+    {
+      "ref": "C10",
+      "symbol": "Device:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "DVDD decoupling (p. 7; design files)"
+      }
+    },
+    {
+      "ref": "C11",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "1 uF close to VREG_VOUT (p. 8)"
+      },
+      "note": "Small ceramic chip capacitor: the regulator limits ESR."
+    },
+    {
+      "ref": "C12",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "1 uF close to VREG_VIN (p. 8)"
+      },
+      "note": "Small ceramic chip capacitor: the regulator limits ESR."
+    },
+    {
+      "ref": "U2",
+      "symbol": "Memory_Flash:W25Q128JVS",
+      "value": "W25Q128JVS",
+      "footprint": "Package_SO:SOIC-8_5.3x5.3mm_P1.27mm",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Flash storage, Figure 7"
+      },
+      "note": "128 Mbit (16 MB), the largest RP2040 supports. A smaller, cheaper quad SPI flash works too."
+    },
+    {
+      "ref": "X1",
+      "symbol": "Device:Crystal_GND24",
+      "value": "12MHz",
+      "footprint": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "Crystal oscillator, Figure 8; Table 1"
+      },
+      "note": "Abracon ABM8-272-T3 in the reference design: 12 MHz, 30 ppm, ESR 50 ohm max, 10 pF load."
+    },
+    {
+      "ref": "C13",
+      "symbol": "Device:C",
+      "value": "15pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "load capacitors C2 and C3, Figure 8"
+      }
+    },
+    {
+      "ref": "C14",
+      "symbol": "Device:C",
+      "value": "15pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "load capacitors C2 and C3, Figure 8"
+      }
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "series resistor R5, Figure 8"
+      },
+      "note": "Keeps the crystal from being over-driven at 3.3 V."
+    },
+    {
+      "ref": "J1",
+      "symbol": "Connector:USB_B_Micro",
+      "value": "USB Micro-B",
+      "footprint": "Connector_USB:USB_Micro-B_Amphenol_10103594-0001LF_Horizontal",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "Input supply: J1 Micro-USB, Figure 4"
+      },
+      "note": "The reference design's connector (Amphenol 10103594-0001LF). VBUS can feed your 3.3 V regulator."
+    },
+    {
+      "ref": "R2",
+      "symbol": "Device:R",
+      "value": "27",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "series termination R3, Figure 9"
+      }
+    },
+    {
+      "ref": "R3",
+      "symbol": "Device:R",
+      "value": "27",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "series termination R4, Figure 9"
+      }
+    },
+    {
+      "ref": "R4",
+      "symbol": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "USB_BOOT circuit R1, Figure 7"
+      }
+    },
+    {
+      "ref": "J2",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "USB_BOOT",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "USB_BOOT header J2, Figure 7"
+      },
+      "note": "Bridge it, then reset, to start in BOOTSEL mode."
+    },
+    {
+      "ref": "R5",
+      "symbol": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "dnp": true,
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "pull-up R2, marked DNF, Figure 7"
+      },
+      "note": "Not fitted in the reference design: it found the pull-up unnecessary for this flash. Fit it if your flash needs it."
+    },
+    {
+      "ref": "SW1",
+      "symbol": "Switch:SW_Push",
+      "value": "RESET",
+      "footprint": "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2",
+      "basis": "convention",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "restarting by toggling RUN"
+      },
+      "note": "An addition: the reference design brings RUN out to a header."
+    },
+    {
+      "ref": "J3",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "value": "SWD",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "basis": "convention",
+      "note": "An addition: the reference design routes SWCLK and SWD to its I/O header."
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "RP2040 needs two supplies: 3.3 V for the I/O and 1.1 V for the core. An internal regulator makes the 1.1 V from the 3.3 V, so you only supply 3.3 V. This block takes 3.3 V from outside; the reference design makes it from USB 5 V with an NCP1117 3.3 V regulator (1 A) that has a 10 uF capacitor on its input and output.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 6,
+        "where": "Sec. 2.1; input supply p. 7"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Decouple with a 100 nF capacitor on each power pin, close to the pins. The reference design makes one exception: pins 48 and 49 share one capacitor, which saves routing space at the cost of some decoupling.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 7,
+        "where": "Sec. 2.1.2; exception p. 8"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Connect VREG_VOUT to the DVDD pins, and fit 1 uF close to both VREG_VIN and VREG_VOUT. The regulator limits capacitor ESR; small ceramic chip capacitors meet it.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "Sec. 2.1.3"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Use a quad SPI flash and wire the QSPI pins to it directly with short connections. The W25Q128JVS (128 Mbit) is the largest size RP2040 supports; a smaller, cheaper part is fine if you need less space.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "QSPI_SS is a boot strap. If it is low at reset, RP2040 starts in BOOTSEL mode and appears as a USB drive. Keep the 1 kOhm series resistor between QSPI_SS and the BOOTSEL header so the pin can still drive against the pull-down while booting. The flash wants its chip select at its supply voltage during power-up: the reference design has a 10 kOhm pull-up footprint for that, not fitted for this flash.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2, Figure 7"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Use the 12 MHz crystal circuit as drawn: 15 pF capacitors to ground on each side and a 1 kOhm series resistor on XOUT. It is tuned for the Abracon ABM8-272-T3 (ESR 50 ohm max, 10 pF load capacitance) at IOVDD = 3.3 V. A different crystal, or another I/O voltage, needs testing over temperature.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 10,
+        "where": "Sec. 2.3 and 2.3.1, Table 1"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Put 27 ohm series resistors on USB_DP and USB_DM, close to the chip. The pins have their own pull-ups and pull-downs, so no external ones are needed. Aim for 90 ohm differential impedance: on a 1 mm board that is about 0.8 mm tracks with a 0.15 mm gap, over solid ground. A thicker board changes this.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "Sec. 2.4.1"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "RP2040 comes in a 56-pin 7 x 7 mm QFN with 0.4 mm pitch, which is hard to hand-solder. The reference design is two layers with all parts on the top side.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 5,
+        "where": "Sec. 2"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "The reset button from RUN to ground and the SWD header are additions to the reference design, which brings RUN, SWCLK and SWD out to its I/O header. Toggling RUN restarts the chip.",
+      "basis": "convention",
+      "source": {
+        "doc": "ds",
+        "page": 9,
+        "where": "Sec. 2.2"
+      }
+    }
+  ]
+}

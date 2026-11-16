@@ -1,0 +1,379 @@
+{
+  "id": "mcp73831-li-ion-charger",
+  "title": "Li-ion charger, 500 mA (MCP73831)",
+  "description": "MCP73831-2 single-cell Li-ion/Li-polymer charger with the typical application circuit from Microchip's datasheet: 4.7 µF input and output capacitors, 2 kΩ programming resistor for 500 mA, and a status LED.",
+  "keywords": [
+    "MCP73831",
+    "Li-ion charger",
+    "LiPo",
+    "battery charger",
+    "500 mA",
+    "Microchip",
+    "SOT-23-5",
+    "USB charging"
+  ],
+  "category": "Power",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "MCP73831 Li-ion charger reference schematic for KiCad",
+    "description": "KiCad schematic for the MCP73831-2 single-cell Li-ion charger at 500 mA: capacitors, programming resistor and status LED from Microchip's datasheet."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "MCP73831/2 Miniature Single-Cell, Fully Integrated Li-Ion, Li-Polymer Charge Management Controllers, DS20001984H",
+      "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP73831-Family-Data-Sheet-DS20001984H.pdf",
+      "publisher": "Microchip Technology",
+      "note": "Values are quoted as facts, with page numbers; the circuit is drawn here, not copied."
+    }
+  ],
+  "layout": {
+    "footprints": 7,
+    "tracks": 13,
+    "vias": 4,
+    "routed": true,
+    "rules": [
+      {
+        "severity": "recommended",
+        "text": "Keep the 4.7 uF input and battery capacitors within a few millimetres of the VBUS and VBAT pins, with a short return to ground.",
+        "basis": "convention"
+      },
+      {
+        "severity": "recommended",
+        "text": "Put the PROG resistor right at pin 5 and keep stray capacitance off that node: it sets the charge current.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "The status LED loop is long on purpose, so the block stays in one row; move the LED next to the pins when you place it. Ground returns on the back layer; the block takes the board outline and ground pour of the project.",
+        "basis": "convention"
+      }
+    ]
+  },
+  "pins": [
+    {
+      "ref": "C1",
+      "number": "1",
+      "name": "",
+      "net": "VBUS"
+    },
+    {
+      "ref": "C1",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C2",
+      "number": "1",
+      "name": "",
+      "net": "VBAT"
+    },
+    {
+      "ref": "C2",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "D1",
+      "number": "1",
+      "name": "K",
+      "net": "Net-(D1-K)"
+    },
+    {
+      "ref": "D1",
+      "number": "2",
+      "name": "A",
+      "net": "VBUS"
+    },
+    {
+      "ref": "JP1",
+      "number": "1",
+      "name": "Pin_1",
+      "net": "VBAT"
+    },
+    {
+      "ref": "JP1",
+      "number": "2",
+      "name": "Pin_2",
+      "net": "GND"
+    },
+    {
+      "ref": "R1",
+      "number": "1",
+      "name": "",
+      "net": "PROG"
+    },
+    {
+      "ref": "R1",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "R2",
+      "number": "1",
+      "name": "",
+      "net": "Net-(D1-K)"
+    },
+    {
+      "ref": "R2",
+      "number": "2",
+      "name": "",
+      "net": "STAT"
+    },
+    {
+      "ref": "U1",
+      "number": "1",
+      "name": "STAT",
+      "net": "STAT"
+    },
+    {
+      "ref": "U1",
+      "number": "2",
+      "name": "V_{SS}",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "3",
+      "name": "V_{BAT}",
+      "net": "VBAT"
+    },
+    {
+      "ref": "U1",
+      "number": "4",
+      "name": "V_{DD}",
+      "net": "VBUS"
+    },
+    {
+      "ref": "U1",
+      "number": "5",
+      "name": "PROG",
+      "net": "PROG"
+    }
+  ],
+  "nets": [
+    {
+      "name": "VBUS",
+      "pins": [
+        "C1.1",
+        "D1.2",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2",
+        "JP1.2",
+        "R1.2",
+        "U1.2"
+      ]
+    },
+    {
+      "name": "Net-(D1-K)",
+      "pins": [
+        "D1.1",
+        "R2.1"
+      ]
+    },
+    {
+      "name": "PROG",
+      "pins": [
+        "R1.1",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "STAT",
+      "pins": [
+        "R2.2",
+        "U1.1"
+      ]
+    },
+    {
+      "name": "VBAT",
+      "pins": [
+        "C2.1",
+        "JP1.1",
+        "U1.3"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "Battery_Management:MCP73831-2-OT",
+      "value": "MCP73831-2",
+      "footprint": "Package_TO_SOT_SMD:SOT-23-5",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application; pin functions Table 3-1, p. 11"
+      },
+      "note": "The -2 option regulates to 4.20 V. SOT-23-5 pin numbers."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "4.7uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application; minimum 4.7 uF on VDD, Sec. 3.1 p. 11"
+      }
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "4.7uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application; minimum 4.7 uF on VBAT, Sec. 3.2 p. 11"
+      }
+    },
+    {
+      "ref": "R1",
+      "symbol": "Device:R",
+      "value": "2k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application; IREG = 1000 V / RPROG, p. 15"
+      },
+      "note": "2 kOhm sets 500 mA."
+    },
+    {
+      "ref": "R2",
+      "symbol": "Device:R",
+      "value": "470",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application, status LED resistor"
+      }
+    },
+    {
+      "ref": "D1",
+      "symbol": "Device:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Typical Application, status LED"
+      },
+      "note": "Lit while charging: STAT is low then (Table 5-1, p. 15)."
+    },
+    {
+      "ref": "JP1",
+      "symbol": "Connector_Generic:Conn_01x02",
+      "value": "Battery",
+      "footprint": "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
+      "basis": "convention",
+      "note": "Pin 1 is the cell's positive terminal. Use the connector your battery has."
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "Supply (VDD) must be 3.75 to 6 V, and the datasheet recommends VREG + 0.3 V up to 6 V: 4.5 V or more for this 4.20 V part. The absolute maximum is 7.0 V.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "Sec. 3.1; DC characteristics and Absolute Maximum Ratings, p. 3"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "This is the -2 option: it charges to 4.20 V (+/-0.75%). Use it only with cells that charge to 4.20 V. The -3, -4 and -5 options regulate to 4.35, 4.40 and 4.50 V.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 3,
+        "where": "Voltage regulation, VREG"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Set the charge current with RPROG: IREG (mA) = 1000 / RPROG (kOhm). 2 kOhm gives 500 mA. RPROG must be 2 to 67 kOhm, and the datasheet prefers a 1C charge rate, so 500 mA suits a cell of about 500 mAh or more.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 15,
+        "where": "Sec. 5.1.2; RPROG range p. 4; Sec. 6.1.1.1 p. 17"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Fit at least 4.7 uF from VDD to ground and at least 4.7 uF from VBAT to ground. The VBAT capacitor keeps the loop stable when the battery is disconnected.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "Secs. 3.1 and 3.2"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "This is a linear charger, so the voltage drop is dissipated as heat. From 5 V into a 3.6 V cell at 500 mA that is about 0.7 W. The SOT-23-5 package is rated 230 C/W (4-layer test board), so the chip would overheat; it then lowers the charge current by thermal regulation. Expect slower charging on a small board, and give the package copper.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 5,
+        "where": "Thermal resistance, p. 5; thermal regulation, p. 1 (the power is calculated here)"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "If the input is hot-pluggable, as a USB cable is, add input overvoltage protection: the datasheet suggests a transient suppressor from the supply connector to ground.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 18,
+        "where": "Sec. 6.1.1.2"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "STAT is low while charging, high when charging is complete and high impedance when there is no battery or the charger is shut down (MCP73831). The LED between VBUS and STAT through 470 ohm lights while charging. STAT can also drive a microcontroller input.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 15,
+        "where": "Table 5-1; Sec. 3.3 p. 11"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "Letting PROG float, or driving it high, disables the charger and ends the charge cycle. A switch or transistor on PROG can inhibit charging.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 18,
+        "where": "Sec. 6.1.1.6"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "The charger does not protect the cell from over-discharge or a short circuit. Use a cell with a protection circuit, or add one.",
+      "basis": "convention"
+    }
+  ]
+}

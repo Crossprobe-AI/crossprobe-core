@@ -1,0 +1,5 @@
+{
+  "description": "AP2112K-3.3 low-dropout regulator with the 1 µF input and output capacitors from the datasheet's typical application, enabled permanently from the input. Turns a 5 V rail into 3.3 V at up to 600 mA.",
+  "keywords": "AP2112K AP2112K-3.3 LDO 3.3V linear regulator power supply Diodes Incorporated SOT-23-5",
+  "fields": {}
+}

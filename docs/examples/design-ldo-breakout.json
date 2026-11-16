@@ -1,0 +1,20 @@
+{
+  "name": "ldo-breakout",
+  "title": "3.3 V LDO breakout",
+  "description": "5 V in on a header, 3.3 V out at up to 600 mA, power LED. 30 x 20 mm, 2 layers.",
+  "board": { "width": 30, "height": 20, "trackWidths": [{ "nets": ["+5V", "+3V3"], "width": 0.5 }] },
+  "powerFlags": ["+5V", "GND"],
+  "parts": [
+    { "ref": "J1", "symbol": "Connector_Generic:Conn_01x02", "value": "5V in", "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", "pins": { "1": "+5V", "2": "GND" }, "group": "Input", "place": { "edge": "left" } },
+    { "ref": "U1", "symbol": "Regulator_Linear:AP2112K-3.3", "value": "AP2112K-3.3", "footprint": "Package_TO_SOT_SMD:SOT-23-5", "pins": { "1": "+5V", "3": "+5V", "5": "+3V3", "2": "GND" }, "otherPins": "no_connect", "group": "Regulator" },
+    { "ref": "C1", "symbol": "Device:C", "value": "1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "+5V", "2": "GND" }, "group": "Regulator" },
+    { "ref": "C2", "symbol": "Device:C", "value": "1uF", "footprint": "Capacitor_SMD:C_0603_1608Metric", "pins": { "1": "+3V3", "2": "GND" }, "group": "Regulator" },
+    { "ref": "R1", "symbol": "Device:R", "value": "1k", "footprint": "Resistor_SMD:R_0603_1608Metric", "pins": { "1": "+3V3", "2": "LED_A" }, "group": "Indicator" },
+    { "ref": "D1", "symbol": "Device:LED", "value": "green", "footprint": "LED_SMD:LED_0603_1608Metric", "pins": { "A": "LED_A", "K": "GND" }, "group": "Indicator" },
+    { "ref": "J2", "symbol": "Connector_Generic:Conn_01x02", "value": "3V3 out", "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", "pins": { "1": "+3V3", "2": "GND" }, "group": "Output", "place": { "edge": "right" } }
+  ],
+  "requirements": [
+    { "id": "size", "title": "Fits 30 x 20 mm", "kind": "board_size", "maxWidthMm": 30, "maxHeightMm": 20 },
+    { "id": "out", "title": "3.3 V on J2", "kind": "connector_nets", "reference": "J2", "nets": ["+3V3", "GND"] }
+  ]
+}

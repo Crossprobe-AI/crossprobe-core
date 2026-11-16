@@ -1,0 +1,44 @@
+# Build, type-check and test on every pull request and push to main.
+#
+# The runner has no KiCad, so the tests that compare with kicad-cli or read KiCad's
+# demo projects skip themselves here. Run those locally (npm test with KiCad
+# installed) for changes to the model, the checks or the exports.
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the packages
+        run: npm run build
+
+      - name: Type-check the web app
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Colour contrast (WCAG) of the app's tokens
+        run: node scripts/check-contrast.mjs
