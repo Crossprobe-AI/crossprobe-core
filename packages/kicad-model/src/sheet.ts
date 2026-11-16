@@ -42,6 +42,8 @@ export interface LibPin {
   unit: number;
   /** 0 = shared by all body styles (normal / De Morgan). */
   bodyStyle: number;
+  /** Alternate functions a placed symbol can pick for this pin: name → electrical type. */
+  alternates?: Record<string, PinType>;
 }
 
 export type PowerKind = "global" | "local";
@@ -53,6 +55,10 @@ export interface LibSymbol {
   power?: PowerKind;
   pins: LibPin[];
   properties: Record<string, string>;
+  /** Pin numbers the part connects internally: each group is one net. */
+  jumperGroups?: string[][];
+  /** Pins that share a number are connected to each other. */
+  duplicatePinsAreJumpers?: boolean;
 }
 
 export interface SymbolInstance {
@@ -77,6 +83,8 @@ export interface PlacedSymbol {
   dnp: boolean;
   excludeFromSim: boolean;
   instances: SymbolInstance[];
+  /** Pins switched to one of their alternate functions: pin number → alternate name. */
+  pinAlternates?: Record<string, string>;
 }
 
 export interface Segment {
@@ -107,6 +115,10 @@ export interface SheetRef {
   at: Point;
   size: Point;
   pins: SheetPin[];
+  /** Every field of the sheet symbol, by name (text variables resolve against these). */
+  properties?: Record<string, string>;
+  /** Page number per parent sheet instance path. */
+  pages?: Array<{ path: string; page: string }>;
 }
 
 export interface BusEntry {
@@ -132,6 +144,8 @@ export interface SheetFile {
    * ("/<sheet uuid>…/<symbol uuid>"). Later versions keep this in each symbol's `instances`.
    */
   legacyInstances: Map<string, LegacySymbolInstance>;
+  /** The root file's `sheet_instances`: page number by sheet path below the root ("/" is the root). */
+  sheetPages?: Map<string, string>;
 }
 
 export interface LegacySymbolInstance {
@@ -186,7 +200,9 @@ function parseLibSymbol(node: List): LibSymbol {
     unitCount = Math.max(unitCount, unit);
     for (const pin of findChildren(sub, "pin")) {
       const type = (arg(pin, 0) as PinType) ?? "unspecified";
+      const alternates = findChildren(pin, "alternate");
       pins.push({
+        alternates: alternates.length ? Object.fromEntries(alternates.map((a) => [text(a, 0), text(a, 1) as PinType])) : undefined,
         number: text(findChild(pin, "number")),
         name: text(findChild(pin, "name")),
         type,
@@ -197,7 +213,11 @@ function parseLibSymbol(node: List): LibSymbol {
       });
     }
   }
-  return { id, unitCount, power, pins, properties: properties(node) };
+  const lib: LibSymbol = { id, unitCount, power, pins, properties: properties(node) };
+  const groups = findChild(node, "jumper_pin_groups");
+  if (groups) lib.jumperGroups = groups.children.filter(isList).map((g) => g.children.filter(isAtom).map(atomText));
+  if (flag(findChild(node, "duplicate_pin_numbers_are_jumpers"), false)) lib.duplicatePinsAreJumpers = true;
+  return lib;
 }
 
 function parsePlacedSymbol(node: List): PlacedSymbol {
@@ -217,7 +237,13 @@ function parsePlacedSymbol(node: List): PlacedSymbol {
       }
     }
   }
+  let pinAlternates: Record<string, string> | undefined;
+  for (const pin of findChildren(node, "pin")) {
+    const alternate = findChild(pin, "alternate");
+    if (alternate) (pinAlternates ??= {})[text(pin)] = text(alternate);
+  }
   return {
+    pinAlternates,
     uuid: text(findChild(node, "uuid")),
     // `lib_name` overrides which embedded library symbol is used.
     libId: text(findChild(node, "lib_name")) || text(findChild(node, "lib_id")),
@@ -314,6 +340,10 @@ export function parseSheetFile(source: string): SheetFile {
           file: props["Sheetfile"] ?? props["Sheet file"] ?? "",
           at: point(findChild(node, "at")),
           size: point(findChild(node, "size")),
+          properties: props,
+          pages: findChildren(findChild(node, "instances") ?? node, "project").flatMap((project) =>
+            findChildren(project, "path").map((path) => ({ path: text(path), page: text(findChild(path, "page")) })),
+          ),
           pins: findChildren(node, "pin").map((p) => ({
             name: text(p, 0),
             shape: text(p, 1),
@@ -322,6 +352,9 @@ export function parseSheetFile(source: string): SheetFile {
         });
         break;
       }
+      case "sheet_instances":
+        sheet.sheetPages = new Map(findChildren(node, "path").map((path) => [text(path), text(findChild(path, "page"))]));
+        break;
       case "symbol_instances":
         for (const path of findChildren(node, "path")) {
           const value = findChild(path, "value"), footprint = findChild(path, "footprint");

@@ -2,7 +2,7 @@
  * The key test for the design model: our netlist must match KiCad's own.
  *
  * For every project in the corpus, `kicad-cli sch export netlist` is the
- * oracle. Two scores are compared:
+ * oracle. Both scores must be complete:
  *  - connectivity: each pin belongs to a net with exactly the same pin set
  *  - naming: those nets also carry the same name
  * Skipped when kicad-cli or the corpus is not available.
@@ -105,6 +105,7 @@ describe.skipIf(projects.length === 0)("netlist matches kicad-cli", () => {
     results.push({ project: basename(sch, ".kicad_sch"), ...score });
     if (process.env.ORACLE_VERBOSE) for (const e of score.examples) console.log(`  ${basename(sch)}: ${e}`);
     expect(score.connectivity, score.examples.join("\n")).toBe(score.pins);
+    expect(score.naming, score.examples.join("\n")).toBe(score.pins);
   });
 
   it("summary", () => {
