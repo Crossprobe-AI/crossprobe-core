@@ -53,9 +53,9 @@ describe.skipIf(!ok)("scaled STEP models", () => {
     for (let k = 0; k < 6; k++) expect(Math.abs(b.box[k]! - a.box[k]! * s[k % 3]!), `box ${k}`).toBeLessThan(0.01);
   });
 
-  it("cm5_minima's scaled SOT-23s are placed as KiCad places them", { timeout: 300_000 }, async () => {
+  const src = `${process.env.KICAD_DEMOS}/cm5_minima/CM5_MINIMA_3.kicad_pcb`;
+  it.skipIf(!existsSync(src))("cm5_minima's scaled SOT-23s are placed as KiCad places them", { timeout: 300_000 }, async () => {
     // A board with just those three parts (the rest of cm5_minima's models would only slow kicad-cli down).
-    const src = `${process.env.KICAD_DEMOS}/cm5_minima/CM5_MINIMA_3.kicad_pcb`;
     const board0 = parseBoard(readFileSync(src, "utf8"), { recover: true });
     const keep = new Set(["D101", "D701", "D502"]);
     const dir = mkdtempSync(join(tmpdir(), "step-scale-"));
