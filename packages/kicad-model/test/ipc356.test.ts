@@ -9,8 +9,8 @@ import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ipcD356, parseBoard } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = existsSync(CORPUS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

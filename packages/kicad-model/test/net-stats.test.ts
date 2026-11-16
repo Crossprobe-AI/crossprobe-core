@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { layerDistance, netStats, parseBoard, type Board } from "../src/index.js";
 
 const PY = process.env.KICAD_PYTHON ?? "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3";
-const DEMOS = "/Library/Application Support/kicad/demos";
+const DEMOS = process.env.KICAD_DEMOS!;
 const BOARDS = ["video/video.kicad_pcb", "pic_programmer/pic_programmer.kicad_pcb", "stickhub/StickHub.kicad_pcb", "tiny_tapeout/tinytapeout-demo.kicad_pcb", "royalblue54L_feather/royalblue54L-feather.kicad_pcb"];
 const ok = existsSync(PY) && existsSync(DEMOS);
 const RUNS = 4;

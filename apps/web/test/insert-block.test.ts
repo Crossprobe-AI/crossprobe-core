@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { analyze } from "../src/analyze";
 import { Editor } from "../src/edit/ops";
 
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
 const BLOCK = fileURLToPath(new URL("../../../blocks/library/crossprobe.kicad_blocks/esp32-s3-wroom-1-minimal.kicad_block/esp32-s3-wroom-1-minimal.kicad_sch", import.meta.url));
 
 function load(dir: string) {
@@ -69,7 +69,7 @@ import { tmpdir } from "node:os";
 const LDO = "../../../blocks/library/crossprobe.kicad_blocks/ap2112k-3v3-ldo.kicad_block/ap2112k-3v3-ldo";
 const LDO_SCH = fileURLToPath(new URL(`${LDO}.kicad_sch`, import.meta.url));
 const LDO_PCB = fileURLToPath(new URL(`${LDO}.kicad_pcb`, import.meta.url));
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 const hasCli = (() => {
   try {
     execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

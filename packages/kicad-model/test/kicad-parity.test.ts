@@ -11,8 +11,8 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildNetlist, checkParity, loadSchematic, parseBoard, projectRuleSeverities } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 
 function hasKicadCli(): boolean {
   try {

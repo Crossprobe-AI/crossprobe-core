@@ -1,7 +1,7 @@
 /**
  * Round-trip every KiCad S-expression file in a corpus directory.
  *
- * Defaults to the demo projects bundled with a KiCad install; override with
+ * Defaults to KiCad's demo projects (test-setup.ts finds them); override with
  * KICAD_CORPUS=/path/to/projects (colon-separated for several). Skipped when
  * no corpus is found, so CI without KiCad still passes the unit tests.
  */
@@ -9,12 +9,6 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse, serialize } from "../src/index.js";
-
-const DEFAULT_CORPORA = [
-  "/Library/Application Support/kicad/demos", // macOS
-  "/usr/share/kicad/demos", // Linux
-  "C:\\Program Files\\KiCad\\share\\kicad\\demos", // Windows (default install)
-];
 
 const EXTENSIONS = [".kicad_pcb", ".kicad_sch", ".kicad_sym", ".kicad_mod", ".kicad_dru", ".kicad_wks"];
 
@@ -27,7 +21,7 @@ function findFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const roots = (process.env.KICAD_CORPUS?.split(":") ?? DEFAULT_CORPORA).filter((d) => existsSync(d));
+const roots = process.env.KICAD_CORPUS!.split(":").filter((d) => existsSync(d));
 const files = roots.flatMap((r) => findFiles(r));
 
 describe.skipIf(files.length === 0)(`corpus round-trip (${files.length} files)`, () => {

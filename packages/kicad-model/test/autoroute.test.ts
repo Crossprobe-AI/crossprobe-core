@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTrack, addVia, boardRoot, copperItems, deleteBoardItem, fillZones, findBoardItem, findUnconnected, fracture, netClassOf, parseBoard, projectDesignRules, routeConnection, routeWithVias, setZoneFills } from "../src/index.js";
 
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = existsSync(DEMO);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });
@@ -64,7 +64,7 @@ describe.skipIf(!ok)("autorouter", () => {
   }, 180_000);
 
   it("changes layers through vias when it has to (SMD parts on both sides), KiCad-DRC-clean", () => {
-    const demo = "/Library/Application Support/kicad/demos/stickhub";
+    const demo = `${process.env.KICAD_DEMOS}/stickhub`;
     if (!existsSync(demo)) return;
     const dir = mkdtempSync(join(tmpdir(), "crossprobe-route2-"));
     for (const f of ["StickHub.kicad_pro", "StickHub.kicad_sch"]) copyFileSync(join(demo, f), join(dir, f));

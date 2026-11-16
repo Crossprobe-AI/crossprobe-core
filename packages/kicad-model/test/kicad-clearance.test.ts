@@ -13,8 +13,8 @@ import { basename, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { checkClearance, parseBoard, parseDru, projectDesignRules, type DrcItem } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const CACHE = join(tmpdir(), "crossprobe-drc-cache");
 mkdirSync(CACHE, { recursive: true });
 

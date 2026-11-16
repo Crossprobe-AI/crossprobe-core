@@ -16,8 +16,8 @@ import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, parse, type List } from "@crossprobe/kicad-sexpr";
 import { buildNetlist, loadSchematic } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 
 function hasKicadCli(): boolean {
   try {

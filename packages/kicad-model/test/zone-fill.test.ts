@@ -15,8 +15,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { arg, findChild, headOf, isList, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
 import { boardRoot, fillDifference, fillZones, findBoardItem, fracture, parseBoard, projectDesignRules, setZoneFills } from "../src/index.js";
 
-const DEMOS = "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMOS = process.env.KICAD_DEMOS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 // Boards whose saved fills are current (multichannel_mixer-unrouted's are stale in the demo).
 const AREA_BOARDS = [
   "pic_programmer/pic_programmer.kicad_pcb",

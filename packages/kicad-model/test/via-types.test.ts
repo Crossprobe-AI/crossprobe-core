@@ -13,7 +13,7 @@ import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addVia, boardRoot, fabricationFiles, newProject, parseBoard, setCopperLayerCount } from "../src/index.js";
 import { area, readGerber, xor } from "./gerber-read.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

@@ -99,11 +99,11 @@ describe.skipIf(!existsSync(PY))("footprint editor", () => {
   });
 });
 
-describe.skipIf(!existsSync("/Library/Application Support/kicad/demos/pic_programmer/pic_programmer.kicad_pcb"))("update footprint from library", () => {
+describe.skipIf(!existsSync(`${process.env.KICAD_DEMOS}/pic_programmer/pic_programmer.kicad_pcb`))("update footprint from library", () => {
   it("leaves pads, nets and fields where they were when the library is unchanged (front and back, any angle)", async () => {
     const { readFileSync } = await import("node:fs");
     const { boardRoot, flipFootprint, updateFootprintFromLibrary } = await import("../src/index.js");
-    const text = readFileSync("/Library/Application Support/kicad/demos/pic_programmer/pic_programmer.kicad_pcb", "utf8");
+    const text = readFileSync(`${process.env.KICAD_DEMOS}/pic_programmer/pic_programmer.kicad_pcb`, "utf8");
     const before = parseBoard(text);
     const doc = parse(text);
     const root = boardRoot(doc);

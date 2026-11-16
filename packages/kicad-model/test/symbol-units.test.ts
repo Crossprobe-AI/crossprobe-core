@@ -15,7 +15,7 @@ import {
   setBodyStyles, setJumpers, setUnitName, setUnitsLocked, symbolLibRoot, symbolProblems, withLibrarySymbol, withLibTableEntry,
 } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

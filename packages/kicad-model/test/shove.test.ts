@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTrack, boardRoot, copperItems, deleteBoardItem, fillZones, findBoardItem, findUnconnected, fracture, setZoneFills, InteractiveRouter, netClassOf, parseBoard, projectDesignRules, trackConflicts } from "../src/index.js";
 
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = existsSync(DEMO);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });
