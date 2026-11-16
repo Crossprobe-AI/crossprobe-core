@@ -1,0 +1,5 @@
+{
+  "description": "ESP32-C3-WROOM-02 module with the peripheral circuit from Espressif's datasheet: 3V3 decoupling, EN reset network and button, the boot-strap pull-ups, USB D+/D- with series resistors, UART, JTAG and a boot-option header.",
+  "keywords": "ESP32-C3 ESP32-C3-WROOM-02 Espressif RISC-V Wi-Fi Bluetooth LE module reference design USB JTAG UART",
+  "fields": {}
+}

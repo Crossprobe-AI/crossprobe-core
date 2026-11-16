@@ -1,0 +1,19 @@
+{
+  "name": "@crossprobe/kicad-model",
+  "version": "0.1.0",
+  "description": "Typed design model and connectivity (netlist) for KiCad projects",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@crossprobe/kicad-sexpr": "0.1.0",
+    "clipper-lib": "^6.4.2"
+  },
+  "devDependencies": {
+    "@types/clipper-lib": "^6.4.0"
+  }
+}

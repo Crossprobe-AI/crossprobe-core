@@ -1,0 +1,46 @@
+Crossprobe
+https://crossprobe.dev
+Copyright 2026 The Crossprobe authors
+
+This product is licensed under the Apache License 2.0 (LICENSE), except for the
+third-party material listed below, which keeps its own licence.
+
+third_party/newstroke/
+  KiCad's stroke font, Newstroke, by Vladimir Uryvaev. CC0 1.0 (public domain).
+  packages/kicad-model/src/newstroke-data.ts is generated from it.
+
+third_party/routed-gothic/, apps/web/src/fonts/routed-gothic.woff2
+  Routed Gothic, by Darren Embry. SIL Open Font License 1.1; see OFL.txt in that
+  folder.
+
+third_party/kicad-libraries/Seeed_Studio_XIAO_Series/
+  KiCad symbols and footprints by Seeed Studio. CC BY-SA 4.0; see the LICENSE and
+  SOURCE.md in that folder.
+
+blocks/
+  The design blocks are Apache-2.0. Their schematics embed symbols from the KiCad
+  symbol libraries and their layouts use footprints from the KiCad footprint
+  libraries (https://gitlab.com/kicad/libraries), licensed under CC-BY-SA 4.0 with
+  the following exception: "To the extent that the creation of electronic designs
+  that use 'Licensed Material' can be considered to be 'Adapted Material', then the
+  copyright holder waives article 3 of the license with respect to these designs and
+  any generated files which use data provided as part of the 'Licensed Material'."
+  Values and pin assignments are quoted as facts from the manufacturer documents
+  cited in each block, with page numbers; those documents are not included.
+
+The app uses these npm packages, which are installed from the registry and keep
+their own licences: occt-import-js (LGPL-2.1; its JavaScript and WebAssembly are
+served to the browser as they are, from node_modules), three.js (MIT), pdf.js
+(Apache-2.0), tesseract.js (Apache-2.0; it downloads its OCR engine and English
+language data from a CDN when OCR is first used), React (MIT), and the fonts
+Schibsted Grotesk and IBM Plex Mono (SIL Open Font License 1.1, via Fontsource).
+The Docker image installs KiCad's libraries from Debian's packages (CC-BY-SA 4.0
+with the exception above).
+
+The name Crossprobe and its logo (apps/web/public/favicon.svg,
+apps/web/src/ui/Logo.tsx) identify the project. The Apache License does not grant
+permission to use them for other products (section 6).
+
+No KiCad source code is included. KiCad (GPL-3.0) is used only as an external
+program: the app reads KiCad's installed libraries and demos when they are present,
+and tests compare results with kicad-cli.

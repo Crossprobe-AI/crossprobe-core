@@ -1,0 +1,247 @@
+{
+  "id": "ap2112k-3v3-ldo",
+  "title": "3.3 V LDO from 5 V (AP2112K-3.3)",
+  "description": "AP2112K-3.3 low-dropout regulator with the 1 µF input and output capacitors from the datasheet's typical application, enabled permanently from the input. Turns a 5 V rail into 3.3 V at up to 600 mA.",
+  "keywords": [
+    "AP2112K",
+    "AP2112K-3.3",
+    "LDO",
+    "3.3V",
+    "linear regulator",
+    "power supply",
+    "Diodes Incorporated",
+    "SOT-23-5"
+  ],
+  "category": "Power",
+  "status": "draft",
+  "license": "Apache-2.0",
+  "seo": {
+    "title": "AP2112K-3.3 LDO reference schematic for KiCad",
+    "description": "KiCad schematic for the AP2112K-3.3 LDO: 5 V in, 3.3 V out at up to 600 mA, with the 1 µF capacitors from Diodes' datasheet. Free download."
+  },
+  "sources": [
+    {
+      "id": "ds",
+      "title": "AP2112 600mA CMOS LDO Regulator with Enable, DS39724 Rev. 2-2 (June 2017)",
+      "url": "https://www.diodes.com/assets/Datasheets/AP2112.pdf",
+      "publisher": "Diodes Incorporated",
+      "note": "Values are quoted as facts, with page numbers; the circuit is drawn here, not copied."
+    }
+  ],
+  "layout": {
+    "footprints": 3,
+    "tracks": 8,
+    "vias": 3,
+    "routed": true,
+    "rules": [
+      {
+        "severity": "required",
+        "text": "Keep the 1 uF input and output capacitors next to the pins they serve. Here C1 is 5 mm and C2 4 mm from U1, with the ground return of both on the back-side copper.",
+        "basis": "datasheet",
+        "source": {
+          "doc": "ds",
+          "page": 2,
+          "where": "Typical Applications Circuit, Note 4"
+        }
+      },
+      {
+        "severity": "recommended",
+        "text": "Tie the ground pads to a ground pour on the back layer through the three vias, so the capacitors' ground return does not run through the regulator's ground pin.",
+        "basis": "convention"
+      },
+      {
+        "severity": "info",
+        "text": "The block has no board outline or ground pour of its own: it takes the project's. Refill zones after placing it.",
+        "basis": "convention"
+      }
+    ]
+  },
+  "pins": [
+    {
+      "ref": "C1",
+      "number": "1",
+      "name": "",
+      "net": "+5V"
+    },
+    {
+      "ref": "C1",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "C2",
+      "number": "1",
+      "name": "",
+      "net": "+3V3"
+    },
+    {
+      "ref": "C2",
+      "number": "2",
+      "name": "",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "1",
+      "name": "VIN",
+      "net": "+5V"
+    },
+    {
+      "ref": "U1",
+      "number": "2",
+      "name": "GND",
+      "net": "GND"
+    },
+    {
+      "ref": "U1",
+      "number": "3",
+      "name": "EN",
+      "net": "+5V"
+    },
+    {
+      "ref": "U1",
+      "number": "5",
+      "name": "VOUT",
+      "net": "+3V3"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+5V",
+      "pins": [
+        "C1.1",
+        "U1.1",
+        "U1.3"
+      ]
+    },
+    {
+      "name": "+3V3",
+      "pins": [
+        "C2.1",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2",
+        "U1.2"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "ref": "U1",
+      "symbol": "Regulator_Linear:AP2112K-3.3",
+      "value": "AP2112K-3.3",
+      "footprint": "Package_TO_SOT_SMD:SOT-23-5",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 2,
+        "where": "Typical Applications Circuit; Pin Descriptions (SOT25 numbering)"
+      },
+      "note": "SOT25 pin numbers: 1 VIN, 2 GND, 3 EN, 4 NC, 5 VOUT. EN is tied to VIN, so the regulator is always on."
+    },
+    {
+      "ref": "C1",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 2,
+        "where": "Typical Applications Circuit, CIN; Note 4"
+      },
+      "note": "X7R or X5R if ceramic."
+    },
+    {
+      "ref": "C2",
+      "symbol": "Device:C",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 2,
+        "where": "Typical Applications Circuit, COUT; Note 4"
+      },
+      "note": "X7R or X5R if ceramic."
+    }
+  ],
+  "checklist": [
+    {
+      "severity": "required",
+      "text": "Input voltage 2.5 to 6.0 V. The absolute maximum is 6.5 V, so a 5 V rail fits but a 6 V one leaves little margin for spikes.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 3,
+        "where": "Recommended Operating Conditions; Absolute Maximum Ratings"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Fit 1 uF at the input and 1 uF at the output, close to the pins. If you use ceramic capacitors, choose X7R or X5R dielectric.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 2,
+        "where": "Typical Applications Circuit, Note 4"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "Check the heat before you rely on 600 mA. From 5 V to 3.3 V the regulator dissipates 1.7 V times the load current: 0.51 W at 300 mA. The datasheet gives 184 C/W junction to ambient for SOT25 with no heatsink, so 0.51 W is about a 94 C rise. Give the package copper, or use a switching regulator for more than a few hundred mA.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 3,
+        "where": "Absolute Maximum Ratings, thermal resistance (the rise is calculated here)"
+      }
+    },
+    {
+      "severity": "required",
+      "text": "EN logic high (1.5 V or more) turns the regulator on and logic low (0.4 V or less) turns it off. This block ties EN to the input so it is always on; connect EN to a GPIO instead to switch the 3.3 V rail.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 8,
+        "where": "AP2112-3.3 Electrical Characteristics, VIH and VIL"
+      }
+    },
+    {
+      "severity": "recommended",
+      "text": "If something can already draw current from the output before the regulator is enabled (a second supply feeding the same rail, for example), the foldback current limit may stop it from starting.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 11,
+        "where": "Application Note"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "The AP2112 comes in SOT25, SOT89-5 and SO-8. This block uses SOT25 pin numbers (1 VIN, 2 GND, 3 EN, 5 VOUT) and KiCad's SOT-23-5 footprint; other packages number the pins differently.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 2,
+        "where": "Pin Descriptions"
+      }
+    },
+    {
+      "severity": "info",
+      "text": "Guaranteed output current is 600 mA minimum, with 250 mV typical dropout at 600 mA.",
+      "basis": "datasheet",
+      "source": {
+        "doc": "ds",
+        "page": 1,
+        "where": "Features"
+      }
+    }
+  ]
+}

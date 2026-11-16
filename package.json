@@ -1,0 +1,24 @@
+{
+  "name": "crossprobe-core",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/*",
+    "apps/web"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/kicad-sexpr packages/kicad-model",
+    "test": "vitest run",
+    "dev": "npm run build && npm run dev -w @crossprobe/web",
+    "typecheck": "tsc --noEmit -p apps/web",
+    "clean": "tsc -b --clean packages/kicad-sexpr packages/kicad-model",
+    "check:contrast": "node scripts/check-contrast.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "puppeteer-core": "^25.16.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.12"
+  }
+}

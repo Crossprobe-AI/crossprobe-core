@@ -1,0 +1,5 @@
+{
+  "description": "RP2040 with the circuit from Raspberry Pi's minimal design: supply decoupling, the internal regulator capacitors, a W25Q128JVS flash, the 12 MHz crystal, USB with series resistors and a BOOTSEL header. It takes 3.3 V from outside.",
+  "keywords": "RP2040 Raspberry Pi Pico microcontroller 12 MHz crystal QSPI flash W25Q128JVS USB BOOTSEL reference design",
+  "fields": {}
+}

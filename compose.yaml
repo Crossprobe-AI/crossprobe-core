@@ -1,0 +1,35 @@
+# The web app's dev server with KiCad's libraries: http://localhost:5173
+#   docker compose up --build        run it
+#   docker compose watch             run it and sync your source edits into it (hot reload)
+# See docs/docker.md.
+services:
+  web:
+    build:
+      context: .
+      args:
+        # 1 = also install KiCad's 3D models (several GB).
+        KICAD_3D: ${KICAD_3D:-0}
+        # 0 = no KiCad libraries in the image (mount your own).
+        KICAD_LIBS: ${KICAD_LIBS:-1}
+    image: crossprobe-web:local
+    ports:
+      - "127.0.0.1:5173:5173"
+    # To use your own KiCad's libraries instead of the image's, see
+    # docs/docker.md (a compose.override.yaml with a bind mount).
+    init: true
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/web
+          target: /app/apps/web
+        - action: sync
+          path: ./packages
+          target: /app/packages
+        - action: sync
+          path: ./blocks
+          target: /app/blocks
+        - action: sync
+          path: ./third_party
+          target: /app/third_party
+        - action: rebuild
+          path: ./package-lock.json

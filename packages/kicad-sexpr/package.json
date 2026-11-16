@@ -1,0 +1,10 @@
+{
+  "name": "@crossprobe/kicad-sexpr",
+  "version": "0.1.0",
+  "description": "Lossless parser/writer for KiCad S-expression files",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"]
+}
