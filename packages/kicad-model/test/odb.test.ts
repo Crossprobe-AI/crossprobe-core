@@ -11,8 +11,8 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { odbFiles, parseBoard } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const DEMOS = "/Library/Application Support/kicad/demos";
+const KICAD_CLI = process.env.KICAD_CLI!;
+const DEMOS = process.env.KICAD_DEMOS!;
 let ok = existsSync(DEMOS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

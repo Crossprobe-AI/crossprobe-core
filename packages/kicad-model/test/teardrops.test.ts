@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTeardropZone, boardRoot, computeTeardrops, copperItems, fillZones, findBoardItem, fracture, parseBoard, projectDesignRules, removeTeardrops, setZoneFills } from "../src/index.js";
 
-const DEMOS = "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMOS = process.env.KICAD_DEMOS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = existsSync(DEMOS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

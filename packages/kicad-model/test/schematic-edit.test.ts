@@ -34,8 +34,8 @@ import {
   unitPins,
 } from "../src/index.js";
 
-const DEMO = process.env.EDIT_DEMO ?? "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = process.env.EDIT_DEMO ?? `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const hasCli = (() => {
   try {
     execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

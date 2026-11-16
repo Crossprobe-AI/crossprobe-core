@@ -12,7 +12,7 @@ import { analyze } from "../src/analyze";
 import { projectFromBlock } from "../src/block-project";
 
 const BLOCK = fileURLToPath(new URL("../../../blocks/library/crossprobe.kicad_blocks/esp32-s3-wroom-1-minimal.kicad_block/esp32-s3-wroom-1-minimal.kicad_sch", import.meta.url));
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 const hasCli = (() => {
   try {
     execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
 import { buildNetlist, findItem, loadSchematic, planAnnotation, setSymbolField, sheetRoot } from "../src/index.js";
 
-const DEMO = "/Library/Application Support/kicad/demos/complex_hierarchy";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = `${process.env.KICAD_DEMOS}/complex_hierarchy`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const hasCli = (() => {
   try {
     execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

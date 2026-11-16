@@ -13,8 +13,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTrack, addVia, boardRoot, copperItems, coupledPair, coupledRoute, deleteBoardItem, fillZones, findBoardItem, fracture, pairEscape, pairObstacles, routeWithVias, setZoneFills, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, parseBoard, partnerPad, projectDesignRules } from "../src/index.js";
 
-const DEMO = "/Library/Application Support/kicad/demos/stickhub";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = `${process.env.KICAD_DEMOS}/stickhub`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = existsSync(DEMO);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

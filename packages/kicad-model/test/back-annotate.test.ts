@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize, str, setArg } from "@crossprobe/kicad-sexpr";
 import { boardRoot, findBoardItem, findItem, loadSchematic, parseBoard, planSchematicUpdate, setFootprintAttributes, setFootprintField, setSymbolAttributes, setSymbolField, sheetRoot } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
+const KICAD_CLI = process.env.KICAD_CLI!;
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
 let ok = existsSync(DEMO);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

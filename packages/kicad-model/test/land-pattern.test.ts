@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { boardRoot, checkBoard, landPatternText, newProject, parseBoard, placeFootprint, projectDesignRules, type LandPattern } from "../src/index.js";
 
-const LIB = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints";
+const LIB = process.env.KICAD_FOOTPRINTS!;
 const fpOf = (text: string) => parseBoard(`(kicad_pcb (version 20260206)\n${text}\n)`).footprints[0]!;
 const q = (v: number) => Math.round(v * 1000) / 1000;
 const pads = (text: string) =>

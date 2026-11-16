@@ -11,5 +11,5 @@ export default defineConfig({
     // Run tests against sources so no build step is needed.
     alias: { "@crossprobe/kicad-sexpr": src("kicad-sexpr"), "@crossprobe/kicad-model": src("kicad-model"), "@crossprobe/extensions": extensions },
   },
-  test: { include: ["packages/*/test/**/*.test.ts", "apps/web/test/**/*.test.ts"], testTimeout: 120000 },
+  test: { setupFiles: [fileURLToPath(new URL("./test-setup.ts", import.meta.url))], include: ["packages/*/test/**/*.test.ts", "apps/web/test/**/*.test.ts"], testTimeout: 120000 },
 });

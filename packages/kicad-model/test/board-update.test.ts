@@ -24,10 +24,11 @@ import {
   sheetRoot,
 } from "../src/index.js";
 
-const SHARED = "/Applications/KiCad/KiCad.app/Contents/SharedSupport";
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const ok = existsSync(SHARED) && existsSync(DEMO);
+const SYMBOLS = process.env.KICAD_SYMBOLS!;
+const FOOTPRINTS = process.env.KICAD_FOOTPRINTS!;
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
+const ok = existsSync(SYMBOLS) && existsSync(FOOTPRINTS) && existsSync(DEMO);
 
 describe.skipIf(!ok)("update PCB from schematic", () => {
   it("syncs values, nets and new footprints so KiCad's parity check is clean for them", () => {
@@ -43,7 +44,7 @@ describe.skipIf(!ok)("update PCB from schematic", () => {
     const before = loadSchematic("pic_programmer.kicad_sch", read);
     const r1 = before.placements.find((p) => p.reference === "R1")!;
     setSymbolField(findItem(root, r1.symbol.uuid)!, "Value", "22K");
-    const def = resolveLibrarySymbol(readFileSync(join(SHARED, "symbols/Device.kicad_sym"), "utf8"), "Device", "R");
+    const def = resolveLibrarySymbol(readFileSync(join(SYMBOLS, "Device.kicad_sym"), "utf8"), "Device", "R");
     placeSymbol(root, def, { at: { x: 30.48, y: 190.5 }, reference: "R900", sheetPaths: [before.root.path], projectName: "pic_programmer" });
     writeFileSync(schFile, serialize(sch));
 
@@ -58,7 +59,7 @@ describe.skipIf(!ok)("update PCB from schematic", () => {
     const pcb = parse(readFileSync(pcbFile, "utf8"), { recover: true });
     const proot = boardRoot(pcb);
     for (const u of plan.updates) applyFootprintUpdate(proot, u);
-    const mod = readFileSync(join(SHARED, "footprints/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod"), "utf8");
+    const mod = readFileSync(join(FOOTPRINTS, "Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod"), "utf8");
     placeFootprint(proot, mod, { ...missing, libId: "Resistor_SMD:R_0603_1608Metric", at: { x: 120, y: 80 }, layer: "B.Cu" });
     writeFileSync(pcbFile, serialize(pcb));
 
