@@ -47,6 +47,8 @@ export interface Schematic {
   /** Real components (power symbols and other `#`-references excluded). */
   components: Component[];
   /** Every placed symbol unit per sheet instance, power symbols included. */
+  /** Text variables of the project (from the .kicad_pro next to the root sheet). */
+  textVariables?: Record<string, string>;
   placements: Array<{ sheet: SheetInstance; symbol: PlacedSymbol; reference: string; unit: number; lib?: LibSymbol; /** The value, where the file keeps it per instance (KiCad 6). */ value?: string }>;
   warnings: string[];
 }
@@ -70,7 +72,7 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
 
   const rootData = load(rootFile);
   if (!rootData) throw new Error(warnings[0]);
-  const root: SheetInstance = { path: `/${rootData.uuid}`, namePath: "/", file: rootFile, data: rootData };
+  const root: SheetInstance = { path: `/${rootData.uuid}`, namePath: "/", file: rootFile, data: rootData, pageNumber: rootData.sheetPages?.get("/") };
   const sheets: SheetInstance[] = [];
 
   const visit = (inst: SheetInstance, depth: number) => {
@@ -97,6 +99,9 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
           data,
           parent: inst,
           ref,
+          // KiCad 7+ keeps the page on the sheet symbol, KiCad 6 in the root file.
+          pageNumber:
+            ref.pages?.find((p) => p.path === inst.path)?.page ?? rootData.sheetPages?.get(`${inst.path.slice(root.path.length)}/${ref.uuid}`),
         },
         depth + 1,
       );
@@ -104,8 +109,20 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
   };
   visit(root, 0);
 
-  // Bus aliases are project-wide even though each is stored in one sheet file.
+  let project: { text_variables?: Record<string, string>; schematic?: { bus_aliases?: Record<string, string[]> } } | undefined;
+  try {
+    project = JSON.parse(read(rootFile.replace(/\.kicad_sch$/, ".kicad_pro")));
+  } catch {
+    // No project file: no project variables or aliases.
+  }
+
+  // Bus aliases are project-wide: KiCad 9+ keeps them in the project file,
+  // earlier versions in one of the sheet files.
   const aliases = new Map<string, string[]>();
+  const projectAliases = project?.schematic?.bus_aliases;
+  if (projectAliases && typeof projectAliases === "object") {
+    for (const [k, v] of Object.entries(projectAliases)) if (Array.isArray(v)) aliases.set(k, v.map(String));
+  }
   for (const data of cache.values()) for (const [k, v] of data.busAliases) if (!aliases.has(k)) aliases.set(k, v);
   for (const data of cache.values()) data.busAliases = aliases;
 
@@ -148,7 +165,9 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
   }
 
   const components = [...byRef.values()].sort((a, b) => compareRefs(a.reference, b.reference));
-  return { root, sheets, components, placements, warnings };
+  const vars = project?.text_variables;
+  const textVariables = vars && typeof vars === "object" ? vars : undefined;
+  return { root, sheets, components, placements, warnings, textVariables };
 }
 
 /** Pins of a library symbol that belong to a given unit and body style. */
