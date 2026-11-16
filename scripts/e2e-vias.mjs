@@ -80,7 +80,7 @@ mkdirSync(`${OUT}/drl`);
 execFileSync("kicad-cli", ["pcb", "export", "drill", "--excellon-separate-th", "-o", `${OUT}/drl/`, `${OUT}/${pcb}`], { stdio: "pipe" });
 const kicad = readdirSync(`${OUT}/drl`).filter((f) => !f.endsWith("NPTH.drl")).sort();
 // The model's own drill files, from this checkout's source (the dev server serves it under /@fs).
-const MODEL_SRC = fileURLToPath(new URL("../packages/kicad-model/src/index.ts", import.meta.url));
+const MODEL_SRC = fileURLToPath(import.meta.resolve("../packages/kicad-model/src/index.ts"));
 const ours = await page.evaluate(async (src) => {
   const m = await import("/@fs" + src).catch(() => null);
   return m ? Object.keys(m.fabricationFiles(window.__crossprobe.project.board, { name: "vias" })).filter((f) => f.endsWith(".drl")).sort() : null;
