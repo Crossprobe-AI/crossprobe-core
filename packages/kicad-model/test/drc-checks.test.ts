@@ -16,8 +16,8 @@ import { basename, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { checkBoard, parseBoard, parseDru, projectDesignRules, type DrcItem } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const CACHE = join(tmpdir(), "crossprobe-drc-cache");
 mkdirSync(CACHE, { recursive: true });
 const TYPES = ["drill_out_of_range", "annular_width", "track_dangling", "via_dangling", "courtyards_overlap", "holes_co_located", "hole_to_hole", "starved_thermal", "text_height", "text_thickness", "track_width", "via_diameter", "mirrored_text_on_front_layer", "nonmirrored_text_on_back_layer", "silk_edge_clearance", "silk_over_copper", "solder_mask_bridge", "silk_overlap"];

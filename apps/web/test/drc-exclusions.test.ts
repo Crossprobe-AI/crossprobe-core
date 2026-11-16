@@ -8,7 +8,7 @@ import { analyze } from "../src/analyze";
 import { Editor } from "../src/edit/ops";
 import { exclusionEntry } from "@crossprobe/kicad-model";
 
-const DIR = "/Library/Application Support/kicad/demos/interf_u";
+const DIR = `${process.env.KICAD_DEMOS}/interf_u`;
 
 describe.skipIf(!existsSync(DIR))("DRC exclusions", () => {
   it("exclude a finding, see it set apart, include it again", () => {

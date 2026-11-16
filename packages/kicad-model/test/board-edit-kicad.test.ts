@@ -12,8 +12,8 @@ import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { boardRoot, findBoardItem, parseBoard, pasteBoardItems, plotGerber, setLocked, setPadNet, setPadProps } from "../src/index.js";
 import { area, readGerber, xor } from "./gerber-read.js";
 
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = existsSync(DEMO);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

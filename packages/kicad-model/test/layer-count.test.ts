@@ -11,14 +11,14 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTrack, boardRoot, newProject, parseBoard, setCopperLayerCount, setStackup, STACKUPS } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });
 } catch {
   cli = false;
 }
-const TT = "/Library/Application Support/kicad/demos/tiny_tapeout/tinytapeout-demo.kicad_pcb";
+const TT = `${process.env.KICAD_DEMOS}/tiny_tapeout/tinytapeout-demo.kicad_pcb`;
 
 describe("copper layer count", () => {
   it("a new board becomes four-layer, and KiCad plots the inner layers", () => {

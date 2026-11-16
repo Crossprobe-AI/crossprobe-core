@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
 import { indexLibrary, loadSchematic, placeSymbol, resolveLibrarySymbol, sheetRoot } from "../src/index.js";
 
-const LIBS = process.env.KICAD_SYMBOLS ?? "/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols";
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const LIBS = process.env.KICAD_SYMBOLS!;
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const ok = existsSync(LIBS) && existsSync(DEMO);
 
 describe.skipIf(!ok)("KiCad symbol libraries", () => {

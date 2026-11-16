@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addBoardShape, addBoardText, addWire, addZone, boardRoot, fillZones, findBoardItem, fracture, newProject, parseBoard, projectFileName, placeFootprint, projectDesignRules, roundedRectShapes, setBoardText, setZoneFills, sheetRoot } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });
@@ -77,7 +77,7 @@ describe.skipIf(!ok)("new project", () => {
     const front = addBoardText(root, { text: "Crossprobe", at: { x: 120, y: 120 }, layer: "F.SilkS" });
     addBoardText(root, { text: "back", at: { x: 110, y: 120 }, layer: "B.SilkS" });
     setBoardText(findBoardItem(root, front)!, { size: 1.5 });
-    const hole = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints/MountingHole.pretty/MountingHole_3.2mm_M3.kicad_mod";
+    const hole = `${process.env.KICAD_FOOTPRINTS}/MountingHole.pretty/MountingHole_3.2mm_M3.kicad_mod`;
     if (existsSync(hole)) placeFootprint(root, readFileSync(hole, "utf8"), { at: { x: 104, y: 104 }, reference: "H1", value: "M3", libId: "MountingHole:MountingHole_3.2mm_M3", boardOnly: true });
     writeFileSync(pcb, serialize(bdoc));
 

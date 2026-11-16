@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import occtimportjs from "occt-import-js";
 import { parseBoard, scaleStep, stepAssembly } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const MODELS = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/3dmodels";
+const KICAD_CLI = process.env.KICAD_CLI!;
+const MODELS = process.env.KICAD_3DMODELS!;
 let ok = existsSync(MODELS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });
@@ -55,7 +55,7 @@ describe.skipIf(!ok)("scaled STEP models", () => {
 
   it("cm5_minima's scaled SOT-23s are placed as KiCad places them", { timeout: 300_000 }, async () => {
     // A board with just those three parts (the rest of cm5_minima's models would only slow kicad-cli down).
-    const src = "/Library/Application Support/kicad/demos/cm5_minima/CM5_MINIMA_3.kicad_pcb";
+    const src = `${process.env.KICAD_DEMOS}/cm5_minima/CM5_MINIMA_3.kicad_pcb`;
     const board0 = parseBoard(readFileSync(src, "utf8"), { recover: true });
     const keep = new Set(["D101", "D701", "D502"]);
     const dir = mkdtempSync(join(tmpdir(), "step-scale-"));

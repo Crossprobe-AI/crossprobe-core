@@ -13,9 +13,9 @@ import { describe, expect, it } from "vitest";
 import occtimportjs from "occt-import-js";
 import { boardBodySolid, parseBoard, stepAssembly, stepFile } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const DEMOS = "/Library/Application Support/kicad/demos";
-const MODELS = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/3dmodels";
+const KICAD_CLI = process.env.KICAD_CLI!;
+const DEMOS = process.env.KICAD_DEMOS!;
+const MODELS = process.env.KICAD_3DMODELS!;
 let ok = existsSync(DEMOS) && existsSync(MODELS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

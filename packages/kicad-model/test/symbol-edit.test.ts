@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addSymPin, deleteSymPins, findLibSymbol, updateSchematicLibSymbol, layoutSymbol, newProject, placeSymbol, resolveLibrarySymbol, setSymPin, symbolLibRoot, symbolProblems, withLibrarySymbol, withLibTableEntry } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

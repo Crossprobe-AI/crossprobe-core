@@ -49,7 +49,7 @@ describe("board reannotation", () => {
     expect(changes.map((c) => `${c.from}>${c.to}`)).toEqual(["R2>BR1"]);
   });
 
-  const PIC = "/Library/Application Support/kicad/demos/pic_programmer/pic_programmer.kicad_pcb";
+  const PIC = `${process.env.KICAD_DEMOS}/pic_programmer/pic_programmer.kicad_pcb`;
   it.skipIf(!existsSync(PIC))("renumbers a real board to unique references", () => {
     const b = parseBoard(readFileSync(PIC, "utf8"));
     const { changes, duplicates, invalid } = planBoardReannotate(b, {});

@@ -12,7 +12,7 @@ import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { bitmapToPolygons, boardRoot, logoFootprint, newProject, placeFootprint } from "../src/index.js";
 import { area, readGerber } from "./gerber-read.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let ok = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

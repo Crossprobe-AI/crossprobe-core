@@ -15,8 +15,8 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildNetlist, loadSchematic, projectErcSettings, runErc } from "../src/index.js";
 
-const CORPUS = process.env.KICAD_CORPUS ?? "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const CORPUS = process.env.KICAD_CORPUS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const SKIPPED = new Set(["lib_symbol_issues", "lib_symbol_mismatch", "footprint_link_issues", "footprint_filter"]);
 
 function hasKicadCli(): boolean {

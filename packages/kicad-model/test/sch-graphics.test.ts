@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, headOf, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
 import { addLabel, addSchGraphic, addSchText, addSchTextBox, findItem, newProject, setItemText, sheetRoot } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

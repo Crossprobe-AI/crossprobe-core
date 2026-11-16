@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { boardRoot, deleteBoardItem, findBoardItem, moveTrackEnd, parseBoard, planCleanup } from "../src/index.js";
 
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
-const DEMOS = "/Library/Application Support/kicad/demos";
+const KICAD_CLI = process.env.KICAD_CLI!;
+const DEMOS = process.env.KICAD_DEMOS!;
 let cli = existsSync(DEMOS);
 try {
   execFileSync(KICAD_CLI, ["version"], { stdio: "ignore" });

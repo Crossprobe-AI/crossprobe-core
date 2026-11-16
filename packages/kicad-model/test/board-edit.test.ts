@@ -13,8 +13,8 @@ import { parse, serialize } from "@crossprobe/kicad-sexpr";
 import { addTrack, addVia, boardRoot, findBoardItem, flipFootprint, moveBoardItem, moveFootprintText, parseBoard, rotateBoardItem, type Footprint } from "../src/index.js";
 
 const PY = process.env.KICAD_PYTHON ?? "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3";
-const DEMOS = "/Library/Application Support/kicad/demos";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const DEMOS = process.env.KICAD_DEMOS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 const BOARDS = ["pic_programmer/pic_programmer.kicad_pcb", "video/video.kicad_pcb", "stickhub/StickHub.kicad_pcb", "royalblue54L_feather/royalblue54L-feather.kicad_pcb"].filter((b) => existsSync(join(DEMOS, b)));
 const ok = existsSync(PY) && BOARDS.length > 0;
 

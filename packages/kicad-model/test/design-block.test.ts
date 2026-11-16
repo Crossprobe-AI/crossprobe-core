@@ -17,8 +17,8 @@ import { arg, findChild, findChildren, parse, serialize, type List } from "@cros
 import { blockManifest, buildNetlist, checkSpecCitations, findFreeSpot, findItem, generateBlockSchematic, insertBlock, loadSchematic, planAnnotation, setSymbolField, sheetRoot, verifyBlock, type BlockSpec } from "../src/index.js";
 
 const ROOT = fileURLToPath(new URL("../../../blocks/", import.meta.url));
-const SYMBOLS = process.env.KICAD_SYMBOLS ?? "/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols";
-const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
+const SYMBOLS = process.env.KICAD_SYMBOLS!;
+const KICAD_CLI = process.env.KICAD_CLI!;
 
 function hasKicadCli(): boolean {
   try {
@@ -140,7 +140,7 @@ function pinNumbers(symbolId: string, key: string): string[] {
 
 // ---------------------------------------------------------------------------
 
-const DEMO = "/Library/Application Support/kicad/demos/pic_programmer";
+const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
 
 describe.skipIf(!existsSync(SYMBOLS) || !hasKicadCli() || !existsSync(DEMO))("inserting a block into a design", () => {
   it("adds each block's parts and nets to a KiCad project, annotated, and KiCad agrees", () => {
