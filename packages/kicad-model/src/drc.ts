@@ -360,7 +360,7 @@ const rot = (p: Point, deg: number): Point => {
 };
 
 /** A pad's copper as shapes: its main shape, plus a custom pad's primitives (in the pad frame). */
-function padShapes(pad: Pad): Shape[] {
+export function padShapes(pad: Pad): Shape[] {
   const main = padShape(pad);
   if (pad.shape !== "custom" || !pad.primitives?.length) return [main];
   const at = pad.offset ? (() => {
