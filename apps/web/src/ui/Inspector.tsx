@@ -67,6 +67,8 @@ const DRC_LABELS: Record<string, string> = {
   npth_inside_courtyard: "Unplated hole in another part's courtyard",
   zones_intersect: "Zones of one net and priority overlap",
   footprint_type_mismatch: "Footprint type doesn't match its pads",
+  length_out_of_range: "Trace length out of range (custom rule)",
+  skew_out_of_range: "Skew between traces out of range (custom rule)",
 };
 
 const ERC_LABELS: Record<string, string> = {

@@ -11,9 +11,10 @@ import type { Point } from "./geometry.js";
 import { boardArea, connectionOf, padPolygons } from "./zone-fill.js";
 import { flashChecker } from "./board.js";
 import { customConstraint, type RuleItem } from "./drc-rules.js";
+import { checkLengthRules } from "./drc-length.js";
 import { netClassOf } from "./drc.js";
 
-export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch";
+export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch" | "length_out_of_range" | "skew_out_of_range";
 
 export interface BoardViolation {
   type: BoardCheck;
@@ -1094,6 +1095,8 @@ export function checkBoard(board: Board, rules: DesignRules, items: CopperItem[]
   if (on("pth_inside_courtyard") || on("npth_inside_courtyard")) checkCourtyardHoles(board, all);
   if (on("footprint_type_mismatch")) checkFootprintTypes(board, all);
   if (on("zones_intersect")) checkZoneIntersections(board, all);
+  if ((on("length_out_of_range") || on("skew_out_of_range")) && rules.custom?.length)
+    for (const v of checkLengthRules(board, rules, rules.custom)) all.push({ type: v.type, severity: "error", message: v.message, at: v.at, items: v.items, actual: v.actual, required: v.max ?? v.min });
   if (on("starved_thermal")) checkThermals(board, rules, all);
   if (on("text_height") || on("text_thickness")) checkTextSizes(board, rules, all);
   if (on("track_width") || on("via_diameter")) checkWidths(board, rules, items, all);
