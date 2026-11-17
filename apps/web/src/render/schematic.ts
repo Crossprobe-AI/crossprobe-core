@@ -19,8 +19,7 @@ import {
   drawingSheetPrims,
   sheetsByPage,
   type DrawingSheet,
-  type DrawingSheetPrim,
-} from "@crossprobe/kicad-model";
+  type DrawingSheetPrim, base64Bytes, bitmapInfo, bitmapSizeMm, type BitmapInfo } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -480,11 +479,16 @@ function sheetPrim(p: DrawingSheetPrim): Prim[] {
       const step = p.size.y * 1.6;
       const r = (p.angle * Math.PI) / 180;
       // Lines stack down the text's own direction.
+      // Squeezed to its maxlen: narrower than it is tall.
+      const xScale = p.size.y > 0 && Math.abs(p.size.x - p.size.y) > 1e-6 ? p.size.x / p.size.y : undefined;
       return lines.map((line, i) => {
         const k = (i - (p.v === "bottom" ? lines.length - 1 : p.v === "center" ? (lines.length - 1) / 2 : 0)) * step;
-        return text(p.at.x + k * Math.sin(r), p.at.y + k * Math.cos(r), line, e, p.angle, "frame");
+        const t = text(p.at.x + k * Math.sin(r), p.at.y + k * Math.cos(r), line, e, p.angle, "frame");
+        return xScale && t.t === "text" ? { ...t, xScale } : t;
       });
     }
+    case "bitmap":
+      return [{ t: "image", x: p.at.x, y: p.at.y, w: p.w, h: p.h, href: `data:image/png;base64,${p.png}` }];
   }
 }
 
@@ -522,23 +526,16 @@ function imagePrim(node: List): Prim | undefined {
   const data = findChild(node, "data");
   if (!data) return undefined;
   const b64 = data.children.slice(1).filter(isAtom).map(atomText).join("").replace(/\s+/g, "");
-  let w = 0, h = 0, mime = "image/png";
+  // Sized as KiCad sizes it: by the PNG's own resolution, else 300 pixels per inch.
+  let info: BitmapInfo | undefined;
   try {
-    const head = atob(b64.slice(0, 64));
-    if (head.startsWith("\x89PNG")) {
-      const u32 = (o: number) => ((head.charCodeAt(o) << 24) | (head.charCodeAt(o + 1) << 16) | (head.charCodeAt(o + 2) << 8) | head.charCodeAt(o + 3)) >>> 0;
-      w = u32(16);
-      h = u32(20);
-    } else {
-      mime = "image/jpeg";
-    }
+    info = bitmapInfo(base64Bytes(b64, 1 << 16));
   } catch {
     return undefined;
   }
-  if (!w || !h) return undefined;
-  const mmW = (w / 300) * 25.4 * scale;
-  const mmH = (h / 300) * 25.4 * scale;
-  return { t: "image", x: at.x - mmW / 2, y: at.y - mmH / 2, w: mmW, h: mmH, href: `data:${mime};base64,${b64}` };
+  if (!info) return undefined;
+  const { w: mmW, h: mmH } = bitmapSizeMm(info, scale);
+  return { t: "image", x: at.x - mmW / 2, y: at.y - mmH / 2, w: mmW, h: mmH, href: `data:${info.mime};base64,${b64}` };
 }
 
 /** KiCad 7+ text box: a rectangle with word-wrapped text inside its margins. */
