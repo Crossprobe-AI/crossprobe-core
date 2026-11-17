@@ -22,7 +22,7 @@
  */
 import { onSegment, pointKey, transformLibPoint, type Point } from "./geometry.js";
 import { expandBusMembers } from "./bus.js";
-import { escapeNetName, type Netlist, type SchematicPin, type SubgraphDetail } from "./connectivity.js";
+import { escapeNetName, shownText, unitLetter, type Netlist, type SchematicPin, type SubgraphDetail } from "./connectivity.js";
 import { unitPins, type Schematic, type SheetInstance } from "./project.js";
 import type { PinType } from "./sheet.js";
 import type { Severity } from "./parity.js";
@@ -43,6 +43,14 @@ export type ErcType =
   | "multiple_net_names"
   | "similar_labels"
   | "hier_label_mismatch"
+  | "missing_unit"
+  | "missing_input_pin"
+  | "missing_bidi_pin"
+  | "missing_power_pin"
+  | "different_unit_footprint"
+  | "duplicate_sheet_names"
+  | "same_local_global_label"
+  | "unresolved_variable"
   | "duplicate_reference";
 
 export interface ErcItem {
@@ -107,6 +115,8 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   no_connect_connected: "warning", no_connect_dangling: "warning", label_dangling: "error", isolated_pin_label: "warning",
   label_multiple_wires: "warning", wire_dangling: "error", unconnected_wire_endpoint: "warning", endpoint_off_grid: "warning",
   multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
+  missing_unit: "warning", missing_input_pin: "warning", missing_bidi_pin: "warning", missing_power_pin: "error", different_unit_footprint: "error",
+  duplicate_sheet_names: "error", same_local_global_label: "warning", unresolved_variable: "error",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -173,6 +183,8 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   }
   checkLabelsAcrossDesign(schematic, report);
   checkSheetPins(schematic, report);
+  checkUnits(schematic, report);
+  checkSheetContents(schematic, report);
   checkDuplicateReferences(schematic, report);
   return out;
 }
@@ -456,6 +468,64 @@ function checkSheetPins(schematic: Schematic, report: Report) {
     for (const label of labels) {
       if (pins.has(label.text)) continue;
       report("hier_label_mismatch", sheet, `Hierarchical label ${label.text} has no matching sheet pin in the parent sheet`, [{ description: `Hierarchical Label '${label.text}'`, at: label.at }]);
+    }
+  }
+}
+
+/** Parts with several units: every unit placed, and all with one footprint. */
+function checkUnits(schematic: Schematic, report: Report) {
+  for (const c of schematic.components) {
+    const lib = c.lib;
+    if (!lib || lib.unitCount < 2) continue;
+    const units = [...c.units].sort((a, b) => a.unit - b.unit);
+    const first = units[0]!;
+    const name = c.libId.slice(c.libId.indexOf(":") + 1);
+    const item = (u: (typeof units)[number]): ErcItem => ({ description: `Symbol ${c.reference} [${name}]`, at: u.symbol.at, reference: c.reference });
+    const placed = new Set(units.map((u) => u.unit));
+    const missing = Array.from({ length: lib.unitCount }, (_, i) => i + 1).filter((u) => !placed.has(u));
+    const letters = (list: number[]) => `[ ${list.map(unitLetter).join(", ")} ]`;
+    if (missing.length) {
+      report("missing_unit", first.sheet, `Symbol ${c.reference} has unplaced units ${letters(missing)}`, [item(first)]);
+      // What the missing units leave open: their inputs, supply pins and bidirectional pins (KiCad counts the pins all units share, too).
+      const withPins = (types: string[]) => missing.filter((u) => lib.pins.some((p) => (p.unit === u || p.unit === 0) && types.includes(p.type)));
+      const inputs = withPins(["input"]);
+      const power = withPins(["power_in"]);
+      const bidi = withPins(["bidirectional"]);
+      if (inputs.length) report("missing_input_pin", first.sheet, `Symbol ${c.reference} has input pins in units ${letters(inputs)} that are not placed`, [item(first)]);
+      if (power.length) report("missing_power_pin", first.sheet, `Symbol ${c.reference} has input power pins in units ${letters(power)} that are not placed`, [item(first)]);
+      if (bidi.length) report("missing_bidi_pin", first.sheet, `Symbol ${c.reference} has bidirectional pins in units ${letters(bidi)} that are not placed`, [item(first)]);
+    }
+    const footprint = first.symbol.properties["Footprint"] ?? "";
+    for (const u of units.slice(1)) {
+      if ((u.symbol.properties["Footprint"] ?? "") === footprint) continue;
+      report("different_unit_footprint", first.sheet, `Different footprints assigned to ${c.reference}${unitLetter(first.unit)} and ${c.reference}${unitLetter(u.unit)}`, [item(first), item(u)]);
+    }
+  }
+}
+
+/** What is on each sheet: sheet symbols with one name, a local label named like a global one, texts with a variable that names nothing. */
+function checkSheetContents(schematic: Schematic, report: Report) {
+  const files = new Set<string>();
+  const globals = new Map<string, { sheet: SheetInstance; at: Point }>();
+  for (const sheet of schematic.sheets) for (const l of sheet.data.labels) if (l.kind === "global" && !globals.has(l.text)) globals.set(l.text, { sheet, at: l.at });
+  for (const sheet of schematic.sheets) {
+    // Once per file, as KiCad checks its screens.
+    if (files.has(sheet.file)) continue;
+    files.add(sheet.file);
+    const byName = new Map<string, typeof sheet.data.sheets>();
+    for (const s of sheet.data.sheets) byName.set(s.name.toLowerCase(), [...(byName.get(s.name.toLowerCase()) ?? []), s]);
+    for (const same of byName.values()) {
+      if (same.length < 2) continue;
+      const sorted = [...same].sort((a, b) => a.at.x - b.at.x || a.at.y - b.at.y);
+      report("duplicate_sheet_names", sheet, "Duplicate sheet names within a given sheet", sorted.slice(0, 2).map((s) => ({ description: `Hierarchical Sheet '${s.name}'`, at: s.at })));
+    }
+    for (const l of sheet.data.labels) {
+      const global = l.kind === "local" ? globals.get(l.text) : undefined;
+      if (global) report("same_local_global_label", global.sheet, "Local and global labels have same name", [{ description: `Global Label '${l.text}'`, at: global.at }, { description: `Label '${l.text}'`, at: l.at }]);
+    }
+    for (const t of sheet.data.texts) {
+      const shown = shownText(t.text, sheet, schematic);
+      if (/\$\{[^{}]+\}/.test(shown)) report("unresolved_variable", sheet, "Unresolved text variable", [{ description: `Graphic Text '${shown}'`, at: t.at }]);
     }
   }
 }
