@@ -98,6 +98,8 @@ const ERC_LABELS: Record<string, string> = {
   similar_label_and_power: "Label and power net differ only in case",
   similar_power: "Power nets differ only in case",
   undefined_netclass: "Net class not in the project",
+  ground_pin_not_ground: "Ground pin off the ground net",
+  different_unit_net: "A pin shared by units on different nets",
   duplicate_reference: "Duplicate reference",
 };
 
