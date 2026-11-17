@@ -62,6 +62,8 @@ export interface ErcItem {
   description: string;
   /** Sheet position in mm. */
   at: Point;
+  /** The item's UUID in the file, where it has one (pins, labels). */
+  uuid?: string;
   reference?: string;
   pin?: string;
 }
@@ -86,6 +88,8 @@ export interface ErcOptions {
   gridMm?: number;
   /** The project's net classes (names); a directive naming another is an error. Unknown: not checked. */
   netClasses?: string[];
+  /** Findings accepted on purpose (the project's erc_exclusions): KiCad's entry and its comment. */
+  exclusions?: Array<{ entry: string; comment: string }>;
 }
 
 // KiCad's pin type order for the conflict matrix.
@@ -137,7 +141,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
 export function projectErcSettings(kicadPro: string): ErcOptions {
   try {
     const json = JSON.parse(kicadPro) as {
-      erc?: { rule_severities?: Record<string, Severity>; pin_map?: number[][] };
+      erc?: { rule_severities?: Record<string, Severity>; pin_map?: number[][]; erc_exclusions?: unknown[] };
       schematic?: { connection_grid_size?: number };
       net_settings?: { classes?: Array<{ name?: string }> };
     };
@@ -146,6 +150,7 @@ export function projectErcSettings(kicadPro: string): ErcOptions {
       severities: json.erc?.rule_severities,
       pinMap: json.erc?.pin_map?.length === 12 ? json.erc.pin_map : undefined,
       gridMm: grid ? grid * 0.0254 : undefined,
+      exclusions: (json.erc?.erc_exclusions ?? []).map((e) => (Array.isArray(e) ? { entry: String(e[0]), comment: String(e[1] ?? "") } : { entry: String(e), comment: "" })),
       netClasses: Array.isArray(json.net_settings?.classes) ? json.net_settings.classes.map((c) => String(c?.name ?? "")).filter(Boolean) : undefined,
     };
   } catch {
@@ -158,7 +163,7 @@ const DRIVING: PinType[] = ["output", "power_out", "passive", "tri_state", "bidi
 
 const pinDesc = (p: SchematicPin) =>
   `Symbol ${p.reference} ${p.hidden ? "Hidden pin" : "Pin"} ${p.number} [${p.name && p.name !== "~" ? `${p.name}, ` : ""}${TYPE_LABEL[p.type]}, ${SHAPE_LABEL[p.shape] ?? "Line"}]`;
-const pinItem = (p: SchematicPin): ErcItem => ({ description: pinDesc(p), at: p.at, reference: p.reference, pin: p.number });
+const pinItem = (p: SchematicPin): ErcItem => ({ description: pinDesc(p), at: p.at, reference: p.reference, pin: p.number, ...(p.uuid && { uuid: p.uuid }) });
 /** Stacked pins (same symbol, position and type) count as one. */
 const stacked = (a: SchematicPin, b: SchematicPin) =>
   a.symbolUuid === b.symbolUuid && a.type === b.type && pointKey(a.at) === pointKey(b.at);
@@ -441,7 +446,7 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
     const ends = wires.filter((w) => pointKey(w.a) === k || pointKey(w.b) === k).length;
     const pieces = wires.length - ends + (ends > 0 ? 1 : 0);
     if (pieces > 1 && !data.junctions.some((j) => pointKey(j) === k)) {
-      report("label_multiple_wires", sheet, "Label connects more than one wire", [{ description: `Label '${l.text}'`, at: l.at }, { description: wireDesc(wires[0]!), at: wires[0]!.a }]);
+      report("label_multiple_wires", sheet, "Label connects more than one wire", [{ description: `Label '${l.text}'`, at: l.at, ...(l.uuid && { uuid: l.uuid }) }, { description: wireDesc(wires[0]!), at: wires[0]!.a }]);
     }
   }
 }
@@ -515,7 +520,7 @@ function checkUnits(schematic: Schematic, report: Report) {
 function checkSheetContents(schematic: Schematic, report: Report) {
   const files = new Set<string>();
   const globals = new Map<string, { sheet: SheetInstance; at: Point }>();
-  for (const sheet of schematic.sheets) for (const l of sheet.data.labels) if (l.kind === "global" && !globals.has(l.text)) globals.set(l.text, { sheet, at: l.at });
+  for (const sheet of schematic.sheets) for (const l of sheet.data.labels) if (l.kind === "global" && !globals.has(l.text)) globals.set(l.text, { sheet, at: l.at, ...(l.uuid && { uuid: l.uuid }) });
   for (const sheet of schematic.sheets) {
     // Once per file, as KiCad checks its screens.
     if (files.has(sheet.file)) continue;
@@ -529,7 +534,7 @@ function checkSheetContents(schematic: Schematic, report: Report) {
     }
     for (const l of sheet.data.labels) {
       const global = l.kind === "local" ? globals.get(l.text) : undefined;
-      if (global) report("same_local_global_label", global.sheet, "Local and global labels have same name", [{ description: `Global Label '${l.text}'`, at: global.at }, { description: `Label '${l.text}'`, at: l.at }]);
+      if (global) report("same_local_global_label", global.sheet, "Local and global labels have same name", [{ description: `Global Label '${l.text}'`, at: global.at }, { description: `Label '${l.text}'`, at: l.at, ...(l.uuid && { uuid: l.uuid }) }]);
     }
     for (const t of sheet.data.texts) {
       const shown = shownText(t.text, sheet, schematic);
@@ -547,7 +552,7 @@ function checkSingleGlobalLabels(schematic: Schematic, report: Report) {
     if (files.has(sheet.file)) continue;
     files.add(sheet.file);
     for (const l of sheet.data.labels) {
-      if (l.kind === "global" && count.get(shownText(l.text, sheet, schematic)) === 1) report("single_global_label", sheet, "Global label only appears once in the schematic", [{ description: `Global Label '${l.text}'`, at: l.at }]);
+      if (l.kind === "global" && count.get(shownText(l.text, sheet, schematic)) === 1) report("single_global_label", sheet, "Global label only appears once in the schematic", [{ description: `Global Label '${l.text}'`, at: l.at, ...(l.uuid && { uuid: l.uuid }) }]);
     }
   }
 }
@@ -568,7 +573,7 @@ function checkSimilarNames(schematic: Schematic, netlist: Netlist, report: Repor
         const l = sg.sheet.data.labels[i]!;
         const text = shownText(l.text, sg.sheet, schematic);
         const kind = l.kind === "global" ? "Global Label" : l.kind === "hierarchical" ? "Hierarchical Label" : "Label";
-        add({ text, sheet: sg.sheet, uuid: l.uuid ?? "", item: { description: `${kind} '${l.text}'`, at: l.at }, kind: l.kind === "local" ? "local" : "label" });
+        add({ text, sheet: sg.sheet, uuid: l.uuid ?? "", item: { description: `${kind} '${l.text}'`, at: l.at, ...(l.uuid && { uuid: l.uuid }) }, kind: l.kind === "local" ? "local" : "label" });
       }
       for (const p of sg.pins) if (p.powerName !== undefined) add({ text: p.powerName, sheet: sg.sheet, uuid: p.uuid ?? "", item: pinItem(p), kind: "power" });
     }
@@ -590,6 +595,36 @@ function checkSimilarNames(schematic: Schematic, netlist: Netlist, report: Repor
   }
 }
 
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+/** Schematic positions in KiCad's internal units (100 nm). */
+const iu = (mm: number) => Math.round(mm * 1e4);
+
+/**
+ * A finding as KiCad writes it in erc_exclusions: check|x|y|main item|other item|sheet|main
+ * item's sheet|other item's sheet. Items whose UUID isn't known here are written as nil.
+ */
+export function ercExclusionEntry(v: ErcViolation): string {
+  const at = v.items[0]?.at ?? { x: 0, y: 0 };
+  return [v.type, iu(at.x), iu(at.y), v.items[0]?.uuid ?? NIL_UUID, v.items[1]?.uuid ?? NIL_UUID, v.sheet, v.sheet, v.items[1] ? v.sheet : ""].join("|");
+}
+
+/**
+ * Is a finding excluded? KiCad matches its whole string; this file doesn't know every item's
+ * UUID, so a finding matches an entry of the same check at the same place on the same sheet
+ * (an entry naming no sheet matches any).
+ */
+export function isErcExcluded(v: ErcViolation, entries: string[]): boolean {
+  const at = v.items[0]?.at;
+  if (!at) return false;
+  const sheet = v.kicadSheetName ? undefined : v.sheet;
+  return entries.some((e) => {
+    const [type, x, y, , , specific, mainPath] = e.split("|");
+    if (type !== v.type || Number(x) !== iu(at.x) || Number(y) !== iu(at.y)) return false;
+    const paths = [specific, mainPath].filter(Boolean);
+    return !paths.length || !sheet || paths.includes(sheet);
+  });
+}
+
 /** Directives and labels naming a net class the project doesn't have. */
 function checkNetClassNames(schematic: Schematic, known: Set<string>, report: Report) {
   const names = (fields?: Record<string, string>) => (fields?.["Netclass"] ?? "").split(",").map((c) => c.trim()).filter(Boolean);
@@ -602,7 +637,7 @@ function checkNetClassNames(schematic: Schematic, known: Set<string>, report: Re
     }
     for (const l of sheet.data.labels) {
       const kind = l.kind === "global" ? "Global Label" : l.kind === "hierarchical" ? "Hierarchical Label" : "Label";
-      for (const n of names(l.fields)) if (!known.has(n)) report("undefined_netclass", sheet, `Netclass ${n} is not defined`, [{ description: `${kind} '${l.text}'`, at: l.at }]);
+      for (const n of names(l.fields)) if (!known.has(n)) report("undefined_netclass", sheet, `Netclass ${n} is not defined`, [{ description: `${kind} '${l.text}'`, at: l.at, ...(l.uuid && { uuid: l.uuid }) }]);
     }
   }
 }
