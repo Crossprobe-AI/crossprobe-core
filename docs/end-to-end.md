@@ -59,6 +59,16 @@ run at twice the speed. No ffmpeg is needed:
 2. A blank page replays them onto a canvas, and the browser's MediaRecorder encodes the WebM
    (`scripts/lib/record.mjs`).
 
+## The README's GIF
+
+`scripts/readme-demo.mjs <project folder>` records `docs/media/demo.gif` from a board in
+progress: the USB-C board below, stopped before "Route all"
+(`STOP=poured node scripts/e2e-usb.mjs <project folder>`). The run selects the
+microcontroller in the schematic, shows it on the board, routes one connection by hand,
+runs "Route all" and turns the 3D view, with a short caption on each step. The frames are screenshots, and
+`scripts/lib/gif.mjs` encodes them, so this needs no ffmpeg either. Run it again when the
+app's look changes.
+
 ## Fabrication outputs
 
 "Fab outputs" in the top bar runs a pre-flight (closed outline, everything routed, no
