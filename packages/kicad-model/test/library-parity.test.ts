@@ -46,7 +46,7 @@ function libTable(file: string, prjDir: string, out = new Map<string, string>())
 }
 
 describe.skipIf(!ok)("footprints against their library copies, as KiCad's DRC", () => {
-  it.each(boards(DEMOS))("%s", (pcb) => {
+  it.each(ok ? boards(DEMOS) : [])("%s", (pcb) => {
     const report = join(CACHE, `${basename(pcb)}-${statSync(pcb).mtimeMs}.json`);
     if (!existsSync(report)) execFileSync(KICAD_CLI, ["pcb", "drc", "--severity-all", "--format", "json", "-o", report, pcb], { stdio: "ignore" });
     const r = JSON.parse(readFileSync(report, "utf8")) as { violations: Array<{ type: string; items: Array<{ description: string }> }> };
