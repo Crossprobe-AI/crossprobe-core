@@ -244,6 +244,21 @@ export function BoardProps({ board, picked, file, onEdit }: { board: Board; pick
             </select>
           </label>
           {zones.every((z) => z.islandMode === 2) && <NumField label="Minimum island" unit="mm²" value={common(zones.map((z) => z.islandAreaMin))} onCommit={(v) => v >= 0 && zoneEdit({ islandAreaMin: v })} />}
+          <label className="prop" title="Solid copper, or a grid of copper lines (KiCad's hatched fill)">
+            <span>Fill</span>
+            <select value={common(zones.map((z) => (z.hatched ? "hatch" : "solid"))) ?? ""} onChange={(e) => zoneEdit({ fillMode: e.target.value as "solid" | "hatch" })}>
+              {common(zones.map((z) => z.hatched)) === undefined && <option value="">mixed</option>}
+              <option value="solid">Solid</option>
+              <option value="hatch">Hatched</option>
+            </select>
+          </label>
+          {zones.every((z) => z.hatch) && (
+            <>
+              <NumField label="Hatch width" value={common(zones.map((z) => z.hatch!.thickness))} onCommit={(v) => v > 0 && zoneEdit({ hatchThickness: v })} />
+              <NumField label="Hatch gap" value={common(zones.map((z) => z.hatch!.gap))} onCommit={(v) => v > 0 && zoneEdit({ hatchGap: v })} />
+              <NumField label="Hatch angle" unit="°" value={common(zones.map((z) => z.hatch!.orientation))} onCommit={(v) => zoneEdit({ hatchOrientation: v })} />
+            </>
+          )}
         </section>
       )}
       {texts.length > 0 && (
