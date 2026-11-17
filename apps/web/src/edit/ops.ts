@@ -9,6 +9,7 @@ import { arg, findChild, findChildren, format, headOf, insertAt, isList, parse, 
 import {
   createBoardArray,
   type ArrayOptions,
+  type ZoneProps,
   addJunction,
   addLabel,
   addNoConnect,
@@ -246,7 +247,7 @@ export type EditOp =
   | { op: "addVia"; file: string; at: Point; size: number; drill: number; layers: [string, string]; net: string; type?: "blind" | "buried" | "micro" }
   /** A board graphic: the Edge.Cuts outline, silkscreen or drawing shapes. */
   | { op: "addBoardShape"; file: string; shape: NewBoardShape }
-  | { op: "setZoneProps"; file: string; uuids: string[]; net?: string; layer?: string; connect?: "thermal" | "solid" | "none" | "tht" }
+  | ({ op: "setZoneProps"; file: string; uuids: string[] } & ZoneProps)
   | { op: "setGraphicPoints"; file: string; uuid: string; points: Point[]; label?: string }
   /** A zone's outline corners (KiCad's point editor: drag, add or remove a corner). */
   | { op: "setZoneOutline"; file: string; uuid: string; points: Point[]; label?: string }
@@ -386,7 +387,7 @@ export function describeOp(op: EditOp): string {
     case "setRequirements": return "Requirements";
     case "addBoardText": return `Add text "${op.text.text}"`;
     case "setBoardText": return op.text !== undefined ? `Text "${op.text}"` : op.size !== undefined ? `Text size ${op.size} mm` : `Text layer ${op.layer}`;
-    case "setZoneProps": return op.net !== undefined ? `Zone net ${op.net || "(none)"}` : op.connect !== undefined ? "Zone pad connection" : `Zone layer ${op.layer}`;
+    case "setZoneProps": return op.net !== undefined ? `Zone net ${op.net || "(none)"}` : op.connect !== undefined ? "Zone pad connection" : op.layer !== undefined ? `Zone layer ${op.layer}` : "Zone properties";
     case "moveTrackEnd": return "Drag track";
     case "setFootprintField": return `Set ${op.name}`;
     case "setTrackProps": return op.width !== undefined ? `Track width ${op.width} mm` : `Track layer ${op.layer}`;

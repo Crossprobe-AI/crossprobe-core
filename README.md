@@ -167,7 +167,7 @@ completes a feature.
 | Length tuning | Partly | Single-track meanders to a target, and matching a pair; not saved as KiCad tuning patterns |
 | Teardrops | Partly | Straight-edged; all or none |
 | Zones: draw, fill, refill | Works | Priorities, thermal reliefs, island removal and keepouts are honoured; fills compared with KiCad's by area and by its DRC |
-| Zone properties | Partly | Net, layers and pad connection; clearance, minimum width, priority and thermal sizes are honoured, with no way to edit them. Hatched fills are kept, not refilled |
+| Zone properties | Partly | Net, layer, pad connection, name, priority, clearance, minimum width, thermal gap and spoke width, island removal: edited in the properties panel, honoured by the fill, and read back by KiCad as set. Multi-layer zones keep their layer set; no hatched fill, corner smoothing or per-layer properties. Hatched fills are kept, not refilled |
 | Point editing of zones and shapes | Works | KiCad's handles on a selected zone, polygon, line, rectangle, circle or arc: corners, and edge middles that move an edge with its corners sliding along the neighbours; Add Corner and Remove Corner from the right-click menu. Outlines KiCad reads back as edited. Only a zone's first outline; no chamfer or fillet of corners |
 | Keepout and rule areas | View only | Honoured by the fill, the DRC and custom rules |
 | Board outline | Works | Rectangle, rounded rectangle, polygon, mounting holes |
