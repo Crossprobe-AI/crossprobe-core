@@ -442,6 +442,7 @@ bus findings.
 - a text (T) and a text box;
 - lines, a rectangle, a circle and an arc (start, end, a point it passes through);
 - an image, picked with the Image tool and then shown at half size;
+- a 2 × 3 table, a cell filled in by double-click, then moved by dragging a cell;
 - then a double-click on the text renames it.
 
 KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both texts.
@@ -564,3 +565,17 @@ page, with the same text at the same place. In the app, vme-wren opens with its 
 (`pcbnew.page_layout_descr_file`: `pagelayout_logo.kicad_wks`). The board view reads it and draws it
 around the board with the board's title block, and the "Drawing sheet" toggle hides it.
 pic_programmer's board names none and gets the default frame.
+
+## Links
+
+`scripts/e2e-hyperlink.mjs` gives a text on KiCad's pic_programmer demo the link "#2": out of
+editing, clicking it opens page 2. With a web address instead, the click opens that address, and
+the file has KiCad's `(href …)`. `test/sch-hyperlink.test.ts` checks that KiCad keeps the links.
+
+## A KiCad 9 table
+
+`scripts/e2e-sch-table.mjs` opens jetson-agx-thor-baseboard's power sheet, a KiCad 9 file whose
+table has no UUID of its own (KiCad 9 has none; the app names it by its first cell). Clicking a
+cell selects the table, dragging a cell moves every cell, a box selection takes the table and not
+its cells (and moving it keeps the grid), and Delete removes it from the file. The file keeps the
+table without a UUID, which KiCad 9's reader would refuse.

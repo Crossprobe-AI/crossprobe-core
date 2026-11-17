@@ -117,7 +117,7 @@ async function toPngBase64(file: File): Promise<{ png: string; scale: number } |
 
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label", "directive", "ruleArea"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "image" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "image" | "table" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -144,6 +144,8 @@ export interface EditContext {
   nextPage: number;
   /** The project's net classes, to offer when placing a directive. */
   netClasses?: string[];
+  /** The sheet instance shown as a page number, for "#<page>" links. */
+  pagePath?: (page: string) => string | undefined;
   /** The project's folder ("" or "name/"), for files saved next to it (design blocks). */
   projectDir?: string;
   /** Is there a design block of this name in the project's library already? */
@@ -189,11 +191,12 @@ const Item = memo(function Item({
 }) {
   return (
     <g
-      className={`i-${item.kind}${highlighted ? " hl" : ""}${selected ? " esel" : ""}`}
+      className={`i-${item.kind}${highlighted ? " hl" : ""}${selected ? " esel" : ""}${item.href ? " has-link" : ""}`}
       data-net={item.net}
       data-ref={item.ref}
       data-sheet={item.sheetPath}
       data-uuid={item.uuid}
+      data-owner={item.owner}
       transform={offset ? `translate(${offset.dx} ${offset.dy})` : undefined}
     >
       {item.prims.map((p, i) => (
@@ -280,6 +283,8 @@ export function SchematicView({
     if ("error" in r) window.alert(r.error);
     else onEdit?.([{ op: "addImage", file: sheet.file, at, png: r.png, scale: r.scale }]);
   };
+  /** The one selected text or label, which can carry a link. */
+  const pickedText = picked.size === 1 ? sheet.items.find((i) => (i.kind === "text" || i.kind === "label") && i.uuid && picked.has(i.uuid)) : undefined;
   /** The one selected image (a graphic drawn as a picture), whose size can be chosen. */
   const pickedImage = picked.size === 1 ? sheet.items.find((i) => i.kind === "graphic" && i.uuid && picked.has(i.uuid) && i.prims[0]?.t === "image") : undefined;
   /** The shape new global and hierarchical labels get (KiCad's defaults). */
@@ -534,6 +539,12 @@ export function SchematicView({
         if (text) onEdit?.([{ op: "addSchText", file: sheet.file, text, at: p0 }]);
         return;
       }
+      if (tool === "table") {
+        const size = window.prompt("Rows × columns", "3 x 3");
+        const m = size && /^\s*(\d+)\s*[x×*,\s]\s*(\d+)\s*$/i.exec(size);
+        if (m && Number(m[1]) > 0 && Number(m[2]) > 0) onEdit?.([{ op: "addTable", file: sheet.file, at: p0, rows: Math.min(100, Number(m[1])), cols: Math.min(30, Number(m[2])) }]);
+        return;
+      }
       if (tool === "image") {
         // The browser asks for the file; the image goes where the sheet was clicked.
         imageAt.current = p0;
@@ -665,14 +676,17 @@ export function SchematicView({
         }
         return;
       }
-      if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text"))) {
+      if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text") || it.classList.contains("i-cell"))) {
         // The text as written: what is drawn has its ${VARIABLES} replaced.
         const now = sheet.items.find((i) => i.uuid === id)?.text ?? it.textContent ?? "";
         const text = window.prompt("Text", now);
         if (text && text !== now) onEdit?.([{ op: "setText", file: sheet.file, uuid: id, text }]);
         return;
       }
+      // A table's cell selects its table (double-click above edits the cell).
+      const pickId = it?.classList.contains("i-cell") ? it.dataset.owner : id;
       setPicked((prev) => {
+        const id = pickId;
         if (!id) return new Set();
         if (e.shiftKey) {
           const next = new Set(prev);
@@ -682,6 +696,17 @@ export function SchematicView({
         }
         return new Set([id]);
       });
+    }
+    // Not editing: a linked text opens its link (a web address, or "#<page>" for that page).
+    if (!editing) {
+      const linked = itemAt(under);
+      const href = linked && sheet.items.find((i) => i.uuid === linked.dataset.uuid && i.href)?.href;
+      if (href) {
+        if (href.startsWith("#")) {
+          const path = ctx?.pagePath?.(href.slice(1));
+          if (path) return onOpenSheet(path);
+        } else if (/^(https?:|mailto:|file:)/i.test(href)) return void window.open(href, "_blank", "noopener");
+      }
     }
     if (!g) return onSelect(null);
     if (g.dataset.sheet && e.detail >= 2 && !editing) return onOpenSheet(g.dataset.sheet);
@@ -707,8 +732,9 @@ export function SchematicView({
     }
     if (editing && tool === "select" && e.button === 0) {
       const it = itemAt(hitElement(e));
-      const id = it?.dataset.uuid;
-      const kind = it?.getAttribute("class")?.match(/i-(\w+)/)?.[1] as SchItem["kind"] | undefined;
+      const id = it?.classList.contains("i-cell") ? it.dataset.owner : it?.dataset.uuid;
+      // Dragging a cell drags its table.
+      const kind = it?.classList.contains("i-cell") ? "graphic" : (it?.getAttribute("class")?.match(/i-(\w+)/)?.[1] as SchItem["kind"] | undefined);
       if (id && kind && MOVABLE.has(kind)) {
         if (!picked.has(id)) setPicked(e.shiftKey ? new Set([...picked, id]) : new Set([id]));
         setDrag({ start: toSheet(e), dx: 0, dy: 0 });
@@ -740,7 +766,8 @@ export function SchematicView({
     vp.handlers.onPointerMove(e);
   };
   const onPointerUp = (e: React.PointerEvent) => {
-    const bx = marqueeRef.current;
+    // The box to where the pointer is now: on a big sheet the last move may not have been drawn yet.
+    const bx = marqueeRef.current && { ...marqueeRef.current, b: toSheet(e) };
     if (bx && tool === "sheet") {
       setMarquee(undefined);
       justDragged.current = true;
@@ -771,7 +798,8 @@ export function SchematicView({
       setMarquee(undefined);
       justDragged.current = true;
       const x0 = Math.min(bx.a.x, bx.b.x), x1 = Math.max(bx.a.x, bx.b.x), y0 = Math.min(bx.a.y, bx.b.y), y1 = Math.max(bx.a.y, bx.b.y);
-      const inside = sheet.items.filter((i) => i.uuid && i.kind !== "field" && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
+      // A table is taken whole: its cells are left out (moved alone, they would leave its grid).
+      const inside = sheet.items.filter((i) => i.uuid && i.kind !== "field" && i.kind !== "cell" && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
       setPicked(new Set([...picked, ...inside.map((i) => i.uuid!)]));
       return;
     }
@@ -985,6 +1013,7 @@ export function SchematicView({
           {tool === "line" && (draw.length ? "Click the next corner · double-click or Enter to finish · Esc cancels" : "Click to start lines")}
           {tool === "netclass" && "Click a wire to give its net a net class"}
           {tool === "image" && "Click where the image goes (its centre), then pick a picture"}
+          {tool === "table" && "Click where the table's top-left corner goes · double-click a cell to fill it in"}
           {tool === "select" && pickedImage && (
             <label className="hint-option">
               {" · size "}
@@ -1071,6 +1100,21 @@ export function SchematicView({
                 }}
               >
                 Save as block
+              </button>
+            </span>
+          )}
+          {tool === "select" && pickedText && (
+            <span className="hint-option">
+              {" · "}
+              <button
+                className="link"
+                title="A web address, or #2 for page 2; empty removes the link"
+                onClick={() => {
+                  const href = window.prompt("Link (a web address, or #2 for page 2)", pickedText.href ?? "");
+                  if (href !== null && href.trim() !== (pickedText.href ?? "")) onEdit?.([{ op: "setHyperlink", file: sheet.file, uuid: pickedText.uuid!, href: href.trim() }]);
+                }}
+              >
+                {pickedText.href ? "Link ✓" : "Link…"}
               </button>
             </span>
           )}

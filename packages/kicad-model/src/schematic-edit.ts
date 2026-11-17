@@ -42,9 +42,37 @@ export function sheetVersion(root: List): number {
  */
 export const SHEET_FEATURE_VERSION = {
   directive: { version: 20220124, kicad: "KiCad 7", what: "Net class directives" },
-  table: { version: 20240101, kicad: "KiCad 8", what: "Tables" },
+  href: { version: 20220822, kicad: "KiCad 7", what: "Links on texts" },
+  table: { version: 20240101, kicad: "KiCad 9", what: "Tables" },
   rule_area: { version: 20240417, kicad: "KiCad 9", what: "Rule areas" },
 } as const;
+/** From this version a table has its own UUID (KiCad 10); KiCad 9 refuses one. */
+export const TABLE_UUID_VERSION = 20250425;
+
+/** How many items of each version-bound kind a sheet has (links: on texts and labels). */
+export function sheetFeatureCounts(root: List): Record<keyof typeof SHEET_FEATURE_VERSION, number> {
+  const n = { directive: 0, href: 0, table: 0, rule_area: 0 };
+  for (const c of root.children) {
+    if (!isList(c)) continue;
+    const head = headOf(c);
+    if (head === "netclass_flag") n.directive++;
+    else if (head === "table") n.table++;
+    else if (head === "rule_area") n.rule_area++;
+    else if (head === "text" || head === "label" || head === "global_label" || head === "hierarchical_label" || head === "text_box") {
+      if (findChild(findChild(c, "effects") ?? c, "href")) n.href++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Throw if an edit added an item the sheet's file version can't hold (by any route: a tool, a
+ * paste, a design block). `before` is sheetFeatureCounts from before the edit.
+ */
+export function requireSheetFeatures(root: List, before: ReturnType<typeof sheetFeatureCounts>): void {
+  const after = sheetFeatureCounts(root);
+  for (const k of Object.keys(after) as Array<keyof typeof after>) if (after[k] > before[k]) requireSheetVersion(root, k);
+}
 
 /** Throw if the sheet's file version is too old for this kind of item. */
 export function requireSheetVersion(root: List, feature: keyof typeof SHEET_FEATURE_VERSION): void {
@@ -63,9 +91,23 @@ export function sheetRoot(doc: Document): List {
 // A rule area keeps its UUID on its outline.
 const uuidOf = (node: List) => String(arg(findChild(node, "uuid") ?? findChild(findChild(node, "polyline") ?? node, "uuid"), 0) ?? "");
 
-/** A top-level item (symbol, wire, label, junction, …) by its UUID. */
+/** The id given to a table that has no UUID of its own (KiCad 9's): this, then its first cell's UUID. */
+export const TABLE_BY_CELL = "table-of:";
+
+/** A top-level item (symbol, wire, label, junction, …) by its UUID, or a table's cell by its own. */
 export function findItem(root: List, uuid: string): List | undefined {
-  return root.children.find((c): c is List => isList(c) && uuidOf(c) === uuid);
+  const top = root.children.find((c): c is List => isList(c) && uuidOf(c) === uuid);
+  if (top || !uuid) return top;
+  // A table without a UUID of its own (KiCad 9): named by its first cell's.
+  if (uuid.startsWith(TABLE_BY_CELL)) {
+    const cell = uuid.slice(TABLE_BY_CELL.length);
+    return findChildren(root, "table").find((t) => uuidOf(findChild(findChild(t, "cells") ?? t, "table_cell") ?? t) === cell);
+  }
+  for (const t of findChildren(root, "table")) {
+    const cell = findChildren(findChild(t, "cells") ?? t, "table_cell").find((c) => uuidOf(c) === uuid);
+    if (cell) return cell;
+  }
+  return undefined;
 }
 
 /** KiCad schematic coordinates are 100 nm units: keep edits on that grid. */
@@ -94,6 +136,9 @@ export function moveItem(node: List, dx: number, dy: number): void {
       return;
     case "arc":
       for (const k of ["start", "mid", "end"]) shiftAt(findChild(node, k), dx, dy);
+      return;
+    case "table":
+      for (const c of findChildren(findChild(node, "cells") ?? node, "table_cell")) shiftAt(findChild(c, "at"), dx, dy);
       return;
     case "rule_area":
       for (const xy of findChildren(findChild(findChild(node, "polyline") ?? node, "pts") ?? node, "xy")) shiftAt(xy, dx, dy);
@@ -590,6 +635,16 @@ function renewUuids(node: List): string {
     const u = findChild(pin, "uuid");
     if (u) setArg(u, 0, str(newUuid()));
   }
+  if (headOf(node) === "table") {
+    // A table's cells have UUIDs of their own; a KiCad 9 table (none of its own) is named by its first cell.
+    const cells = findChildren(findChild(node, "cells") ?? node, "table_cell");
+    for (const cell of cells) {
+      const u = findChild(cell, "uuid");
+      if (u) setArg(u, 0, str(newUuid()));
+    }
+    const first = cells[0] && findChild(cells[0], "uuid");
+    if (!own && first) return `${TABLE_BY_CELL}${String(arg(first, 0))}`;
+  }
   return id;
 }
 
@@ -891,4 +946,73 @@ export function setImageScale(node: List, scale: number): void {
   const s = findChild(node, "scale");
   if (s) setArg(s, 0, scale);
   else insertAt(node, node.children.indexOf(findChild(node, "at")!) + 1, list("scale", scale));
+}
+
+/**
+ * A table of `rows` × `cols` cells, its top-left corner at `at`, as KiCad writes one: an outside
+ * border, a line under the header row, lines between rows and columns, text in each cell (row by
+ * row; missing ones empty).
+ */
+export function addTable(root: List, at: Point, rows: number, cols: number, texts: string[][] = [], o: { colWidth?: number; rowHeight?: number } = {}): string {
+  requireSheetVersion(root, "table");
+  const id = newUuid();
+  const cw = o.colWidth ?? 22.86;
+  const rh = o.rowHeight ?? 5.08;
+  const x0 = snapIU(at.x);
+  const y0 = snapIU(at.y);
+  const stroke = () => list("stroke", list("width", 0), list("type", "solid"));
+  const cells = list("cells");
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      cells.children.push(
+        list(
+          "table_cell",
+          str(texts[r]?.[c] ?? ""),
+          list("exclude_from_sim", "no"),
+          list("at", snapIU(x0 + c * cw), snapIU(y0 + r * rh), 0),
+          list("size", cw, rh),
+          list("margins", 0.9525, 0.9525, 0.9525, 0.9525),
+          list("span", 1, 1),
+          list("fill", list("type", "none")),
+          list("effects", list("font", list("size", 1.27, 1.27)), list("justify", "left", "top")),
+          list("uuid", str(newUuid())),
+        ),
+      );
+    }
+  }
+  const node = list(
+    "table",
+    list("column_count", cols),
+    list("border", list("external", "yes"), list("header", "yes"), stroke()),
+    list("separators", list("rows", "yes"), list("cols", "yes"), stroke()),
+    list("column_widths", ...Array.from({ length: cols }, () => cw)),
+    list("row_heights", ...Array.from({ length: rows }, () => rh)),
+    // KiCad 9 has no table UUID (its reader refuses one): the table is found by its cells there.
+    ...(sheetVersion(root) >= TABLE_UUID_VERSION || !sheetVersion(root) ? [list("uuid", str(id))] : []),
+    cells,
+  );
+  insertTopLevel(root, node);
+  return findChild(node, "uuid") ? id : `${TABLE_BY_CELL}${String(arg(findChild(findChild(cells, "table_cell")!, "uuid"), 0))}`;
+}
+
+/** A text's or label's link (KiCad's href: a web address, or "#2" for page 2); undefined takes it off. */
+export function setHyperlink(node: List, href: string | undefined): void {
+  let effects = findChild(node, "effects");
+  if (!effects) {
+    if (!href) return;
+    effects = list("effects", list("font", list("size", 1.27, 1.27)));
+    const uuid = findChild(node, "uuid");
+    insertAt(node, uuid ? node.children.indexOf(uuid) : node.children.length, effects);
+  }
+  const old = findChild(effects, "href");
+  if (!href) {
+    if (old) removeChild(effects, old);
+  } else if (old) setArg(old, 0, str(href));
+  else insertAt(effects, effects.children.length, list("href", str(href)));
+}
+
+/** A text's or label's link, if it has one. */
+export function hyperlinkOf(node: List): string | undefined {
+  const h = findChild(findChild(node, "effects") ?? node, "href");
+  return h ? String(arg(h, 0) ?? "") : undefined;
 }

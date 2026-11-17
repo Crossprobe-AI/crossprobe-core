@@ -66,6 +66,10 @@ import {
   blockFromSelection,
   blockMetadataJson,
   addImage,
+  addTable,
+  setHyperlink,
+  sheetFeatureCounts,
+  requireSheetFeatures,
   setImageScale,
   setSheetPinName,
   addDirective,
@@ -254,6 +258,10 @@ export type EditOp =
   | { op: "setText"; file: string; uuid: string; text: string }
   | { op: "addLabel"; file: string; kind: NewLabelKind; text: string; at: Point; angle?: number; shape?: LabelShape }
   | { op: "addJunction"; file: string; at: Point }
+  /** A text's or label's link (a web address, or "#2" for page 2); empty takes it off. */
+  | { op: "setHyperlink"; file: string; uuid: string; href: string }
+  /** A table of rows × columns, its top-left corner at `at`. */
+  | { op: "addTable"; file: string; at: Point; rows: number; cols: number }
   /** An image (PNG as base64) centred on `at`. */
   | { op: "addImage"; file: string; at: Point; png: string; scale?: number }
   | { op: "setImageScale"; file: string; uuid: string; scale: number }
@@ -479,6 +487,8 @@ export function describeOp(op: EditOp): string {
     case "setText": return `Text: ${op.text}`;
     case "addLabel": return `Add label ${op.text}`;
     case "addImage": return "Add image";
+    case "addTable": return `Add ${op.rows} × ${op.cols} table`;
+    case "setHyperlink": return op.href ? "Link" : "Remove link";
     case "setImageScale": return "Image size";
     case "addDirective": return `Net class ${op.netclass}`;
     case "addRuleArea": return op.netclass ? `Rule area for ${op.netclass}` : "Rule area";
@@ -758,6 +768,8 @@ export class Editor {
           if (n) f(n);
         }
       };
+      // Items a sheet's file version can't hold are refused, however they arrive.
+      const features = sheetFeatureCounts(root);
       switch (op.op) {
         case "move": each(op.uuids, (n) => moveItem(n, op.dx, op.dy)); break;
         case "rotate": each(op.uuids, (n) => rotateItem(n)); break;
@@ -781,6 +793,8 @@ export class Editor {
         case "addLabel": addLabel(root, op.kind, op.text, op.at, op.angle ?? 0, op.shape); break;
         case "addJunction": addJunction(root, op.at); break;
         case "addImage": addImage(root, op.at, op.png, op.scale ?? 1); break;
+        case "addTable": addTable(root, op.at, op.rows, op.cols); break;
+        case "setHyperlink": each([op.uuid], (n) => setHyperlink(n, op.href.trim() || undefined)); break;
         case "setImageScale": each([op.uuid], (n) => setImageScale(n, op.scale)); break;
         case "addDirective": addDirective(root, op.at, op.netclass, op.angle ?? 0); break;
         case "addRuleArea":
@@ -907,6 +921,7 @@ export class Editor {
           break;
         }
       }
+      requireSheetFeatures(root, features);
       const out = serialize(cached.doc);
       this.docs.set(op.file, { text: out, doc: cached.doc });
       changed[op.file] = out;
