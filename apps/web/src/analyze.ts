@@ -34,6 +34,7 @@ import {
   type ParityFinding,
   unitPins,
   isErcExcluded,
+  parseDrawingSheet,
 } from "@crossprobe/kicad-model";
 import { evidenceFileName, parseEvidence } from "./datasheet/evidence";
 import { parseRequirements, requirementsFileName } from "./requirements/requirements";
@@ -139,7 +140,16 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
       }
       return t;
     };
-    sheets = schematic.sheets.map((s) => renderSheet(s, tree(s.file), schematic, netlist, pinNets));
+    // The project's drawing sheet (KiCad's Page Settings › Drawing sheet), relative to the project.
+    let drawingSheet: ReturnType<typeof parseDrawingSheet> | undefined;
+    try {
+      const wks = String(JSON.parse(files[project] ?? "{}")?.schematic?.page_layout_descr_file ?? "").replace(/^\$\{KIPRJMOD\}\//, "");
+      if (wks && files[dir + wks] !== undefined) drawingSheet = parseDrawingSheet(files[dir + wks]!);
+      else if (wks) warnings.push(`drawing sheet ${wks} not found: the default frame is drawn`);
+    } catch {
+      // An unreadable project file leaves the default frame.
+    }
+    sheets = schematic.sheets.map((s) => renderSheet(s, tree(s.file), schematic, netlist, pinNets, drawingSheet));
 
     components = schematic.components.map((c) => ({
       reference: c.reference,
