@@ -241,7 +241,7 @@ export type EditOp =
   /** A sheet pin; also adds the matching hierarchical label in the child sheet's file. */
   | { op: "addSheetPin"; file: string; sheetUuid: string; childFile: string; name: string; shape: string; at: Point }
   /** Renumber references across the design (expanded into setField ops). */
-  | { op: "annotate"; file: string; mode: "all" | "unannotated"; order?: "x" | "y" }
+  | { op: "annotate"; file: string; mode: "all" | "unannotated" | "clear"; order?: "x" | "y"; sheetPath?: string; startAfter?: number; sheetMultiplier?: 100 | 1000 }
   // Board (.kicad_pcb) operations; items are named by UUID.
   | { op: "boardMove"; file: string; uuids: string[]; dx: number; dy: number }
   | { op: "moveFootprintText"; file: string; footprint: string; text: string; dx: number; dy: number }
@@ -370,7 +370,7 @@ export function describeOp(op: EditOp): string {
     case "duplicate": return `Paste ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "placeSymbol": return `Place ${op.reference}${op.unit && op.unit > 1 ? ` unit ${String.fromCharCode(64 + op.unit)}` : ""}`;
     case "insertBlock": return "Insert design block";
-    case "annotate": return op.mode === "all" ? "Annotate all" : "Annotate new parts";
+    case "annotate": return op.mode === "all" ? "Annotate all" : op.mode === "clear" ? "Clear annotation" : "Annotate new parts";
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
@@ -443,7 +443,7 @@ export class Editor {
         if (t === undefined) throw new Error(`missing ${f}`);
         return t;
       });
-      return planAnnotation(schematic, { mode: op.mode, order: op.order }).map((a) => ({
+      return planAnnotation(schematic, op).map((a) => ({
         op: "setField" as const,
         file: a.file,
         uuid: a.symbolUuid,

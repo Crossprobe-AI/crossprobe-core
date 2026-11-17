@@ -134,7 +134,7 @@ completes a feature.
 | Undo and redo | Works | |
 | Fields, and the symbol fields table | Works | Fields can be shown and hidden; no per-field position or style; no BOM presets |
 | DNP, exclude from BOM, exclude from board, exclude from simulation | Works | No DNP cross drawn over the part |
-| Annotation | Works | Unannotated only, or all by X or Y; no scope or start number |
+| Annotation | Works | The whole schematic or one sheet; new parts only or all, by X or Y; from a start number or the sheet number × 100 or × 1000; clear annotation. No selection scope |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
 | Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |
 | Images | View only | |
