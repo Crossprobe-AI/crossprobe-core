@@ -139,7 +139,7 @@ completes a feature.
 | Annotation | Works | The whole schematic or one sheet; new parts only or all, by X or Y; from a start number or the sheet number × 100 or × 1000; clear annotation. No selection scope |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
 | Text, text boxes, lines, rectangles, circles, arcs | Works | No font or style settings; beziers are view only |
-| Images | View only | |
+| Images | Works | Placed with the Image tool (other formats become PNG, as KiCad stores them), moved, and sized; KiCad reads them back unchanged |
 | Intersheet references | Works | The pages a global label is on, as KiCad lists them (own page, short form, prefix and suffix), switched on in Page settings; drawn where KiCad places them, not movable |
 | Net class directives, rule areas | Works | Placed on wires and buses, or on a rule area's outline for everything inside; a label's Netclass field counts too. Nets get KiCad's classes, combined ones included ("A,Default"), and the project file keeps them as KiCad does. Only the Netclass field: no component classes |
 | Tables, hyperlinks | No | |
