@@ -12,6 +12,7 @@
 // OUT = the GIF to write; WIDTH = its width in pixels (default 1280; the app is captured at 1680).
 // No ffmpeg is needed: the frames are screenshots, decoded on a canvas in a blank page, and
 // encoded by scripts/lib/gif.mjs.
+// Each step carries a short caption, drawn over the page while it is recorded.
 // Look at the result after UI changes: a step that no longer finds its button fails with its name.
 import puppeteer from "puppeteer-core";
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -78,6 +79,24 @@ const addPointer = () =>
     const at = (e) => (el.style.transform = `translate(${e.clientX - 2}px,${e.clientY - 1}px)`);
     for (const t of ["mousemove", "pointermove", "mousedown"]) document.addEventListener(t, at, true);
   });
+/** A caption over the view, saying what the step shows ("" takes it away). */
+const caption = (text) =>
+  page.evaluate(
+    (text, cx) => {
+      let el = document.getElementById("demo-caption");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "demo-caption";
+        el.style.cssText = "position:fixed;bottom:132px;transform:translateX(-50%);z-index:2147483646;pointer-events:none;padding:12px 22px;border-radius:999px;background:#10231c;color:#fff;font:600 24px/1.2 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);white-space:nowrap";
+        document.body.appendChild(el);
+      }
+      el.style.left = `${cx}px`;
+      el.textContent = text;
+      el.style.display = text ? "" : "none";
+    },
+    text,
+    area.x + area.w / 2,
+  );
 /** Move the pointer there in a few frames, slowing at the end. */
 async function glide(to, n = 8, ms = 60) {
   const from = mouse;
@@ -131,6 +150,7 @@ const area = await page.evaluate(() => {
   const r = document.querySelector(".viewport.schematic").getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height };
 });
+await caption("1 · Select a part in the schematic");
 await hold(900);
 // Wheel in on the circuit's middle until it fills most of the view.
 for (let k = 0; k < 12; k++) {
@@ -153,6 +173,7 @@ await page.keyboard.press("b");
 await page.waitForSelector(".viewport.board", { timeout: 20000 });
 await idle();
 await wait(600);
+await caption("2 · The same part on the board, among what is left to route");
 await hold(1800);
 
 step("board: route one connection by hand");
@@ -170,6 +191,7 @@ console.log(`   ${link.net}: ${link.a.description} → ${link.b.description}, ${
 const m = 9;
 await page.evaluate((b) => window.__boardView.frame(b), { x: Math.min(link.a.at.x, link.b.at.x) - m * 1.6, y: Math.min(link.a.at.y, link.b.at.y) - m, w: Math.abs(link.a.at.x - link.b.at.x) + m * 3.2, h: Math.abs(link.a.at.y - link.b.at.y) + m * 2 });
 await wait(400);
+await caption("3 · Route a track by hand");
 await hold(900);
 await page.keyboard.press("x");
 await glide(await brd(link.a.at));
@@ -191,6 +213,7 @@ if (left >= p.unconnected.length) await fail(`${link.net} was not routed (${left
 step("board: Route all");
 await press(".view-tools button", "Fit");
 await wait(400);
+await caption("4 · Route all does the rest");
 await hold(900);
 const routeAll = await page.evaluate(() => {
   const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes("Route all") || x.title?.startsWith("Route all"));
@@ -214,6 +237,7 @@ await page.evaluate(() => [...document.querySelectorAll(".segmented button")].fi
 await page.waitForSelector(".viewport.board3d canvas", { timeout: 30000 }).catch(() => fail("the 3D view did not open"));
 await page.waitForFunction(() => !document.body.textContent.includes("Loading 3D models"), { timeout: 120000 }).catch(() => fail("the 3D models did not load"));
 await wait(1200);
+await caption("5 · See the board in 3D");
 await hold(900);
 const c = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
 await glide(c, 4);
