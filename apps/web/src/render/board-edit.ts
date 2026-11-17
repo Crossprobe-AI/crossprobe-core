@@ -305,3 +305,20 @@ export function connectedTrace(board: Board, picked: BoardItem[]): BoardItem[] {
     ...[...seenV].map((i) => ({ kind: "via" as const, uuid: vias[i]!.uuid, net: vias[i]!.net })),
   ];
 }
+
+/** The selectable item a UUID names (footprints, tracks, vias, zones, drawings, texts). */
+export function boardItemOf(board: Board, uuid: string): BoardItem | undefined {
+  const fp = board.footprints.find((f) => f.uuid === uuid);
+  if (fp) return { kind: "footprint", uuid, reference: fp.reference };
+  const t = board.tracks.find((x) => x.uuid === uuid);
+  if (t) return { kind: "track", uuid, net: t.net };
+  const v = board.vias.find((x) => x.uuid === uuid);
+  if (v) return { kind: "via", uuid, net: v.net };
+  const z = board.zones.find((x) => x.uuid === uuid);
+  if (z) return { kind: "zone", uuid, net: z.net };
+  const g = board.drawings.find((x) => x.uuid === uuid);
+  if (g) return { kind: "graphic", uuid, layer: g.layer, net: g.net };
+  const tx = board.texts.find((x) => x.uuid === uuid);
+  if (tx) return { kind: "text", uuid, layer: tx.layer };
+  return undefined;
+}
