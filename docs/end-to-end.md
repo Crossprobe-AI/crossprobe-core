@@ -389,6 +389,16 @@ every justification, bold, a quarter turn, 30° and 180°, mirrored on the back,
 border. Our silkscreen Gerbers of that board equal kicad-cli's, also after turning every box by 30°
 and 90° as pcbnew does.
 
+## Footprints against libraries
+
+`scripts/e2e-libcheck.mjs` opens KiCad's video demo and runs the board toolbar's "Libraries".
+1. It flags exactly the 129 footprints KiCad's DRC flags as differing from their library copy
+   (`lib_footprint_mismatch`).
+2. "Update 129 from library" replaces them, and KiCad's DRC of the saved board then flags none.
+
+`test/library-parity.test.ts` runs the same comparison on every demo board, about 2,600 footprints
+in all: we flag exactly the ones `kicad-cli pcb drc` flags.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges

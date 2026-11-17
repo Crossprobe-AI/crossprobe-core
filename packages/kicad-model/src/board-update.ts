@@ -165,6 +165,8 @@ export function placeFootprint(root: List, modText: string, o: PlaceFootprintOpt
   const doc = parse(modText, { recover: true });
   const fp = doc.children.find((c): c is List => isList(c) && (headOf(c) === "footprint" || headOf(c) === "module"));
   if (!fp) throw new Error("Not a KiCad footprint");
+  // A stray ")" can close the footprint early (KiCad reads on): the forms after it are its own.
+  for (const c of doc.children.slice(doc.children.indexOf(fp) + 1)) if (isList(c)) fp.children.push(c), fp.trivia.push("\n\t");
   fp.children[0] = sym("footprint");
   setArg(fp, 0, str(o.libId));
   // Library-only header items.
