@@ -605,6 +605,9 @@ export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim
       p.points.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
       ctx.closePath();
       ctx.fill();
+    } else if (p.kind !== "text") {
+      // Other kinds (drawing sheet bitmaps) aren't drawn on the board yet.
+      continue;
     } else {
       // Too small to read: skip the strokes.
       if (p.size.y * scale < 2 || !p.text) continue;
