@@ -1005,6 +1005,10 @@ g.hl text {
 .schematic g.esel text {
   fill: var(--accent) !important;
 }
+.schematic g.esel image {
+  opacity: 0.7;
+  filter: drop-shadow(0 0 var(--px) var(--accent)) drop-shadow(0 0 var(--px) var(--accent));
+}
 .schematic .wire-preview {
   fill: none;
   stroke: var(--sch-wire);
