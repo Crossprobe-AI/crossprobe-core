@@ -737,12 +737,38 @@ export function setZoneProps(root: List, zone: List, p: { net?: string; layer?: 
 
 /** Reposition a board graphic's defining points (rect / line: start, end · circle: center, end). */
 export function setGraphicPoints(node: List, points: Point[]): void {
-  const keys = headOf(node) === "gr_circle" ? ["center", "end"] : ["start", "end"];
+  const head = headOf(node);
+  if (head === "gr_poly") {
+    setPolygonPoints(node, points);
+    return;
+  }
+  const keys = head === "gr_circle" ? ["center", "end"] : head === "gr_arc" ? ["start", "mid", "end"] : ["start", "end"];
   keys.forEach((k, i) => {
     const n = findChild(node, k);
     if (n && points[i]) setXY(n, points[i]!);
   });
 }
+
+/**
+ * Replace the corners of a zone's outline or a polygon (its first contour),
+ * written as KiCad writes them: six points to a line. Refuses (false) an
+ * outline with arcs in it, or fewer than three corners.
+ */
+export function setPolygonPoints(node: List, points: Point[]): boolean {
+  const pts = findChild(headOf(node) === "zone" ? findChild(node, "polygon") ?? node : node, "pts");
+  if (!pts || points.length < 3 || pts.children.some((c, i) => i > 0 && headOf(c) !== "xy")) return false;
+  const first = pts.trivia[1] ?? "";
+  const inner = first.startsWith("\n") ? first : "\n" + (indentOfLine(pts.closeTrivia) ?? "") + "\t";
+  pts.children.splice(1);
+  pts.trivia.splice(1);
+  points.forEach((p, i) => {
+    pts.children.push(list("xy", num(r6(p.x)), num(r6(p.y))));
+    pts.trivia.push(i % 6 === 0 ? inner : " ");
+  });
+  return true;
+}
+
+const indentOfLine = (t: string) => (t.includes("\n") ? t.slice(t.lastIndexOf("\n") + 1) : undefined);
 
 /** The outline of a rectangle with rounded corners, as KiCad draws one: four lines and four arcs. */
 export function roundedRectShapes(a: Point, b: Point, radius: number, layer: string, width: number): NewBoardShape[] {
