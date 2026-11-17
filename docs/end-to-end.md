@@ -332,6 +332,18 @@ right of a part like them, under unique references. Undo removes them. `test/boa
 checks the cell offsets (grid, stagger, snake, circle) and has KiCad's pcbnew make the same copies:
 every copied footprint matches.
 
+## Position Relative To
+
+`scripts/e2e-posrel.mjs` box-selects six footprints (with their tracks and texts) on
+pic_programmer's board, and with Shift+P:
+1. Grid origin, offset 120, 100: kicad-cli's position file of the saved board has the top-left
+   footprint (R1) at 120, 100 and the others moved by the same amount.
+2. An item picked on the board (P3), 10 mm at 90° in polar coordinates: R1 is 10 mm below P3's
+   position.
+
+Undo puts everything back. `test/arrange.test.ts` compares item positions (what the reference and
+anchor are taken from) with KiCad's on six demo boards.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
