@@ -524,3 +524,10 @@ against KiCad's plots.
 The project file keeps each net's classes as KiCad does, and KiCad's netlist of the saved
 project gives the two nets "Slow,Default" and "Fast". `test/netclass-directives.test.ts`
 checks the classes on KiCad's jetson and royalblue demos against those KiCad saved.
+
+## ERC exclusions
+
+`scripts/e2e-erc-exclude.mjs` places a lone global label on KiCad's pic_programmer demo; ERC
+reports it. Exclude (with a reason) moves it to Excluded and saves it in the project file, and
+KiCad's ERC of the saved project reports it excluded too; Include brings it back.
+`test/erc-exclusions.test.ts` checks the entries both ways.
