@@ -42,6 +42,8 @@ import { NetInspector } from "./ui/NetInspector";
 import { UpdateSchematic } from "./ui/UpdateSchematic";
 import { PageSettingsDialog } from "./ui/PageSettings";
 import { CleanupTracks } from "./ui/CleanupTracks";
+import { Annotate } from "./ui/Annotate";
+import { netlistFile } from "./netlist-file";
 import { BoardReannotate } from "./ui/BoardReannotate";
 import { BoardStats } from "./ui/BoardStats";
 import { FootprintEditor } from "./ui/FootprintEditor";
@@ -188,6 +190,7 @@ export function App() {
   const [showUpdateSch, setShowUpdateSch] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
   const [showReannotate, setShowReannotate] = useState(false);
+  const [showAnnotate, setShowAnnotate] = useState(false);
   const [showStats, setShowStats] = useState(false);
   /** The sheet file or board whose page settings are open. */
   const [pageFile, setPageFile] = useState<string>();
@@ -1106,6 +1109,7 @@ export function App() {
                         ["label", "Label", "L", "label"],
                         ["junction", "Junction", "J", "junction"],
                         ["noconnect", "No-connect", "Q", "noConnect"],
+                        ["glabel", "Global label", "Ctrl+L", "glabel"],
                         ["hlabel", "Hier. label", "H", "hlabel"],
                         ["text", "Text", "T", "text"],
                         ["textbox", "Text box", "", "textBox"],
@@ -1142,6 +1146,9 @@ export function App() {
                         <button onClick={(e) => { edit([{ op: "annotate", file: sheet.file, mode: "all", order: "y" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
                           Renumber all, top to bottom
                         </button>
+                        <button onClick={(e) => { setShowAnnotate(true); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
+                          More options…
+                        </button>
                       </div>
                     </details>
                   )}
@@ -1155,6 +1162,12 @@ export function App() {
                       {missingFootprints > 0 && <span className="count">{missingFootprints}</span>}
                     </button>
                   )}
+                  <button
+                    onClick={async () => session.current && downloadFile(`${project.name}.net`, netlistFile(await session.current.files(), project.projectFile))}
+                    title="Export the netlist in KiCad's format (.net), for Pcbnew and other tools"
+                  >
+                    <Icon name="download" /> <span className="tl">Netlist</span>
+                  </button>
                   {editing && (
                     <>
                     <button onClick={() => openPanel("fields")} title="Symbol fields table: every part's fields, edited in one place">
@@ -1193,6 +1206,7 @@ export function App() {
                   onEdit={edit}
                   ctx={editContext}
                 />
+                {showAnnotate && editing && <Annotate sheet={sheet} onEdit={edit} onClose={() => setShowAnnotate(false)} />}
               </>
             )}
             {mode === "board" && project.board && (

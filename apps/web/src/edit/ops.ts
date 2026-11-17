@@ -46,6 +46,13 @@ import {
   rotateItem,
   setSymbolField,
   setSymbolAttributes,
+  setSymbolBodyStyle,
+  setPinAlternate,
+  setFieldVisible,
+  setLabelShape,
+  moveField,
+  rotateField,
+  type LabelShape,
   resolveLibrarySymbol,
   sheetRoot,
   type NewLabelKind,
@@ -198,7 +205,18 @@ export type EditOp =
   | { op: "mirror"; file: string; uuids: string[]; axis: "x" | "y" }
   | { op: "delete"; file: string; uuids: string[] }
   | { op: "setField"; file: string; uuid: string; name: string; value: string; sheetPath?: string }
-  | { op: "setSymbolAttributes"; file: string; uuid: string; dnp?: boolean; inBom?: boolean }
+  | { op: "setSymbolAttributes"; file: string; uuid: string; dnp?: boolean; inBom?: boolean; onBoard?: boolean; excludeFromSim?: boolean }
+  /** Which body style a placed symbol is drawn in (1 = the first; 2 = De Morgan or the second named style). */
+  | { op: "setBodyStyle"; file: string; uuid: string; style: number }
+  /** Switch a placed symbol's pin to one of its alternate functions (`null`: back to its own). */
+  | { op: "setPinAlternate"; file: string; uuid: string; pin: string; alternate: string | null }
+  /** Move one field of a placed symbol, or turn it between horizontal and vertical. */
+  | { op: "moveField"; file: string; uuid: string; name: string; dx: number; dy: number }
+  | { op: "rotateField"; file: string; uuid: string; name: string }
+  /** Show or hide a field of a placed symbol on the sheet. */
+  | { op: "setFieldVisible"; file: string; uuid: string; name: string; visible: boolean }
+  /** The shape (signal direction) of a global or hierarchical label. */
+  | { op: "setLabelShape"; file: string; uuid: string; shape: LabelShape }
   /** Cleanup Tracks & Vias: what planCleanup found, applied as one edit. */
   | { op: "cleanupTracks"; file: string; remove: string[]; reshape: Array<{ uuid: string; start: Point; end: Point }> }
   /** Paper and title block of a schematic sheet file or the board. */
@@ -210,7 +228,7 @@ export type EditOp =
   | { op: "addSchGraphic"; file: string; graphic: SchGraphic; dash?: boolean }
   /** New text for a label, text or text box. */
   | { op: "setText"; file: string; uuid: string; text: string }
-  | { op: "addLabel"; file: string; kind: NewLabelKind; text: string; at: Point; angle?: number }
+  | { op: "addLabel"; file: string; kind: NewLabelKind; text: string; at: Point; angle?: number; shape?: LabelShape }
   | { op: "addJunction"; file: string; at: Point }
   | { op: "addNoConnect"; file: string; at: Point }
   | { op: "moveWirePoint"; file: string; uuid: string; index: 0 | 1; to: Point }
@@ -228,7 +246,7 @@ export type EditOp =
   /** A sheet pin; also adds the matching hierarchical label in the child sheet's file. */
   | { op: "addSheetPin"; file: string; sheetUuid: string; childFile: string; name: string; shape: string; at: Point }
   /** Renumber references across the design (expanded into setField ops). */
-  | { op: "annotate"; file: string; mode: "all" | "unannotated"; order?: "x" | "y" }
+  | { op: "annotate"; file: string; mode: "all" | "unannotated" | "clear"; order?: "x" | "y"; sheetPath?: string; startAfter?: number; sheetMultiplier?: 100 | 1000 }
   // Board (.kicad_pcb) operations; items are named by UUID.
   | { op: "boardMove"; file: string; uuids: string[]; dx: number; dy: number }
   /** Align or distribute: each item its own move (`label` names it for undo, as KiCad's commit does). */
@@ -337,7 +355,17 @@ export function describeOp(op: EditOp): string {
     case "setField": return `Set ${op.name}`;
     case "setPageSettings": return "Page settings";
     case "cleanupTracks": return "Cleanup tracks & vias";
-    case "setSymbolAttributes": return op.dnp !== undefined ? (op.dnp ? "Do not populate" : "Populate") : op.inBom ? "Include in BOM" : "Exclude from BOM";
+    case "setSymbolAttributes":
+      if (op.dnp !== undefined) return op.dnp ? "Do not populate" : "Populate";
+      if (op.inBom !== undefined) return op.inBom ? "Include in BOM" : "Exclude from BOM";
+      if (op.onBoard !== undefined) return op.onBoard ? "Include on board" : "Exclude from board";
+      return op.excludeFromSim ? "Exclude from simulation" : "Include in simulation";
+    case "setBodyStyle": return "Body style";
+    case "setPinAlternate": return op.alternate === null ? `Pin ${op.pin}: own function` : `Pin ${op.pin}: ${op.alternate}`;
+    case "setFieldVisible": return `${op.visible ? "Show" : "Hide"} ${op.name}`;
+    case "setLabelShape": return "Label shape";
+    case "moveField": return `Move ${op.name}`;
+    case "rotateField": return `Rotate ${op.name}`;
     case "addWire": return op.bus ? "Add bus" : "Add wire";
     case "addBusEntry": return "Add bus entry";
     case "addSchText": return "Add text";
@@ -351,7 +379,7 @@ export function describeOp(op: EditOp): string {
     case "duplicate": return `Paste ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "placeSymbol": return `Place ${op.reference}${op.unit && op.unit > 1 ? ` unit ${String.fromCharCode(64 + op.unit)}` : ""}`;
     case "insertBlock": return "Insert design block";
-    case "annotate": return op.mode === "all" ? "Annotate all" : "Annotate new parts";
+    case "annotate": return op.mode === "all" ? "Annotate all" : op.mode === "clear" ? "Clear annotation" : "Annotate new parts";
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
@@ -425,7 +453,7 @@ export class Editor {
         if (t === undefined) throw new Error(`missing ${f}`);
         return t;
       });
-      return planAnnotation(schematic, { mode: op.mode, order: op.order }).map((a) => ({
+      return planAnnotation(schematic, op).map((a) => ({
         op: "setField" as const,
         file: a.file,
         uuid: a.symbolUuid,
@@ -576,6 +604,12 @@ export class Editor {
         case "delete": for (const id of op.uuids) deleteItem(root, id); break;
         case "setField": each([op.uuid], (n) => setSymbolField(n, op.name, op.value, op.sheetPath)); break;
         case "setSymbolAttributes": each([op.uuid], (n) => setSymbolAttributes(n, op)); break;
+        case "setBodyStyle": each([op.uuid], (n) => setSymbolBodyStyle(n, op.style, Number(arg(findChild(root, "version"), 0) ?? Infinity))); break;
+        case "setPinAlternate": each([op.uuid], (n) => setPinAlternate(n, op.pin, op.alternate ?? undefined)); break;
+        case "setFieldVisible": each([op.uuid], (n) => setFieldVisible(n, op.name, op.visible)); break;
+        case "setLabelShape": each([op.uuid], (n) => setLabelShape(n, op.shape)); break;
+        case "moveField": each([op.uuid], (n) => moveField(n, op.name, op.dx, op.dy)); break;
+        case "rotateField": each([op.uuid], (n) => rotateField(n, op.name)); break;
         case "setPageSettings": setPageSettings(root, op.settings); break;
         case "addWire": if (op.bus) addBus(root, op.points); else addWire(root, op.points); break;
         case "addBusEntry": addBusEntry(root, op.at, op.size); break;
@@ -583,7 +617,7 @@ export class Editor {
         case "addSchTextBox": addSchTextBox(root, op.text, op.a, op.b); break;
         case "addSchGraphic": addSchGraphic(root, op.graphic, { dash: op.dash }); break;
         case "setText": each([op.uuid], (n) => setItemText(n, op.text)); break;
-        case "addLabel": addLabel(root, op.kind, op.text, op.at, op.angle ?? 0); break;
+        case "addLabel": addLabel(root, op.kind, op.text, op.at, op.angle ?? 0, op.shape); break;
         case "addJunction": addJunction(root, op.at); break;
         case "addNoConnect": addNoConnect(root, op.at); break;
         case "moveWirePoint": moveWirePoint(root, op.uuid, op.index, op.to); break;

@@ -974,6 +974,16 @@ g.hl text {
   pointer-events: none;
   font: 11px/1.5 var(--mono);
 }
+.edit-hint .hint-option {
+  pointer-events: auto;
+}
+.edit-hint select {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-control);
+  border-radius: 2px;
+}
 .viewport.editing:not(.tool-select) {
   cursor: crosshair;
 }
@@ -1754,6 +1764,31 @@ button:has(> .icon),
 .field-btn {
   padding: 2px 6px;
   margin-left: 4px;
+}
+.field-editor label:has(.field-shown) {
+  grid-template-columns: 90px 1fr auto;
+}
+.field-editor label:has(.field-btn):has(.field-shown) {
+  grid-template-columns: 90px 1fr auto auto;
+}
+.symbol-flags {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+.field-editor .symbol-flags label {
+  display: flex;
+  gap: 6px;
+  color: var(--text);
+}
+.pins select.pin-alternate {
+  font: inherit;
+  min-width: 0;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-control);
+  border-radius: 3px;
 }
 .field-btn.attention {
   border-color: var(--warn);
@@ -3284,4 +3319,9 @@ button.sb-checks:hover {
 .project-menu .menu-items {
   min-width: 290px;
   z-index: 30;
+}
+.annotate-panel .prop select,
+.annotate-panel .prop input {
+  min-width: 0;
+  width: 100%;
 }

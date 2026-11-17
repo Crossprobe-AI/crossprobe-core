@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Prim, SchItem, SheetView } from "../render/types";
 import type { EditOp, SymbolSource } from "../edit/ops";
+import type { LabelShape } from "@crossprobe/kicad-model";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { fromOverlay, useViewport } from "./viewport";
@@ -57,9 +58,11 @@ function PrimEl({ p }: { p: Prim }) {
   }
 }
 
+const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output", "Output"], ["bidirectional", "Bidirectional"], ["tri_state", "Tri-state"], ["passive", "Passive"]];
+
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "label" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -108,7 +111,7 @@ const GRID = 1.27;
 const snap = (v: number) => Math.round(Math.round(v / GRID) * GRID * 1e4) / 1e4;
 const snapPt = (p: { x: number; y: number }) => ({ x: snap(p.x), y: snap(p.y) });
 /** Item kinds that can be selected and moved. */
-const MOVABLE = new Set<SchItem["kind"]>(["symbol", "pin", "wire", "bus", "label", "junction", "noconnect", "text", "sheet", "graphic"]);
+const MOVABLE = new Set<SchItem["kind"]>(["symbol", "field", "pin", "wire", "bus", "label", "junction", "noconnect", "text", "sheet", "graphic"]);
 
 const Item = memo(function Item({
   item,
@@ -204,6 +207,10 @@ export function SchematicView({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ start: { x: number; y: number }; dx: number; dy: number; committed?: SheetView } | undefined>();
   const [wire, setWire] = useState<Array<{ x: number; y: number }>>([]);
+  /** The shape new global and hierarchical labels get (KiCad's defaults). */
+  const [labelShape, setLabelShape] = useState<{ glabel: LabelShape; hlabel: LabelShape }>({ glabel: "input", hlabel: "bidirectional" });
+  /** The one selected global or hierarchical label, whose shape can be changed. */
+  const pickedLabel = picked.size === 1 ? sheet.items.find((i) => i.kind === "label" && i.shape && i.uuid && picked.has(i.uuid)) : undefined;
   const [cursor, setCursor] = useState<{ x: number; y: number }>();
   const dragRef = useRef(drag);
   dragRef.current = drag;
@@ -214,6 +221,14 @@ export function SchematicView({
   marqueeRef.current = marquee;
   /** Copied items: their file and UUIDs, and the point they were copied relative to. */
   const clipboard = useRef<{ file: string; uuids: string[]; origin: { x: number; y: number } } | undefined>(undefined);
+  /** A selected field of a symbol ("<symbol uuid>#<field name>"), unless its symbol is selected too (then it goes with it). */
+  const fieldsOf = (ids: string[]) =>
+    ids.flatMap((id) => {
+      const at = id.indexOf("#");
+      return at < 0 || ids.includes(id.slice(0, at)) ? [] : [{ uuid: id.slice(0, at), name: id.slice(at + 1) }];
+    });
+  /** The selected items that are nodes of the file (not fields). */
+  const nodesOf = (ids: string[]) => ids.filter((id) => !id.includes("#"));
   const byUuid = useMemo(() => {
     const m = new Map<string, SchItem[]>();
     for (const it of sheet.items) if (it.uuid) m.set(it.uuid, [...(m.get(it.uuid) ?? []), it]);
@@ -313,7 +328,8 @@ export function SchematicView({
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       // The symbol or footprint editor open over the sheet has its own keys.
       if (document.querySelector(".fp-editor")) return;
-      const uuids = [...picked];
+      const uuids = nodesOf([...picked]);
+      const fields = fieldsOf([...picked]);
       const k = e.key.toLowerCase();
       if (e.metaKey || e.ctrlKey) {
         if (!editing) return;
@@ -328,7 +344,7 @@ export function SchematicView({
         } else if (k === "d" && uuids.length) {
           paste(sheet.file, uuids, 5.08, 5.08);
         } else if (k === "a") {
-          setPicked(new Set([...byUuid.keys()]));
+          setPicked(new Set(nodesOf([...byUuid.keys()])));
         } else return;
         e.preventDefault();
         return;
@@ -347,7 +363,11 @@ export function SchematicView({
       else if (k === "b" && !e.shiftKey) onTool?.("bus");
       else if (k === "z") onTool?.("busentry");
       else if (k === "r" && tool === "busentry") setEntry((n) => (n + 1) % 4);
-      else if (k === "l") onTool?.("label");
+      else if (k === "l" && (e.ctrlKey || e.metaKey)) {
+        // KiCad's Ctrl+L, where the browser hands it over.
+        e.preventDefault();
+        onTool?.("glabel");
+      } else if (k === "l") onTool?.("label");
       else if (k === "h") onTool?.("hlabel");
       else if (k === "s" && e.shiftKey) onTool?.("sheet");
       else if (k === "j") onTool?.("junction");
@@ -360,8 +380,9 @@ export function SchematicView({
         e.preventDefault();
         onTool?.("power");
       }
+      else if (!uuids.length && !fields.length) return;
+      else if (k === "r") onEdit?.([...(uuids.length ? [{ op: "rotate" as const, file: sheet.file, uuids }] : []), ...fields.map((f) => ({ op: "rotateField" as const, file: sheet.file, ...f }))]);
       else if (!uuids.length) return;
-      else if (k === "r") onEdit?.([{ op: "rotate", file: sheet.file, uuids }]);
       else if (k === "x" || k === "y") onEdit?.([{ op: "mirror", file: sheet.file, uuids, axis: k }]);
       else if (k === "delete" || k === "backspace") {
         onEdit?.([{ op: "delete", file: sheet.file, uuids }]);
@@ -375,7 +396,7 @@ export function SchematicView({
 
   const isHighlighted = (item: SchItem) =>
     (selection?.kind === "net" && !!item.net && item.net === selection.name) ||
-    (selection?.kind === "component" && !!item.ref && item.ref === selection.reference && item.kind === "symbol");
+    (selection?.kind === "component" && !!item.ref && item.ref === selection.reference && (item.kind === "symbol" || item.kind === "field"));
 
   // ERC markers on this sheet: KiCad-style arrows pointing at the problem.
   const sheetMarkers = (markers ?? []).filter((m) => m.sheet === sheet.path);
@@ -391,11 +412,11 @@ export function SchematicView({
     const q = toSheet(e);
     let best: SchItem | undefined;
     for (const i of sheet.items) {
-      const b = i.kind === "symbol" ? i.bbox : undefined;
+      const b = i.kind === "symbol" || (editing && i.kind === "field") ? i.bbox : undefined;
       if (!b || !i.uuid || q.x < b.x || q.x > b.x + b.w || q.y < b.y || q.y > b.y + b.h) continue;
       if (!best || b.w * b.h < best.bbox!.w * best.bbox!.h) best = i;
     }
-    const el = best && vp.ref.current?.querySelector(`g.i-symbol[data-uuid="${best.uuid}"]`);
+    const el = best && vp.ref.current?.querySelector(`g.i-${best.kind}[data-uuid="${CSS.escape(best.uuid!)}"]`);
     return el ?? under;
   };
 
@@ -448,12 +469,12 @@ export function SchematicView({
         });
         if (wire.length && (near || onWire)) return finishWire(next);
         setWire(next);
-      } else if (tool === "label" || tool === "hlabel") {
-        const text = window.prompt(tool === "label" ? "Label name" : "Hierarchical label name");
+      } else if (tool === "label" || tool === "glabel" || tool === "hlabel") {
+        const text = window.prompt(tool === "label" ? "Label name" : tool === "glabel" ? "Global label name (one net across every sheet)" : "Hierarchical label name");
         // On a pin, the label reads away from the part (as one would rotate it in KiCad).
         const pin = sheet.items.find((i) => i.kind === "pin" && i.outward !== undefined && i.points?.[0] && Math.hypot(i.points[0].x - p.x, i.points[0].y - p.y) < 1e-6);
         const angle = pin ? pin.outward! : tool === "hlabel" ? 180 : 0;
-        if (text) onEdit?.([{ op: "addLabel", file: sheet.file, kind: tool === "label" ? "label" : "hierarchical_label", text, at: p, angle }]);
+        if (text) onEdit?.([{ op: "addLabel", file: sheet.file, kind: tool === "label" ? "label" : tool === "glabel" ? "global_label" : "hierarchical_label", text, at: p, angle, shape: tool === "label" ? undefined : labelShape[tool] }]);
       } else if (tool === "sheetpin") {
         // The sheet whose rectangle (with a little slack for the edge) contains the click.
         const q = toSheet(e);
@@ -503,8 +524,19 @@ export function SchematicView({
       const it = itemAt(under);
       const id = it?.dataset.uuid;
       // Double-click a label or text to change what it says.
+      // Double-click a field to change its value.
+      if (e.detail >= 2 && id && it?.classList.contains("i-field")) {
+        const f = sheet.items.find((i) => i.uuid === id);
+        const text = f?.field ? window.prompt(f.field, f.text ?? "") : null;
+        if (f?.owner && text !== null && text !== f.text) {
+          onEdit?.([{ op: "setField", file: sheet.file, uuid: f.owner, name: f.field!, value: text!, sheetPath: sheet.path }]);
+          if (f.field === "Reference" && f.ref) onSelect({ kind: "component", reference: text! });
+        }
+        return;
+      }
       if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text"))) {
-        const now = it.textContent ?? "";
+        // The text as written: what is drawn has its ${VARIABLES} replaced.
+        const now = sheet.items.find((i) => i.uuid === id)?.text ?? it.textContent ?? "";
         const text = window.prompt("Text", now);
         if (text && text !== now) onEdit?.([{ op: "setText", file: sheet.file, uuid: id, text }]);
         return;
@@ -608,19 +640,22 @@ export function SchematicView({
       setMarquee(undefined);
       justDragged.current = true;
       const x0 = Math.min(bx.a.x, bx.b.x), x1 = Math.max(bx.a.x, bx.b.x), y0 = Math.min(bx.a.y, bx.b.y), y1 = Math.max(bx.a.y, bx.b.y);
-      const inside = sheet.items.filter((i) => i.uuid && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
+      const inside = sheet.items.filter((i) => i.uuid && i.kind !== "field" && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
       setPicked(new Set([...picked, ...inside.map((i) => i.uuid!)]));
       return;
     }
-    const d = dragRef.current;
-    if (d && !d.committed) {
+    const last = dragRef.current;
+    if (last && !last.committed) {
+      // Where the pointer is now: the last move may not have been drawn yet.
+      const p = toSheet(e);
+      const d = { ...last, dx: snap(p.x - last.start.x), dy: snap(p.y - last.start.y) };
       justDragged.current = !!(d.dx || d.dy);
       // Keep showing the moved state until the edited sheet arrives, so nothing jumps back.
       setDrag(d.dx || d.dy ? { ...d, committed: sheet } : undefined);
       // If the edit fails no new sheet arrives: don't leave the preview stuck.
       setTimeout(() => setDrag((x) => (x?.committed ? undefined : x)), 3000);
       if (d.dx || d.dy) {
-        onEdit?.(dragOps([...picked], d.dx, d.dy));
+        onEdit?.([...dragOps(nodesOf([...picked]), d.dx, d.dy), ...fieldsOf([...picked]).map((f) => ({ op: "moveField" as const, file: sheet.file, ...f, dx: d.dx, dy: d.dy }))]);
         e.preventDefault();
       }
       return;
@@ -700,6 +735,7 @@ export function SchematicView({
   };
 
   const dragOps = (uuids: string[], dx: number, dy: number): EditOp[] => {
+    if (!uuids.length) return [];
     const { ends, bends } = planDrag(uuids, dx, dy);
     const ops: EditOp[] = [{ op: "move", file: sheet.file, uuids, dx, dy }];
     const byId = new Map(sheet.items.filter((i) => i.kind === "wire" && i.uuid).map((i) => [i.uuid!, i]));
@@ -755,7 +791,7 @@ export function SchematicView({
         >
           <rect x={0} y={0} width={sheet.paper.w} height={sheet.paper.h} className="paper" />
           {sheet.items.map((item, i) => {
-            const sel = !!item.uuid && picked.has(item.uuid);
+            const sel = (!!item.uuid && picked.has(item.uuid)) || (!!item.owner && picked.has(item.owner));
             if (dragPlan && item.kind === "wire" && item.uuid && dragPlan.ends.has(item.uuid)) return null;
             return <Item key={i} item={item} highlighted={isHighlighted(item)} selected={sel} offset={sel ? offset : undefined} />;
           })}
@@ -796,7 +832,9 @@ export function SchematicView({
         <div className="edit-hint">
           {tool === "select" &&
             (picked.size
-              ? `${picked.size} selected · drag to move · R rotate · X/Y mirror · Del delete · ⌘C/⌘V copy · ⌘D duplicate`
+              ? [...picked].every((id) => id.includes("#"))
+                ? "Field selected · drag to move · R turns it · double-click to edit"
+                : `${picked.size} selected · drag to move · R rotate · X/Y mirror · Del delete · ⌘C/⌘V copy · ⌘D duplicate`
               : "Click to select · shift-click or shift-drag to add · drag to move")}
           {tool === "wire" && (wire.length ? "Click to add corners · end on a pin or double-click · Esc cancels" : "Click to start a wire")}
           {tool === "bus" && (wire.length ? "Click to add corners · end on a bus or double-click · Esc cancels" : "Click to start a bus (name it with a label like D[0..7])")}
@@ -809,7 +847,24 @@ export function SchematicView({
           {tool === "label" && "Click a wire to place a label"}
           {tool === "junction" && "Click to place a junction"}
           {tool === "noconnect" && "Click a pin to mark it as not connected"}
+          {tool === "glabel" && "Click to place a global label (one net across every sheet)"}
           {tool === "hlabel" && "Click to place a hierarchical label (connects to a sheet pin in the parent)"}
+          {(tool === "glabel" || tool === "hlabel") && (
+            <label className="hint-option">
+              {" · shape "}
+              <select value={labelShape[tool]} onChange={(e) => setLabelShape((s) => ({ ...s, [tool]: e.target.value as LabelShape }))}>
+                {LABEL_SHAPES.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
+              </select>
+            </label>
+          )}
+          {tool === "select" && pickedLabel && (
+            <label className="hint-option">
+              {" · shape "}
+              <select value={pickedLabel.shape} onChange={(e) => onEdit?.([{ op: "setLabelShape", file: sheet.file, uuid: pickedLabel.uuid!, shape: e.target.value as LabelShape }])}>
+                {LABEL_SHAPES.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
+              </select>
+            </label>
+          )}
           {tool === "sheet" && "Drag a rectangle to add a sub-sheet"}
           {tool === "sheetpin" && "Click a sheet's edge to add a pin"}
           {(tool === "place" || tool === "power") && (ctx?.placing ? `Click to place ${ctx.placing.reference && ctx.placing.units?.length ? `${ctx.placing.reference}${String.fromCharCode(64 + ctx.placing.units[0]!)} (${ctx.placing.name})` : ctx.placing.name} · Esc to stop` : tool === "power" ? "Pick a power symbol to place" : "Pick a part to place")}

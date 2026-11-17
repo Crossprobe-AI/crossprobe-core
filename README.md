@@ -112,7 +112,7 @@ completes a feature.
 | KiCad's installed libraries (symbols, footprints, 3D models) | Partly | Served by the dev server or the Docker image; your own path variables are not resolved |
 | Library tables | Partly | Project tables with `${KIPRJMOD}` entries; no table editor |
 | Custom design rules (`.kicad_dru`) | Partly | Read and applied for some constraints (see PCB editor); no editor |
-| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | Partly | Resolved where they name nets (labels, power symbols, sheet pins): sheet number, name and path, file and project names, the sheet symbol's fields, project variables. Shown and plotted as written |
+| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | Partly | In the schematic, shown, plotted and netlisted as KiCad resolves them: the title block, sheet and project variables, a part's own fields, another part's (`${R1:VALUE}`). Not the net, pin and simulation variables (`${NET_NAME(1)}`, `${OP}`); on the board they are shown as written. No editor for project variables |
 | Custom drawing sheets (`.kicad_wks`) | No | A default frame is drawn |
 | Legacy formats (`.sch`, `.brd`, `.lib`), importers (Eagle, Altium, EasyEDA, …) | No | |
 | Design variants, jobsets, embedded files, project templates and archives | No | |
@@ -125,18 +125,18 @@ completes a feature.
 | Wires, junctions, no-connects | Works | Dragging keeps connections |
 | Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
 | Local and hierarchical labels | Works | |
-| Global labels | View only | Read, drawn and netlisted; no tool to place one |
+| Global labels | Works | With the shape (input, output, …); the list of other sheets (intersheet references) is not shown |
 | Power symbols, PWR_FLAG | Works | |
 | Hierarchical sheets and sheet pins | Works | No sheet properties dialog, no "sync sheet pins" |
 | Placing symbols from project and KiCad libraries | Works | |
 | Multi-unit symbols | Works | |
-| Body styles (De Morgan) | Partly | Made in the symbol editor and drawn; a placed symbol's style can't be switched |
-| Alternate pin functions | No | |
+| Body styles (De Morgan) | Works | Made in the symbol editor; a placed symbol is switched in the inspector |
+| Alternate pin functions | Works | A placed symbol's pin is switched in the inspector; the sheet, ERC and netlist follow. Alternates can't be defined in the symbol editor |
 | Move, rotate, mirror, delete, box select, copy, paste, duplicate | Works | Its own clipboard: not the system's, not between projects |
 | Undo and redo | Works | |
-| Fields, and the symbol fields table | Works | No per-field visibility, position or style; no BOM presets |
-| DNP, exclude from BOM, exclude from board | View only | Shown as flags |
-| Annotation | Works | Unannotated only, or all by X or Y; no scope or start number |
+| Fields, and the symbol fields table | Works | A field on the sheet is dragged, turned (R) and edited (double-click) on its own, and shown or hidden in the inspector. No font or justification settings, no autoplace; no BOM presets |
+| DNP, exclude from BOM, exclude from board, exclude from simulation | Works | No DNP cross drawn over the part |
+| Annotation | Works | The whole schematic or one sheet; new parts only or all, by X or Y; from a start number or the sheet number × 100 or × 1000; clear annotation. No selection scope |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
 | Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |
 | Images | View only | |
@@ -144,7 +144,8 @@ completes a feature.
 | Find | Partly | Parts and nets; no text search or replace |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
 | ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, units of one part on different nets, hierarchical label mismatches, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
-| Netlist export, SPICE simulation | No | |
+| Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |
+| SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
 | Page settings and title block | Works | |
 | Plot to SVG and PDF | Works | PDF through the browser's print dialog. No PostScript, DXF or HPGL |

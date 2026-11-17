@@ -234,6 +234,11 @@ const ICONS = {
       <path d="M19 3v6M16 6h6" />
     </>
   ),
+  glabel: (
+    <>
+      <path d="M3 8h13l4 4-4 4H3z" />
+    </>
+  ),
   hlabel: (
     <>
       <path d="M3 12h6" />

@@ -177,6 +177,20 @@ export function unitPins(lib: LibSymbol, unit: number, bodyStyle: number): LibPi
   );
 }
 
+/**
+ * The sheets in the order KiCad numbers them: by page number (as numbers where both are,
+ * else as text), the hierarchy's order between equal ones.
+ */
+export function sheetsByPage(schematic: Schematic): SheetInstance[] {
+  const page = (s: SheetInstance) => s.pageNumber ?? "";
+  return [...schematic.sheets].sort((a, b) => {
+    const [pa, pb] = [page(a), page(b)];
+    const [na, nb] = [Number(pa), Number(pb)];
+    if (pa !== "" && pb !== "" && Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return pa < pb ? -1 : pa > pb ? 1 : 0;
+  });
+}
+
 /** Natural ordering for reference designators: R2 < R10. */
 export function compareRefs(a: string, b: string): number {
   return a.localeCompare(b, "en", { numeric: true });
