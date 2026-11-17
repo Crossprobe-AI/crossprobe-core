@@ -1226,6 +1226,7 @@ export function App() {
                         ["outline", "Outline", "", "outline"],
                         ["zone", "Zone", "", "zone"],
                         ["text", "Text", "", "text"],
+                        ["textbox", "Text box", "", "textbox"],
                         ["dimension", "Dimension", "", "dimension"],
                       ] as const
                     ).map(([t, label, key, icon]) => (
@@ -1233,7 +1234,7 @@ export function App() {
                         key={t}
                         className={boardTool === t ? "on" : ""}
                         onClick={() => setBoardTool(t)}
-                        title={t === "outline" ? "Board outline on Edge.Cuts" : t === "zone" ? "Copper zone (pour)" : t === "text" ? "Silkscreen text" : t === "dimension" ? "Dimension: click two points, then the offset (O: horizontal/vertical)" : `${label} (${key})`}
+                        title={t === "outline" ? "Board outline on Edge.Cuts" : t === "zone" ? "Copper zone (pour)" : t === "text" ? "Silkscreen text" : t === "textbox" ? "Text box: click two corners, then type the text (it wraps to the box)" : t === "dimension" ? "Dimension: click two points, then the offset (O: horizontal/vertical)" : `${label} (${key})`}
                       >
                         <Icon name={icon} /> <span className="tl">{label}</span>
                       </button>
@@ -1276,7 +1277,7 @@ export function App() {
                           )}
                         </>
                       )}
-                      {boardTool !== "zone" && boardTool !== "outline" && boardTool !== "text" && boardTool !== "dimension" && (
+                      {boardTool !== "zone" && boardTool !== "outline" && boardTool !== "text" && boardTool !== "textbox" && boardTool !== "dimension" && (
                       <select value={trackWidth} onChange={(e) => setTrackWidth(Number(e.target.value))} title="Track width (mm)">
                         <option value={0}>Net class width</option>
                         {[...new Set([0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.8, 1, ...project.board.tracks.map((t) => t.width)])]

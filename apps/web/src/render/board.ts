@@ -4,7 +4,7 @@
  * on pan/zoom keeps large boards (thousands of footprints, big zone fills)
  * interactive.
  */
-import { displayName, knockoutText, padCorners, textOutline, textPen, textStrokes, type Board, type BoardText, type Graphic, type Pad, type Point } from "@crossprobe/kicad-model";
+import { displayName, knockoutText, padCorners, textBoxBorder, textBoxText, textOutline, textPen, textStrokes, type Board, type BoardText, type Graphic, type Pad, type Point } from "@crossprobe/kicad-model";
 
 export const LAYER_COLORS: Record<string, string> = {
   "F.Cu": "#c83434",
@@ -342,6 +342,16 @@ export function buildScene(board: Board, filter?: NetFilter): BoardScene {
       graphicPath(g, l.fills, S(l, g.width || 0.1));
     }
     for (const t of board.texts) addText(t);
+    // Text boxes: the border, and the text wrapped in the box, as KiCad draws them.
+    for (const tb of board.textBoxes) {
+      const border = textBoxBorder(tb);
+      if (border) {
+        const path = S(L(tb.layer), tb.borderWidth);
+        border.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y)));
+        path.closePath();
+      }
+      addText(textBoxText(tb));
+    }
   }
 
   // Back to front: user layers, back side, inner copper (deepest first), front side.

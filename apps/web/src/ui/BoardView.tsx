@@ -16,7 +16,7 @@ import { fromOverlay, useViewport } from "./viewport";
 const BG = "#0b1220";
 const SEL = "#ffd166";
 
-export type BoardTool = "select" | "route" | "via" | "footprint" | "outline" | "zone" | "text" | "dimension" | "measure";
+export type BoardTool = "select" | "route" | "via" | "footprint" | "outline" | "zone" | "text" | "textbox" | "dimension" | "measure";
 
 type Point = { x: number; y: number };
 
@@ -81,7 +81,7 @@ function itemFor(board: Board, uuid: string): BoardItem | undefined {
   if (z) return { kind: "zone", uuid, net: z.net };
   const g = board.drawings.find((x) => x.uuid === uuid);
   if (g) return { kind: "graphic", uuid, layer: g.layer, net: g.net };
-  const tx = board.texts.find((x) => x.uuid === uuid);
+  const tx = board.texts.find((x) => x.uuid === uuid) ?? board.textBoxes.find((x) => x.uuid === uuid);
   if (tx) return { kind: "text", uuid, layer: tx.layer };
   return undefined;
 }
@@ -134,6 +134,7 @@ function drawSelection(ctx: CanvasRenderingContext2D, board: Board, uuids: Set<s
     ...[...board.texts, ...board.footprints.flatMap((f) => f.texts)].filter((t) => t.uuid && uuids.has(t.uuid)).map((t) => { const c = textCorners(t); return [...c, c[0]!]; }),
     ...board.zones.filter((z) => uuids.has(z.uuid)).map((z) => [...z.outline, z.outline[0]!]),
     ...board.drawings.filter((g) => g.uuid && uuids.has(g.uuid)).map(graphicPath),
+    ...board.textBoxes.filter((t) => uuids.has(t.uuid)).map((t) => [...t.corners, t.corners[0]!]),
   ];
   ctx.lineWidth = 3 / scale;
   for (const pts of outlines) {
@@ -274,6 +275,9 @@ export function BoardView({
   const [cursor, setCursor] = useState<Point | null>(null);
   // A dimension being placed: its points so far.
   const [dim, setDim] = useState<{ start: Point; end?: Point; orthogonal: boolean } | null>(null);
+  /** The text box tool's first corner. */
+  const [boxCorner, setBoxCorner] = useState<Point | null>(null);
+  useEffect(() => setBoxCorner(null), [tool]);
   /** The point editor's shape: one selected zone or board graphic, while selecting. */
   const pointShape = useMemo(() => (editing && tool === "select" && picked.length === 1 && (picked[0]!.kind === "zone" || picked[0]!.kind === "graphic") ? editShape(board, picked[0]!.uuid) : undefined), [editing, tool, picked, board]);
   /** A handle being dragged, and where to. */
@@ -317,6 +321,7 @@ export function BoardView({
       ...board.zones.map((z) => z.uuid),
       ...board.drawings.flatMap((g) => (g.uuid ? [g.uuid] : [])),
       ...board.texts.flatMap((t) => (t.uuid ? [t.uuid] : [])),
+      ...board.textBoxes.map((t) => t.uuid),
       ...board.footprints.flatMap((f) => f.texts.flatMap((t) => (t.uuid ? [t.uuid] : []))),
     ]);
     // Copies just pasted or duplicated become the selection.
@@ -476,7 +481,7 @@ export function BoardView({
     const pts = picked.map((i) => {
       if (i.kind === "footprint") return board.footprints.find((f) => f.uuid === i.uuid)!.at;
       if (i.kind === "via") return board.vias.find((v) => v.uuid === i.uuid)!.at;
-      if (i.kind === "text") return board.texts.find((t) => t.uuid === i.uuid)!.at;
+      if (i.kind === "text") return board.texts.find((t) => t.uuid === i.uuid)?.at ?? board.textBoxes.find((t) => t.uuid === i.uuid)?.corners[0] ?? { x: 0, y: 0 };
       if (i.kind === "fptext") return board.footprints.find((f) => f.uuid === i.footprint)?.texts.find((t) => t.uuid === i.uuid)?.at ?? { x: 0, y: 0 };
       if (i.kind === "zone" || i.kind === "graphic") {
         const pts = i.kind === "zone" ? board.zones.find((z) => z.uuid === i.uuid)!.outline : board.drawings.find((g) => g.uuid === i.uuid)!.points;
@@ -1012,6 +1017,14 @@ export function BoardView({
             }
           }
         }
+        if (tool === "textbox" && boxCorner && cursor) {
+          // The text box being drawn.
+          ctx.strokeStyle = "#e6e600";
+          ctx.lineWidth = 1 / scale;
+          ctx.setLineDash([5 / scale, 3 / scale]);
+          ctx.strokeRect(Math.min(boxCorner.x, cursor.x), Math.min(boxCorner.y, cursor.y), Math.abs(cursor.x - boxCorner.x), Math.abs(cursor.y - boxCorner.y));
+          ctx.setLineDash([]);
+        }
         if (pointShape) {
           // The point editor: the shape being edited, and its handles (KiCad's squares).
           const live = ptDrag ? dragHandle(pointShape, ptDrag.h, ptDrag.to) : pointShape.points;
@@ -1080,7 +1093,7 @@ export function BoardView({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag]);
+  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner]);
 
   // ---- Pointer handling ------------------------------------------------------
 
@@ -1183,7 +1196,7 @@ export function BoardView({
   const onPointerMove = (e: React.PointerEvent) => {
     if (editing && tool !== "select") {
       const p = toBoard(e);
-      setCursor((tool === "route" && route) || tool === "outline" || tool === "zone" || tool === "text" || tool === "dimension" ? snap(p, edit!.grid) : snapTarget(p).at);
+      setCursor((tool === "route" && route) || tool === "outline" || tool === "zone" || tool === "text" || tool === "textbox" || tool === "dimension" ? snap(p, edit!.grid) : snapTarget(p).at);
     }
     if (gesture.current === "drag" && drag) {
       if (leftPress(e)) setDrag({ ...drag, d: dragOffset(drag.from, toBoard(e)) });
@@ -1266,6 +1279,16 @@ export function BoardView({
       const d = dimFor(dim, at);
       setDim(null);
       if (d) edit!.onEdit([{ op: "addDimension", file: edit!.file, layer: "Dwgs.User", ...d }]);
+      return;
+    }
+    if (editing && tool === "textbox") {
+      // Two corners, then the text (KiCad's text box tool).
+      const at = snap(p, edit!.grid);
+      if (!boxCorner) return setBoxCorner(at);
+      setBoxCorner(null);
+      if (Math.abs(at.x - boxCorner.x) < 1e-9 || Math.abs(at.y - boxCorner.y) < 1e-9) return;
+      const text = window.prompt("Text box (silkscreen; it wraps to the box)");
+      if (text) edit!.onEdit([{ op: "addTextBox", file: edit!.file, box: { text, a: boxCorner, b: at, layer: flipped ? "B.SilkS" : "F.SilkS" } }]);
       return;
     }
     if (editing && tool === "text") {
@@ -1532,7 +1555,10 @@ export function BoardView({
     }
     if (it.kind === "via") return `Via ${shortName(it.net) || "(no net)"}`;
     if (it.kind === "zone") return `Zone ${shortName(it.net) || "(no net)"}`;
-    if (it.kind === "text") return `Text '${board.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
+    if (it.kind === "text") {
+      const box = board.textBoxes.find((t) => t.uuid === it.uuid);
+      return box ? `Text box '${box.text.split("\n")[0]}' on ${it.layer}` : `Text '${board.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
+    }
     if (it.kind === "fptext") return `${it.reference} text '${board.footprints.find((f) => f.uuid === it.footprint)?.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
     return `Graphic on ${it.layer}`;
   };
@@ -1655,6 +1681,8 @@ export function BoardView({
           : "Click a pad, via or track to start routing (X) · 6 differential pair"
       : tool === "text"
         ? `Click to place text on ${flipped ? "B.SilkS (mirrored)" : "F.SilkS"}`
+      : tool === "textbox"
+        ? boxCorner ? "Click the opposite corner, then type the text" : `Text box on ${flipped ? "B.SilkS (mirrored)" : "F.SilkS"}: click a corner`
       : tool === "measure"
         ? !ruler || ruler.b
           ? "Measure: click a start point (Ctrl+Shift+M or Esc to stop)"
