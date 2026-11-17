@@ -638,14 +638,27 @@ export function findFreeSpot(sheet: List, margin = 12.7): Point {
  * items of a sheet, where they are and with their references, in a sheet of their own with the
  * library symbols they use. Returns the block's .kicad_sch text.
  */
-export function blockFromSelection(source: List, uuids: string[], projectName = ""): string {
+export function blockFromSelection(source: List, uuids: string[], projectName = "", sheetPath?: string): string {
   const id = newUuid();
   const doc = parse(newSheetFile(id));
   const target = sheetRoot(doc);
   // A sheet symbol names a sub-sheet file the block wouldn't carry: KiCad would find it missing.
   if (uuids.some((u) => { const n = findItem(source, u); return !!n && headOf(n) === "sheet"; }))
     throw new Error("A design block can't hold sheet symbols: leave them out of the selection");
-  duplicateItems(source, target, uuids, 0, 0, {}, [`/${id}`], projectName);
+  // References as seen on the sheet instance being viewed (a sheet used twice has R101 and R201).
+  const references: Record<string, string> = {};
+  if (sheetPath) {
+    for (const u of uuids) {
+      const n = findItem(source, u);
+      if (!n || headOf(n) !== "symbol") continue;
+      for (const project of findChildren(findChild(n, "instances") ?? n, "project")) {
+        const p = findChildren(project, "path").find((x) => arg(x, 0) === sheetPath);
+        const ref = p && arg(findChild(p, "reference"), 0);
+        if (ref !== undefined) references[u] = String(ref);
+      }
+    }
+  }
+  duplicateItems(source, target, uuids, 0, 0, references, [`/${id}`], projectName);
   return serialize(doc);
 }
 

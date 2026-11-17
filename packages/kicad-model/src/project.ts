@@ -46,11 +46,11 @@ export interface Schematic {
   sheets: SheetInstance[];
   /** Real components (power symbols and other `#`-references excluded). */
   components: Component[];
-  /** Every placed symbol unit per sheet instance, power symbols included. */
   /** How global labels list the pages they are on (the project's Schematic Setup › Formatting). */
   intersheetRefs?: IntersheetRefSettings;
   /** Text variables of the project (from the .kicad_pro next to the root sheet). */
   textVariables?: Record<string, string>;
+  /** Every placed symbol unit per sheet instance, power symbols included. */
   placements: Array<{ sheet: SheetInstance; symbol: PlacedSymbol; reference: string; unit: number; lib?: LibSymbol; /** The value, where the file keeps it per instance (KiCad 6). */ value?: string }>;
   warnings: string[];
 }

@@ -461,6 +461,7 @@ export function App() {
       project && {
         projectName: project.name,
         sheetPathsOf: (file: string) => project.sheets.filter((s) => s.file === file).map((s) => s.path),
+        blockExists: (lib: string, name: string) => project.projectBlocks.some((b) => b.lib === lib && b.name === name),
         references: project.references,
         placing,
         // Placing further units: on to the next one, and back to select after the last.

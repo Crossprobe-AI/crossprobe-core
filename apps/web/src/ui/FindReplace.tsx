@@ -34,6 +34,8 @@ export function FindReplace({
   const [o, setO] = useState<FindOptions>({});
   const [matches, setMatches] = useState<FindTarget[]>([]);
   const [current, setCurrent] = useState(-1);
+  /** The project version the matches were found in: their texts are only good for that version. */
+  const matchesOf = useRef<ProjectView | undefined>(undefined);
   /** The search the matches are for: until it equals the one typed, the answer is not in yet. */
   const [searched, setSearched] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -57,6 +59,7 @@ export function FindReplace({
       // In the order of the sheets, as the hierarchy lists them.
       const order = new Map(sheetFiles.map((f, i) => [f, i]));
       setMatches(findInSheets(parsed.current.sheets, find, o).sort((a, b) => order.get(a.file)! - order.get(b.file)!));
+      matchesOf.current = project;
       setSearched(find);
       setCurrent(-1);
     }, 200);
@@ -81,6 +84,8 @@ export function FindReplace({
   const replaceCurrent = () => {
     const t = matches[current];
     if (!t) return next();
+    // The project changed since the search (its re-run is due): the match's text may be out of date.
+    if (matchesOf.current !== project) return;
     const to = replaceInText(t.text, find, replace, o);
     if (to !== undefined && to !== t.text) onEdit([replaceOp(t, to)]);
   };
