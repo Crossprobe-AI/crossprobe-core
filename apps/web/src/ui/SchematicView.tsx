@@ -60,9 +60,30 @@ function PrimEl({ p }: { p: Prim }) {
 
 const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output", "Output"], ["bidirectional", "Bidirectional"], ["tri_state", "Tri-state"], ["passive", "Passive"]];
 
+/** A picture as base64 PNG, as KiCad stores images: PNGs as they are, other kinds redrawn as PNG. */
+async function toPngBase64(file: File): Promise<string | undefined> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  if (isPng) {
+    let s = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+    return canvas.toDataURL("image/png").split(",")[1];
+  } catch {
+    return undefined;
+  }
+}
+
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label", "directive", "ruleArea"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "image" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -211,6 +232,17 @@ export function SchematicView({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ start: { x: number; y: number }; dx: number; dy: number; committed?: SheetView } | undefined>();
   const [wire, setWire] = useState<Array<{ x: number; y: number }>>([]);
+  /** The Image tool: where the next picked file goes, and the file input it opens. */
+  const imageAt = useRef<{ x: number; y: number } | undefined>(undefined);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const placeImage = async (file: File) => {
+    const at = imageAt.current;
+    if (!at) return;
+    const png = await toPngBase64(file);
+    if (png) onEdit?.([{ op: "addImage", file: sheet.file, at, png }]);
+  };
+  /** The one selected image (a graphic drawn as a picture), whose size can be chosen. */
+  const pickedImage = picked.size === 1 ? sheet.items.find((i) => i.kind === "graphic" && i.uuid && picked.has(i.uuid) && i.prims[0]?.t === "image") : undefined;
   /** The shape new global and hierarchical labels get (KiCad's defaults). */
   const [labelShape, setLabelShape] = useState<{ glabel: LabelShape; hlabel: LabelShape }>({ glabel: "input", hlabel: "bidirectional" });
   /** The one selected global or hierarchical label, whose shape can be changed. */
@@ -461,6 +493,12 @@ export function SchematicView({
       if (tool === "text") {
         const text = window.prompt("Text");
         if (text) onEdit?.([{ op: "addSchText", file: sheet.file, text, at: p0 }]);
+        return;
+      }
+      if (tool === "image") {
+        // The browser asks for the file; the image goes where the sheet was clicked.
+        imageAt.current = p0;
+        imageInput.current?.click();
         return;
       }
       if (tool === "netclass") {
@@ -907,6 +945,18 @@ export function SchematicView({
           {tool === "textbox" && (draw.length ? "Click the opposite corner of the text box" : "Click a corner of the text box")}
           {tool === "line" && (draw.length ? "Click the next corner · double-click or Enter to finish · Esc cancels" : "Click to start lines")}
           {tool === "netclass" && "Click a wire to give its net a net class"}
+          {tool === "image" && "Click where the image goes (its centre), then pick a picture"}
+          {tool === "select" && pickedImage && (
+            <label className="hint-option">
+              {" · size "}
+              <select defaultValue="" onChange={(e) => e.target.value && onEdit?.([{ op: "setImageScale", file: sheet.file, uuid: pickedImage.uuid!, scale: Number(e.target.value) }])}>
+                <option value="">…</option>
+                {[0.25, 0.5, 1, 2, 4].map((s) => (
+                  <option key={s} value={s}>{s * 100}%</option>
+                ))}
+              </select>
+            </label>
+          )}
           {tool === "rulearea" && (draw.length ? "Click the next corner · double-click or Enter to close it · Esc cancels" : "Click the first corner of a rule area (its net class applies to everything inside)")}
           {tool === "rect" && (draw.length ? "Click the opposite corner" : "Click a corner of the rectangle")}
           {tool === "circle" && (draw.length ? "Click a point on the circle" : "Click the circle's centre")}
@@ -980,6 +1030,17 @@ export function SchematicView({
           {tool === "block" && (ctx?.placingBlock ? `Click to place ${ctx.placingBlock.title} (top-left corner) · Esc to stop` : "Pick a design block")}
         </div>
       )}
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void placeImage(f);
+        }}
+      />
       <div className="view-tools">
         <button onClick={() => vp.fit()} title="Fit sheet (F)"><Icon name="fit" /> Fit</button>
       </div>
