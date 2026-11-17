@@ -63,6 +63,8 @@
   --sch-note: #0000c2;
   --sch-nc: #0000ff;
   --sch-dnp: #dc090d;
+  --sch-directive: #5c3c00;
+  --sch-rule-area: #4a5a8c;
   color-scheme: light;
 }
 
@@ -756,6 +758,9 @@ button.link:hover {
 .r-junction { stroke: var(--sch-wire); fill: var(--sch-wire) !important; }
 .r-noconnect { stroke: var(--sch-nc); }
 .r-dnp { stroke: var(--sch-dnp); opacity: 0.7; }
+.r-directive { stroke: var(--sch-directive); }
+.schematic text.r-directive { fill: var(--sch-directive); }
+.r-ruleArea { stroke: var(--sch-rule-area); }
 .r-body { stroke: var(--sch-body); --w: 0.254px; }
 .r-body.fill { fill: var(--sch-body); stroke: none; }
 .r-bodyFill.fill { fill: var(--sch-body-fill); stroke: none; }

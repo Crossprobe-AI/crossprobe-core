@@ -114,6 +114,21 @@ export interface Label {
   /** For global/hierarchical labels: input, output, bidirectional, tri_state, passive. */
   shape?: string;
   uuid?: string;
+  /** Its fields (a label can carry a "Netclass" field, as a directive does). */
+  fields?: Record<string, string>;
+}
+
+/** A net class directive (KiCad's netclass_flag): a flag on a wire, or on a rule area's outline, carrying fields. */
+export interface Directive {
+  at: Point;
+  fields: Record<string, string>;
+  uuid?: string;
+}
+
+/** A rule area: its outline. Directives on the outline apply to everything inside. */
+export interface RuleArea {
+  points: Point[];
+  uuid?: string;
 }
 
 export interface SheetPin {
@@ -153,6 +168,8 @@ export interface SheetFile {
   labels: Label[];
   sheets: SheetRef[];
   busAliases: Map<string, string[]>;
+  directives: Directive[];
+  ruleAreas: RuleArea[];
   /** Free texts on the sheet. */
   texts: Array<{ text: string; at: Point }>;
   /** The title block: title, date, rev, company, comment1 … comment9. */
@@ -330,6 +347,8 @@ export function parseSheetFile(source: string): SheetFile {
     labels: [],
     sheets: [],
     titleBlock: {},
+    directives: [],
+    ruleAreas: [],
     texts: [],
     busAliases: new Map(),
     legacyInstances: new Map(),
@@ -372,6 +391,16 @@ export function parseSheetFile(source: string): SheetFile {
       case "junction":
         sheet.junctions.push(point(findChild(node, "at")));
         break;
+      case "netclass_flag":
+      case "directive_label":
+        sheet.directives.push({ at: point(findChild(node, "at")), fields: properties(node), uuid: text(findChild(node, "uuid")) || undefined });
+        break;
+      case "rule_area": {
+        const poly = findChild(node, "polyline");
+        const pts = poly && findChild(poly, "pts");
+        if (pts) sheet.ruleAreas.push({ points: findChildren(pts, "xy").map(point), uuid: text(findChild(poly, "uuid")) || undefined });
+        break;
+      }
       case "no_connect":
         sheet.noConnects.push(point(findChild(node, "at")));
         break;
@@ -388,6 +417,7 @@ export function parseSheetFile(source: string): SheetFile {
           at: point(findChild(node, "at")),
           shape: findChild(node, "shape") ? text(findChild(node, "shape")) : undefined,
           uuid: text(findChild(node, "uuid")) || undefined,
+          fields: findChildren(node, "property").length ? properties(node) : undefined,
         });
         break;
       }

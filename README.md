@@ -141,10 +141,11 @@ completes a feature.
 | Text, text boxes, lines, rectangles, circles, arcs | Works | No font or style settings; beziers are view only |
 | Images | View only | |
 | Intersheet references | Works | The pages a global label is on, as KiCad lists them (own page, short form, prefix and suffix), switched on in Page settings; drawn where KiCad places them, not movable |
-| Tables, rule areas, net class directives, hyperlinks | No | |
+| Net class directives, rule areas | Works | Placed on wires and buses, or on a rule area's outline for everything inside; a label's Netclass field counts too. Nets get KiCad's classes, combined ones included ("A,Default"), and the project file keeps them as KiCad does. Only the Netclass field: no component classes |
+| Tables, hyperlinks | No | |
 | Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
-| ERC | Partly | 28 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts), a global label that appears once, labels and power nets that differ only in case, field names with spaces around them. Not checked: units of one part on different nets, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
+| ERC | Partly | 29 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts), a global label that appears once, labels and power nets that differ only in case, field names with spaces around them. Undefined net classes. Not checked: units of one part on different nets, bus conflicts, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |
 | SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
@@ -159,7 +160,7 @@ completes a feature.
 | Update PCB from schematic, update schematic from PCB | Works | |
 | Update footprints from the library | Works | |
 | Schematic ↔ board parity, ratsnest | Works | A few zone-to-pad cases over-report unconnected items |
-| Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB |
+| Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB. A net in several classes (by pattern or from the schematic) combines them by priority, with Default filling what they leave unset, as KiCad 10 does |
 | Stackup | Partly | Read and used; written only from the presets; no editor |
 | Custom rules | Partly | `clearance`, `hole_size`, `annular_width`, `track_width`, `via_diameter`, `length` and `skew` (with `fromTo` between parts), with the common condition functions. Lengths between parts can differ from KiCad's by up to ~0.7 mm on some routes, so findings near a limit may differ. Not: differential pair gap and uncoupled length, edge, silk and courtyard clearance, `disallow` |
 | Interactive routing with 45° tracks | Works | Posture, width, via and layer change while routing |
@@ -181,7 +182,7 @@ completes a feature.
 | Groups | Works | Group (Ctrl+G) and Ungroup (Ctrl+Shift+G), nested groups; a click selects a part's whole group, which moves, locks (L) and deletes together; deleted items leave their groups and empty groups go. KiCad reads the groups back as made. Copies (duplicate, paste, array) are not grouped; no entering a group to edit one part |
 | Text boxes | Works | Drawn with the text box tool (two corners, then the text), shown, plotted and wrapped as KiCad wraps them; turned, moved, aligned, and their text, size and layer edited. Plots match kicad-cli's (wrapping, every justification, turned, mirrored, with and without a border). Stroke font only; no knockout, margin or border editing |
 | Images, tables | No | |
-| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap, holes in another part's courtyard; overlapping zones of one net and priority; footprint type against its pads; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, invalid outline. Length and skew come from custom rules (see above). Severities are read from the project |
+| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap, holes in another part's courtyard; overlapping zones of one net and priority; footprint type against its pads; footprints against their library copies (from the board toolbar's "Libraries"); starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, invalid outline. Length and skew come from custom rules (see above). Severities are read from the project |
 | DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
 | Net inspector | Works | Lengths per layer, vias, CSV. Lengths follow KiCad 10.0; KiCad 10.0.5 measures a few nets up to 0.2 mm shorter |
 | Selection filter, layer visibility, flip view, measure tool | Works | No layer colours, presets or net colours |
@@ -209,7 +210,7 @@ completes a feature.
 | Footprints: mask and paste overrides, paste windows | Works | |
 | Footprints: graphics on silkscreen, fab and courtyard; automatic courtyard | Works | No free text, fields only |
 | Footprints: 3D model with offset, rotation, scale and a preview | Works | |
-| Footprints: update placed footprints from the library | Works | |
+| Footprints: update placed footprints from the library | Works | Board toolbar's "Libraries" compares every footprint with its library copy as KiCad's DRC does (lib_footprint_mismatch): on KiCad's demos it flags exactly the footprints KiCad flags, and after updating them KiCad flags none |
 | Symbol and footprint checks | Partly | Their own lists, not KiCad's checkers |
 | Editing KiCad's own libraries, library management | No | A library part is copied into the project's library first |
 

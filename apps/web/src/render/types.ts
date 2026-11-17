@@ -7,6 +7,8 @@ export type Role =
   | "junction"
   | "noconnect"
   | "dnp"
+  | "directive"
+  | "ruleArea"
   | "body"
   | "bodyFill"
   | "pin"
@@ -46,7 +48,7 @@ export type Prim =
   | { t: "image"; x: number; y: number; w: number; h: number; href: string };
 
 export interface SchItem {
-  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "sheet" | "text" | "graphic";
+  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "directive" | "ruleArea" | "sheet" | "text" | "graphic";
   prims: Prim[];
   /** Net this item belongs to (wires, labels, pins). */
   net?: string;
@@ -166,7 +168,7 @@ export interface ProjectView {
   /** The project's design rules in plain form (for checks in the view, e.g. while routing). */
   /** Board setup minimums (mm), as the DRC applies them. */
   boardSetup: { minClearance: number; minTrackWidth: number; minViaDiameter: number; minViaAnnular: number; minHoleSize: number; minHoleToHole: number; holeClearance: number; copperEdgeClearance: number; minTextHeight: number };
-  designRules: { minClearance: number; copperEdgeClearance?: number; holeClearance?: number; custom?: import("@crossprobe/kicad-model").DruRule[]; classes: import("@crossprobe/kicad-model").NetClass[]; patterns: Array<{ pattern: string; netclass: string }>; assignments: Record<string, string> };
+  designRules: { minClearance: number; copperEdgeClearance?: number; holeClearance?: number; custom?: import("@crossprobe/kicad-model").DruRule[]; classes: import("@crossprobe/kicad-model").NetClass[]; patterns: Array<{ pattern: string; netclass: string }>; assignments: Record<string, string[]> };
   /** Project-relative path of the board file, when there is one. */
   boardFile?: string;
   /** Project-relative path of the .kicad_pro. */

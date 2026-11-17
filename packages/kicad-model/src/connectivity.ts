@@ -10,7 +10,7 @@
  * Each merged net is then named after its strongest driver, using KiCad's
  * priority order.
  */
-import { onSegment, pointKey, transformLibPoint, type Point } from "./geometry.js";
+import { inPolygon, onSegment, segmentInPolygon, pointKey, transformLibPoint, type Point } from "./geometry.js";
 import { compareRefs, sheetsByPage, unitPins, type Schematic, type SheetInstance } from "./project.js";
 import type { Label, LibPin, PinType } from "./sheet.js";
 import { UnionFind } from "./unionfind.js";
@@ -34,6 +34,8 @@ export interface Net {
   aliases: string[];
   /** A no-connect flag sits on the net, and no power symbol does. */
   noConnect?: boolean;
+  /** Net classes the schematic gives the net (directives, labels' Netclass fields, rule areas), sorted. */
+  netclasses?: string[];
 }
 
 export interface Netlist {
@@ -95,6 +97,8 @@ interface Subgraph {
   pins?: SchematicPin[];
   noConnects?: Point[];
   sheetPinCount?: number;
+  /** Net classes given by directives, labels' Netclass fields and rule areas. */
+  netclasses?: string[];
 }
 
 /** A placed pin with what ERC needs to know about it. */
@@ -157,7 +161,9 @@ type LocalItem =
   | { kind: "label"; at: Point; label: Label; /** The label's text with variables resolved. */ text: string; index: number }
   | { kind: "sheetpin"; at: Point; sheetUuid: string; name: string }
   | { kind: "junction"; at: Point }
-  | { kind: "nc"; at: Point };
+  | { kind: "nc"; at: Point }
+  /** A net class directive on a wire (or on a rule area's outline): the classes it gives. */
+  | { kind: "directive"; at: Point; classes: string[]; directive: number };
 
 export function buildNetlist(schematic: Schematic, options: { detail?: boolean } = {}): Netlist {
   const warnings: string[] = [];
@@ -212,6 +218,9 @@ export function buildNetlist(schematic: Schematic, options: { detail?: boolean }
   }
   const detail: ConnectivityDetail | undefined = options.detail ? { groups: [] } : undefined;
   const memberKeys = new Set(subgraphs.flatMap((sg) => sg.bus?.members ?? []));
+  // Classes a directive on a bus gives its members, by member key.
+  const busClasses = new Map<string, string[]>();
+  for (const sg of subgraphs) if (sg.bus && sg.netclasses) for (const m of sg.bus.members) busClasses.set(m, [...(busClasses.get(m) ?? []), ...sg.netclasses]);
   for (const group of groups.values()) {
     const seen = new Set<string>();
     const nodes: NetNode[] = [];
@@ -246,10 +255,12 @@ export function buildNetlist(schematic: Schematic, options: { detail?: boolean }
     if (nodes.length === 0) continue;
     nodes.sort((a, b) => compareRefs(a.reference, b.reference) || compareRefs(a.pin, b.pin));
     const aliases = [...new Set(group.flatMap((g) => g.drivers).sort((a, b) => b.priority - a.priority).map((d) => d.name))];
+    const netclasses = [...new Set([...group.flatMap((g) => g.netclasses ?? []), ...group.flatMap((g) => g.keys.flatMap((k) => busClasses.get(k) ?? []))])].sort();
     nets.push({
       aliases,
       name,
       nodes,
+      ...(netclasses.length && { netclasses }),
       // (A power symbol's pin is a second pin on the net: the flag then marks nothing.)
       ...(group.some((g) => g.hasNoConnect) && !group.some((g) => g.drivers.some((d) => d.priority === Priority.LocalPower || d.priority === Priority.GlobalPower)) && { noConnect: true }),
       sheets: [...new Set(group.map((g) => g.sheet.namePath))],
@@ -349,6 +360,7 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
   for (const w of data.wires) items.push({ kind: "wire", a: w.a, b: w.b });
   for (const j of data.junctions) items.push({ kind: "junction", at: j });
   for (const p of data.noConnects) items.push({ kind: "nc", at: p });
+  data.directives.forEach((d, i) => items.push({ kind: "directive", at: d.at, classes: classesOf(d.fields), directive: i }));
   data.labels.forEach((l, index) => items.push({ kind: "label", at: l.at, label: l, text: names.labels[index]!, index }));
   data.sheets.forEach((s, si) => s.pins.forEach((p, pi) => items.push({ kind: "sheetpin", at: p.at, sheetUuid: s.uuid, name: names.sheetPins[si]![pi]! })));
 
@@ -519,8 +531,22 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
         sg.hasNoConnect = true;
         (sg.noConnects ??= []).push(it.at);
         break;
+      case "directive":
+        (sg.netclasses ??= []).push(...it.classes);
+        break;
     }
+    if (it.kind === "label") (sg.netclasses ??= []).push(...classesOf(it.label.fields));
   });
+
+  // A rule area gives the classes of the directives on its outline to everything inside it.
+  for (const { points: area, classes } of ruleAreaClasses(data)) {
+    items.forEach((it, i) => {
+      if (it.kind === "directive" || it.kind === "nc" || it.kind === "junction") return;
+      // A wire counts when any part of it is inside.
+      const inside = it.kind === "wire" ? segmentInPolygon(it.a, it.b, area) : inPolygon(it.at, area);
+      if (inside) (get(i).netclasses ??= []).push(...classes);
+    });
+  }
 
   const result = [...byRoot.values(), ...isolated];
   result.push(...busSubgraphs(sheet, names));
@@ -744,8 +770,22 @@ function isImplicitPowerPin(pin: LibPin): boolean {
 
 /** Junctions and labels attach anywhere along a wire, not only at its ends. */
 function interiorConnects(it: LocalItem): boolean {
-  return it.kind === "junction" || it.kind === "label";
+  return it.kind === "junction" || it.kind === "label" || it.kind === "directive";
 }
+
+/** Each rule area with the classes of the directives on its outline (areas without any left out). */
+function ruleAreaClasses(data: SheetInstance["data"]): Array<{ points: Point[]; classes: string[] }> {
+  return data.ruleAreas
+    .map((area) => {
+      const edges = area.points.map((p, k) => [p, area.points[(k + 1) % area.points.length]!] as const);
+      return { points: area.points, classes: data.directives.filter((d) => edges.some(([a, b]) => onSegment(d.at, a, b))).flatMap((d) => classesOf(d.fields)) };
+    })
+    .filter((a) => a.classes.length);
+}
+
+/** The classes in an item's fields: KiCad's "Netclass" field, comma-separated for several. */
+const classesOf = (fields: Record<string, string> | undefined) =>
+  (fields?.["Netclass"] ?? "").split(",").map((c) => c.trim()).filter(Boolean);
 
 /** Spatial index over wire segments for point-on-segment queries. */
 class WireIndex {
@@ -805,6 +845,8 @@ function busSubgraphs(sheet: SheetInstance, names: ResolvedNames): Subgraph[] {
     | { kind: "label"; at: Point; label: Label; text: string; shape: BusShape }
     | { kind: "sheetpin"; at: Point; sheetUuid: string; name: string; shape: BusShape };
   const items: Item[] = data.buses.map((b) => ({ kind: "bus" as const, a: b.a, b: b.b }));
+  // A net class directive on a bus gives its classes to every member.
+  const directives = data.directives.map((d) => ({ at: d.at, classes: classesOf(d.fields) })).filter((d) => d.classes.length);
   data.labels.forEach((l, li) => {
     const text = names.labels[li]!;
     const shape = busShape(text, aliases);
@@ -848,8 +890,17 @@ function busSubgraphs(sheet: SheetInstance, names: ResolvedNames): Subgraph[] {
     g.push(it);
   });
 
+  const classesAt = new Map<number, string[]>();
+  const give = (j: number, classes: string[]) => classesAt.set(uf.find(j), [...(classesAt.get(uf.find(j)) ?? []), ...classes]);
+  const areas = ruleAreaClasses(data);
+  for (const j of buses) {
+    const b = items[j] as Extract<Item, { kind: "bus" }>;
+    for (const d of directives) if (onSegment(d.at, b.a, b.b)) give(j, d.classes);
+    // A bus that runs into a rule area gives the area's classes to all its members.
+    for (const area of areas) if (segmentInPolygon(b.a, b.b, area.points)) give(j, area.classes);
+  }
   const out: Subgraph[] = [];
-  for (const group of groups.values()) {
+  for (const [root, group] of groups.entries()) {
     // Canonical members come from the strongest label on the bus. A bus
     // with only sheet pins takes the (alphabetically first) pin's names, in
     // this sheet's namespace, so same-named local labels on wires join it.
@@ -875,7 +926,7 @@ function busSubgraphs(sheet: SheetInstance, names: ResolvedNames): Subgraph[] {
     }
     const memberPriority =
       best.kind === "sheetpin" ? Priority.SheetPin : best.label.kind === "global" ? Priority.Global : best.label.kind === "local" ? Priority.LocalLabel : HIER_BUS_MEMBER;
-    out.push({ sheet, nodes: [], drivers: [], keys: [], hasNoConnect: false, bus: { members, ports, memberPriority } });
+    out.push({ sheet, nodes: [], drivers: [], keys: [], hasNoConnect: false, bus: { members, ports, memberPriority }, ...(classesAt.has(root) && { netclasses: classesAt.get(root) }) });
   }
   return out;
 }
