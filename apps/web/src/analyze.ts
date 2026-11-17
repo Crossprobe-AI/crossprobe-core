@@ -87,6 +87,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
   // Custom constraints this DRC doesn't check yet (it applies clearance rules).
   const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width"].includes(t)))];
   let rootSheet: string | undefined;
+  let intersheetRefs: ProjectView["intersheetRefs"];
 
   const schFile = `${name}.kicad_sch`;
   const pcbText = files[`${base}.kicad_pcb`];
@@ -121,6 +122,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     const netlist = buildNetlist(schematic, { detail: true });
     warnings.push(...schematic.warnings, ...netlist.warnings);
     rootSheet = schematic.root.path;
+    intersheetRefs = schematic.intersheetRefs;
 
     const pinNets = new Map<string, string>();
     for (const n of netlist.nets) for (const node of n.nodes) pinNets.set(`${node.reference}\0${node.pin}`, n.name);
@@ -255,6 +257,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     requirements: parseRequirements(files[requirementsFileName(base)]),
     requirementsFile: requirementsFileName(base),
     rootSheet,
+    intersheetRefs,
     sheets,
     components,
     nets,
