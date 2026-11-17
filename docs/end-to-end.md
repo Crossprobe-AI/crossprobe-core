@@ -364,6 +364,31 @@ islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads e
 from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
 of properties into the zones of three demo boards, and pcbnew reads each one back.
 
+## Groups
+
+`scripts/e2e-groups.mjs` box-selects 33 items on pic_programmer's board and groups them with
+Ctrl+G. KiCad's pcbnew reads the group back with its 33 members. Then:
+1. One click on R1 selects the whole group, and a drag moves all six footprints by the same
+   amount.
+2. L locks the group: pcbnew reads it as locked, and a drag moves nothing.
+3. Ctrl+Shift+G ungroups it: pcbnew finds no groups, and a click selects R1 alone again.
+
+`test/board-group.test.ts` reads the demo's own groups, then nests, locks, ungroups and prunes
+groups. pcbnew reads each step back the same.
+
+## Text boxes
+
+`scripts/e2e-textbox.mjs` draws a 30 × 12 mm text box on pic_programmer's board with the text box
+tool and types a sentence into it. KiCad's pcbnew reads the saved box back:
+- its corners are ours;
+- its text, wrapped to the box (KiCad's `GetShownText`), is the same three lines as ours.
+
+R turns the box a quarter, and the properties panel changes its text; pcbnew reads both. Undo removes
+the box. `test/textbox.test.ts` has pcbnew make a board of eight text boxes. They cover wrapping,
+every justification, bold, a quarter turn, 30° and 180°, mirrored on the back, and with and without a
+border. Our silkscreen Gerbers of that board equal kicad-cli's, also after turning every box by 30°
+and 90° as pcbnew does.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
@@ -392,7 +417,7 @@ bus findings.
 
 `scripts/e2e-sch-graphics.mjs` draws notes in a new project:
 - a text (T) and a text box;
-- lines, a rectangle and a circle;
+- lines, a rectangle, a circle and an arc (start, end, a point it passes through);
 - then a double-click on the text renames it.
 
 KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both texts.
@@ -458,3 +483,23 @@ does the same. A drag moves J2 and snaps it to the grid.
 `scripts/e2e-zone-undo.mjs` deletes a track on pic_programmer's board, refills the zones and
 undoes both. The fill from before the refill comes back, in the model and on the canvas, and
 the "zones are out of date" notice follows undo and redo.
+
+## Find and replace
+
+`scripts/e2e-find.mjs` searches KiCad's pic_programmer demo for "RB7" (Ctrl+F):
+- labels on both sheets and the sheet pin between them are found, and Enter goes from one to
+  the next, opening the sheet each is on;
+- while editing, Replace all makes them "SDATA" in one step: undo brings them all back, redo
+  renames them again.
+
+KiCad's netlist of the saved project has the same connections, with the net named SDATA.
+`test/find-replace.test.ts` checks the matching rules and Replace all the same way.
+
+## Intersheet references
+
+`scripts/e2e-intersheet-refs.mjs` places a global label on the root of KiCad's complex_hierarchy
+demo and one in its reused sheet, then switches on "Show the pages of global labels" in Page
+settings, with brackets. The root's label lists [2,3], the two instances of the reused sheet
+[1,3] and [1,2]; the setting is saved in the project file, and KiCad's plot of the saved project
+shows the same lists. `test/intersheet-refs.test.ts` checks four variants of the setting
+against KiCad's plots.

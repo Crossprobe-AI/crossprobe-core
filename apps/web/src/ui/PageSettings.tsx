@@ -15,7 +15,12 @@ export function PageSettingsDialog({
   readFiles,
   onEdit,
   onClose,
+  projectFile,
+  intersheetRefs,
 }: {
+  /** The project file, and how its global labels list their pages (schematic sheets only). */
+  projectFile?: string;
+  intersheetRefs?: import("@crossprobe/kicad-model").IntersheetRefSettings;
   /** The sheet file or board being set up. */
   file: string;
   /** Every schematic sheet file (for "all sheets"). */
@@ -27,6 +32,7 @@ export function PageSettingsDialog({
 }) {
   const [s, setS] = useState<PageSettings>();
   const [everywhere, setEverywhere] = useState(false);
+  const [refs, setRefs] = useState(intersheetRefs);
   const isBoard = file.endsWith(".kicad_pcb");
   useEffect(() => {
     void readFiles([file]).then((f) => {
@@ -54,6 +60,13 @@ export function PageSettingsDialog({
         const own = pageSettings(f.endsWith(".kicad_pcb") ? boardRoot(doc) : sheetRoot(doc));
         ops.push({ op: "setPageSettings", file: f, settings: { ...s, paper: own.paper, width: own.width, height: own.height, portrait: own.portrait } });
       }
+    }
+    if (projectFile && refs && intersheetRefs && JSON.stringify(refs) !== JSON.stringify(intersheetRefs)) {
+      ops.push({
+        op: "setSchematicDrawing",
+        file: projectFile,
+        drawing: { intersheets_ref_show: refs.show, intersheets_ref_own_page: refs.ownPage, intersheets_ref_short: refs.short, intersheets_ref_prefix: refs.prefix, intersheets_ref_suffix: refs.suffix },
+      });
     }
     onEdit(ops);
     onClose();
@@ -131,6 +144,39 @@ export function PageSettingsDialog({
             </label>
           ))}
         </div>
+        {!isBoard && refs && (
+          <fieldset className="page-refs">
+            <legend>
+              <label title="Next to each global label, the pages its net also has a global label on (project-wide)">
+                <input type="checkbox" checked={refs.show} onChange={(e) => setRefs({ ...refs, show: e.target.checked })} /> Show the pages of global labels
+              </label>
+            </legend>
+            {refs.show && (
+              <div className="page-grid">
+                <label className="prop">
+                  <span />
+                  <span>
+                    <input type="checkbox" checked={refs.ownPage} onChange={(e) => setRefs({ ...refs, ownPage: e.target.checked })} /> Include the label's own page
+                  </span>
+                </label>
+                <label className="prop">
+                  <span />
+                  <span>
+                    <input type="checkbox" checked={refs.short} onChange={(e) => setRefs({ ...refs, short: e.target.checked })} /> Short form (2..5)
+                  </span>
+                </label>
+                <label className="prop">
+                  <span>Before</span>
+                  <input value={refs.prefix} onChange={(e) => setRefs({ ...refs, prefix: e.target.value })} placeholder="e.g. [" />
+                </label>
+                <label className="prop">
+                  <span>After</span>
+                  <input value={refs.suffix} onChange={(e) => setRefs({ ...refs, suffix: e.target.value })} placeholder="e.g. ]" />
+                </label>
+              </div>
+            )}
+          </fieldset>
+        )}
         {(sheetFiles.length > 1 || (boardFile && !isBoard) || (isBoard && sheetFiles.length)) && (
           <label className="prop page-everywhere">
             <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} /> Same title block on every sheet{boardFile ? " and the board" : ""} (each keeps its paper)

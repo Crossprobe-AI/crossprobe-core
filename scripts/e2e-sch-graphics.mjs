@@ -1,5 +1,5 @@
 // End-to-end, schematic text and graphics: in a new project a text (T), a text box, lines, a
-// rectangle and a circle are drawn with the schematic tools, then the text is double-clicked and
+// rectangle, a circle and an arc are drawn with the schematic tools, then the text is double-clicked and
 // renamed. KiCad reads the saved schematic and writes the same items back (`sch upgrade`), and its SVG
 // plot shows both texts.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-sch-graphics.mjs <out-dir>
@@ -64,6 +64,11 @@ await tool("Circle");
 await clickSch({ x: 165.1, y: 120.65 });
 await clickSch({ x: 172.72, y: 120.65 });
 await idle();
+await tool("Arc");
+await clickSch({ x: 190.5, y: 101.6 });
+await clickSch({ x: 215.9, y: 101.6 });
+await clickSch({ x: 198.12, y: 91.44 });
+await idle();
 await page.keyboard.press("Escape");
 await page.screenshot({ path: `${OUT}/drawn.png` });
 
@@ -85,9 +90,9 @@ const ours = readFileSync(`${OUT}/${schFile}`, "utf8");
 const count = (re) => (ours.match(re) ?? []).length;
 expect(count(/\(text "Power input"/g) === 1 && !ours.includes("Power stage"), "the text was renamed");
 expect(count(/\(text_box "Keep C1 close to U1"/g) === 1, "a text box");
-expect(count(/\(polyline/g) === 1 && count(/\(rectangle/g) === 1 && count(/\(circle/g) === 1, `lines, rectangle and circle (polyline ${count(/\(polyline/g)}, rectangle ${count(/\(rectangle/g)}, circle ${count(/\(circle/g)})`);
+expect(count(/\(polyline/g) === 1 && count(/\(rectangle/g) === 1 && count(/\(circle/g) === 1 && count(/\(arc/g) === 1, `lines, rectangle, circle and arc (polyline ${count(/\(polyline/g)}, rectangle ${count(/\(rectangle/g)}, circle ${count(/\(circle/g)}, arc ${count(/\(arc/g)})`);
 const k = await kinds();
-expect(k.text >= 2 && k.graphic >= 3, `drawn items: ${JSON.stringify(k)}`);
+expect(k.text >= 2 && k.graphic >= 4, `drawn items: ${JSON.stringify(k)}`);
 
 // KiCad reads the file and writes it back the same.
 mkdirSync(`${OUT}/kicad`, { recursive: true });

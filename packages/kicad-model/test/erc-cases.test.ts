@@ -3,7 +3,8 @@
  * in known ways: a unit of U2 is deleted (unplaced unit, with its input and supply pins), another
  * unit gets a different footprint, a local label is named like a global one, a text uses a variable
  * that names nothing, and a second sheet symbol takes the first one's name (and has no pins for
- * the labels inside). `kicad-cli sch erc` and runErc report the same findings of these kinds: the
+ * the labels inside), a label is named like a power net but for case, a power symbol too, and a
+ * field name ends in a space. `kicad-cli sch erc` and runErc report the same findings of these kinds: the
  * same message, on the same sheet, at the same place.
  *
  * Env: KICAD_CLI, KICAD_DEMOS.
@@ -25,7 +26,7 @@ try {
   cli = false;
 }
 
-const TYPES = new Set(["missing_unit", "missing_input_pin", "missing_bidi_pin", "missing_power_pin", "different_unit_footprint", "duplicate_sheet_names", "same_local_global_label", "unresolved_variable", "hier_label_mismatch"]);
+const TYPES = new Set(["single_global_label", "field_name_whitespace", "similar_label_and_power", "similar_power", "missing_unit", "missing_input_pin", "missing_bidi_pin", "missing_power_pin", "different_unit_footprint", "duplicate_sheet_names", "same_local_global_label", "unresolved_variable", "hier_label_mismatch"]);
 
 describe.skipIf(!cli)("ERC on a broken schematic", () => {
   it("finds what KiCad finds", () => {
@@ -43,6 +44,11 @@ describe.skipIf(!cli)("ERC on a broken schematic", () => {
     addLabel(root, "global_label", "SAME_NAME", { x: 30.48, y: 30.48 }, 0, "input");
     addLabel(root, "label", "SAME_NAME", { x: 30.48, y: 40.64 });
     addSchText(root, "Rev ${NOPE} ${REVISION}", { x: 30.48, y: 50.8 });
+    // A label "vcc" beside the VCC power symbols, a field name with a trailing space, a power symbol renamed "Vcc".
+    addLabel(root, "label", "vcc", { x: 30.48, y: 81.28 });
+    setSymbolField(findItem(root, before.components.find((c) => c.reference === "R2")!.units[0]!.symbol.uuid)!, "MPN ", "X");
+    const pwr = before.placements.find((p) => p.reference === "#PWR01")!;
+    setSymbolField(findItem(root, pwr.symbol.uuid)!, "Value", "Vcc");
     addSheet(root, { at: { x: 30.48, y: 60.96 }, size: { x: 20.32, y: 10.16 }, name: "pic_sockets", file: "pic_sockets.kicad_sch", projectName: "pic_programmer", parentPaths: [before.root.path], page: 3 });
     writeFileSync(join(dir, ROOT), serialize(doc));
 
@@ -56,13 +62,16 @@ describe.skipIf(!cli)("ERC on a broken schematic", () => {
       sheets: Array<{ path: string; violations: Array<{ type: string; severity: string; description: string; items: Array<{ description: string; pos: { x: number; y: number } }> }> }>;
     };
     const at = (x: number, y: number) => `${x.toFixed(2)},${y.toFixed(2)}`;
+    // Which item of a similar-names pair KiCad lists first is not in the files (it does not follow
+    // the pins' UUIDs): such pairs are compared as sets.
+    const items = (type: string, list: string[]) => (type.startsWith("similar_") ? [...list].sort() : list).join(" ; ");
     const kicad = report.sheets
-      .flatMap((s) => s.violations.filter((v) => TYPES.has(v.type)).map((v) => `${v.type} ${v.severity} ${s.path} | ${v.description} | ${v.items.map((i) => `${i.description} @${at(i.pos.x * 100, i.pos.y * 100)}`).join(" ; ")}`))
+      .flatMap((s) => s.violations.filter((v) => TYPES.has(v.type)).map((v) => `${v.type} ${v.severity} ${s.path} | ${v.description} | ${items(v.type, v.items.map((i) => `${i.description} @${at(i.pos.x * 100, i.pos.y * 100)}`))}`))
       .sort();
     const schematic = loadSchematic(ROOT, read);
     const ours = runErc(schematic, buildNetlist(schematic, { detail: true }))
       .filter((v) => TYPES.has(v.type))
-      .map((v) => `${v.type} ${v.severity} ${v.sheetName} | ${v.message} | ${v.items.map((i) => `${i.description} @${at(i.at.x, i.at.y)}`).join(" ; ")}`)
+      .map((v) => `${v.type} ${v.severity} ${v.sheetName} | ${v.message} | ${items(v.type, v.items.map((i) => `${i.description} @${at(i.at.x, i.at.y)}`))}`)
       .sort();
     expect(ours).toEqual(kicad);
     // Every kind is there but the bidirectional one (this part has no such pins).

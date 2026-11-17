@@ -389,16 +389,50 @@ export function addSchTextBox(root: List, text: string, a: Point, b: Point, o: {
   return id;
 }
 
-export type SchGraphic = { kind: "polyline"; points: Point[] } | { kind: "rectangle"; points: [Point, Point] } | { kind: "circle"; points: [Point, Point] };
+export type SchGraphic =
+  | { kind: "polyline"; points: Point[] }
+  | { kind: "rectangle"; points: [Point, Point] }
+  | { kind: "circle"; points: [Point, Point] }
+  /** Start, a point the arc passes through, end. */
+  | { kind: "arc"; points: [Point, Point, Point] };
 
-/** A drawing: lines (a polyline), a rectangle (two corners) or a circle (centre, a point on it). */
+/**
+ * The arc from `a` to `b` that passes through `through`: its centre, radius, and the point
+ * halfway along it (what KiCad stores as the arc's "mid"). Undefined when the three are in line.
+ */
+export function arcThrough(a: Point, through: Point, b: Point): { center: Point; radius: number; mid: Point; sweep: number } | undefined {
+  const d = 2 * (a.x * (through.y - b.y) + through.x * (b.y - a.y) + b.x * (a.y - through.y));
+  if (Math.abs(d) < 1e-9) return undefined;
+  const sq = (p: Point) => p.x * p.x + p.y * p.y;
+  const center = {
+    x: (sq(a) * (through.y - b.y) + sq(through) * (b.y - a.y) + sq(b) * (a.y - through.y)) / d,
+    y: (sq(a) * (b.x - through.x) + sq(through) * (a.x - b.x) + sq(b) * (through.x - a.x)) / d,
+  };
+  const radius = Math.hypot(a.x - center.x, a.y - center.y);
+  const angle = (p: Point) => Math.atan2(p.y - center.y, p.x - center.x);
+  const turn = (from: number, to: number) => (((to - from) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  // Counter-clockwise (in the sheet's angles) from a to b, unless that way misses the through point.
+  const ccw = turn(angle(a), angle(b));
+  const sweep = turn(angle(a), angle(through)) < ccw ? ccw : ccw - 2 * Math.PI;
+  const m = angle(a) + sweep / 2;
+  return { center, radius, mid: { x: center.x + radius * Math.cos(m), y: center.y + radius * Math.sin(m) }, sweep };
+}
+
+/** A drawing: lines (a polyline), a rectangle (two corners), a circle (centre, a point on it) or an arc (in line: a line). */
 export function addSchGraphic(root: List, g: SchGraphic, o: { dash?: boolean; fill?: "none" | "outline" | "background" } = {}): string {
   const id = newUuid();
   const P = (p: Point) => [snapIU(p.x), snapIU(p.y)] as const;
   let node: List;
   if (g.kind === "polyline") node = list("polyline", list("pts", ...g.points.map((p) => xy(p))), ...strokeFill(o), list("uuid", str(id)));
   else if (g.kind === "rectangle") node = list("rectangle", list("start", ...P(g.points[0])), list("end", ...P(g.points[1])), ...strokeFill(o), list("uuid", str(id)));
-  else {
+  else if (g.kind === "arc") {
+    const [a, through, b] = g.points;
+    const arc = arcThrough(a, through, b);
+    if (!arc) return addSchGraphic(root, { kind: "polyline", points: [a, b] }, o);
+    // KiCad keeps arcs turning one way (clockwise on the sheet): the other way round, start and end swap.
+    const [from, to] = arc.sweep > 0 ? [a, b] : [b, a];
+    node = list("arc", list("start", ...P(from)), list("mid", ...P(arc.mid)), list("end", ...P(to)), ...strokeFill(o), list("uuid", str(id)));
+  } else {
     const [c, e] = g.points;
     node = list("circle", list("center", ...P(c)), list("radius", snapIU(Math.hypot(e.x - c.x, e.y - c.y))), ...strokeFill(o), list("uuid", str(id)));
   }
@@ -759,4 +793,10 @@ export function syncSheetPins(sheet: List, childRoot: List): { pins: string[]; l
   let count = findChildren(childRoot, "hierarchical_label").length;
   for (const p of missing.pins) addLabel(childRoot, "hierarchical_label", p.name, { x: 25.4, y: 25.4 + 5.08 * count++ }, 180, p.shape);
   return { pins: missing.labels.map((l) => l.name), labels: missing.pins.map((p) => p.name) };
+}
+
+/** Rename one pin of a sheet symbol (by the pin's UUID). */
+export function setSheetPinName(sheet: List, pinUuid: string, name: string): void {
+  const pin = findChildren(sheet, "pin").find((p) => uuidOf(p) === pinUuid);
+  if (pin) setArg(pin, 0, str(name));
 }

@@ -140,6 +140,8 @@ export function pickAll(board: Board, p: Point, tol: number, layers?: Set<string
     }
     if (inside) add({ kind: "text", uuid: t.uuid, layer: t.layer });
   }
+  // Text boxes: anywhere inside the box.
+  for (const t of board.textBoxes) if ((!layers || layers.has(t.layer)) && inPolygon(t.corners, p)) add({ kind: "text", uuid: t.uuid, layer: t.layer });
   for (const z of board.zones) {
     if (layers && !z.layers.some((l) => layers.has(l))) continue;
     if (nearPath([...z.outline, z.outline[0]!], p, tol + 0.1)) add({ kind: "zone", uuid: z.uuid, net: z.net });
@@ -191,6 +193,7 @@ export function pickItem(board: Board, p: Point, tol: number, layers?: Set<strin
     if (!t.uuid || (layers && !layers.has(t.layer))) continue;
     if (inPolygon(textCorners(t), p)) return { kind: "text", uuid: t.uuid, layer: t.layer };
   }
+  for (const t of board.textBoxes) if ((!layers || layers.has(t.layer)) && inPolygon(t.corners, p)) return { kind: "text", uuid: t.uuid, layer: t.layer };
   // Zones and board graphics by their edges, as KiCad picks them.
   for (const z of board.zones) {
     if (layers && !z.layers.some((l) => layers.has(l))) continue;
@@ -221,6 +224,7 @@ export function itemsInBox(board: Board, b: Box): BoardItem[] {
   for (const z of board.zones) if (z.outline.every((q) => inBox(b, q))) out.push({ kind: "zone", uuid: z.uuid, net: z.net });
   for (const g of board.drawings) if (g.uuid && graphicPath(g).every((q) => inBox(b, q))) out.push({ kind: "graphic", uuid: g.uuid, layer: g.layer, net: g.net });
   for (const t of board.texts) if (t.uuid && inBox(b, t.at)) out.push({ kind: "text", uuid: t.uuid, layer: t.layer });
+  for (const t of board.textBoxes) if (t.corners.every((q) => inBox(b, q))) out.push({ kind: "text", uuid: t.uuid, layer: t.layer });
   return out;
 }
 
@@ -304,4 +308,21 @@ export function connectedTrace(board: Board, picked: BoardItem[]): BoardItem[] {
     ...[...seenT].map((i) => ({ kind: "track" as const, uuid: tracks[i]!.uuid, net: tracks[i]!.net })),
     ...[...seenV].map((i) => ({ kind: "via" as const, uuid: vias[i]!.uuid, net: vias[i]!.net })),
   ];
+}
+
+/** The selectable item a UUID names (footprints, tracks, vias, zones, drawings, texts). */
+export function boardItemOf(board: Board, uuid: string): BoardItem | undefined {
+  const fp = board.footprints.find((f) => f.uuid === uuid);
+  if (fp) return { kind: "footprint", uuid, reference: fp.reference };
+  const t = board.tracks.find((x) => x.uuid === uuid);
+  if (t) return { kind: "track", uuid, net: t.net };
+  const v = board.vias.find((x) => x.uuid === uuid);
+  if (v) return { kind: "via", uuid, net: v.net };
+  const z = board.zones.find((x) => x.uuid === uuid);
+  if (z) return { kind: "zone", uuid, net: z.net };
+  const g = board.drawings.find((x) => x.uuid === uuid);
+  if (g) return { kind: "graphic", uuid, layer: g.layer, net: g.net };
+  const tx = board.texts.find((x) => x.uuid === uuid) ?? board.textBoxes.find((x) => x.uuid === uuid);
+  if (tx) return { kind: "text", uuid, layer: tx.layer };
+  return undefined;
 }

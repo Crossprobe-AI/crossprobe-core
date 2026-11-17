@@ -14,6 +14,7 @@ import {
   type Schematic,
   type SheetInstance,
   shownText,
+  intersheetRefs,
 } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
@@ -402,6 +403,27 @@ function labelPrims(node: List, kind: "local" | "global" | "hierarchical", shown
   ];
 }
 
+/**
+ * A global label's list of pages, where KiCad puts it: where the file has its field, or (a field
+ * still at the label's anchor) just past the end of the label, reading the same way.
+ */
+function intersheetRefsPrim(node: List, refs: string, label: Prim[]): Prim {
+  const at = findChild(node, "at");
+  const anchor = pt(at);
+  const field = findChildren(node, "property").find((p) => str(p, 0) === "Intersheetrefs");
+  const fieldAt = field && findChild(field, "at");
+  const e = effectsOf(field ?? node);
+  if (fieldAt && (Math.abs(Number(arg(fieldAt, 0)) - anchor.x) > 1e-4 || Math.abs(Number(arg(fieldAt, 1)) - anchor.y) > 1e-4)) {
+    return text(Number(arg(fieldAt, 0)), Number(arg(fieldAt, 1)), refs, { ...e, hidden: false, v: "middle" }, Number(arg(fieldAt, 2) ?? 0), "field");
+  }
+  const angle = Number(arg(at, 2) ?? 0);
+  const box = bboxOf(label)!;
+  const margin = 2 * Math.round(0.15 * e.size * 1e4) / 1e4;
+  const len = Math.max(box.w, box.h) + margin;
+  const d = dir(angle);
+  return text(anchor.x + d.x * len, anchor.y + d.y * len, refs, { ...e, hidden: false, h: "start", v: "middle" }, angle, "field");
+}
+
 function sheetPrims(node: List): Prim[] {
   const at = pt(findChild(node, "at"));
   const size = pt(findChild(node, "size"));
@@ -640,7 +662,12 @@ export function renderSheet(
       case "global_label":
       case "hierarchical_label": {
         const kind = headOf(node) === "label" ? "local" : headOf(node) === "global_label" ? "global" : "hierarchical";
-        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind, shown(str(node, 0))), text: str(node, 0), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
+        const prims = labelPrims(node, kind, shown(str(node, 0)));
+        if (kind === "global" && schematic.intersheetRefs?.show) {
+          const refs = intersheetRefs(schematic, sheet, str(node, 0));
+          if (refs) prims.push(intersheetRefsPrim(node, refs, prims));
+        }
+        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims, text: str(node, 0), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
         break;
       }
       case "text": {

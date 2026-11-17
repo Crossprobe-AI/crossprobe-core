@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { alignMoves, boardItemBox, boardItemPosition, copperItems, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
+import { alignMoves, boardItemBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
 import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, layerColor, padPath, type BoardScene } from "../render/board";
-import { attachedTrackEnds, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
+import { attachedTrackEnds, boardItemOf, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
 import type { EditOp } from "../edit/ops";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
@@ -16,7 +16,7 @@ import { fromOverlay, useViewport } from "./viewport";
 const BG = "#0b1220";
 const SEL = "#ffd166";
 
-export type BoardTool = "select" | "route" | "via" | "footprint" | "outline" | "zone" | "text" | "dimension" | "measure";
+export type BoardTool = "select" | "route" | "via" | "footprint" | "outline" | "zone" | "text" | "textbox" | "dimension" | "measure";
 
 type Point = { x: number; y: number };
 
@@ -81,7 +81,7 @@ function itemFor(board: Board, uuid: string): BoardItem | undefined {
   if (z) return { kind: "zone", uuid, net: z.net };
   const g = board.drawings.find((x) => x.uuid === uuid);
   if (g) return { kind: "graphic", uuid, layer: g.layer, net: g.net };
-  const tx = board.texts.find((x) => x.uuid === uuid);
+  const tx = board.texts.find((x) => x.uuid === uuid) ?? board.textBoxes.find((x) => x.uuid === uuid);
   if (tx) return { kind: "text", uuid, layer: tx.layer };
   return undefined;
 }
@@ -134,6 +134,7 @@ function drawSelection(ctx: CanvasRenderingContext2D, board: Board, uuids: Set<s
     ...[...board.texts, ...board.footprints.flatMap((f) => f.texts)].filter((t) => t.uuid && uuids.has(t.uuid)).map((t) => { const c = textCorners(t); return [...c, c[0]!]; }),
     ...board.zones.filter((z) => uuids.has(z.uuid)).map((z) => [...z.outline, z.outline[0]!]),
     ...board.drawings.filter((g) => g.uuid && uuids.has(g.uuid)).map(graphicPath),
+    ...board.textBoxes.filter((t) => uuids.has(t.uuid)).map((t) => [...t.corners, t.corners[0]!]),
   ];
   ctx.lineWidth = 3 / scale;
   for (const pts of outlines) {
@@ -262,13 +263,21 @@ export function BoardView({
   const pendingPick = useRef<string[] | undefined>(undefined);
   const pickedIds = useMemo(() => new Set(picked.map((p) => p.uuid)), [picked]);
   // Locked footprints, tracks and vias (KiCad's L): not moved, rotated, flipped or deleted.
-  const lockedIds = useMemo(() => new Set([...board.footprints, ...board.tracks, ...board.vias].filter((x) => x.locked).map((x) => x.uuid)), [board]);
+  const lockedIds = useMemo(() => {
+    const ids = new Set([...board.footprints, ...board.tracks, ...board.vias].filter((x) => x.locked).map((x) => x.uuid));
+    // Everything in a locked group is locked too (KiCad's IsLocked).
+    for (const g of board.groups) if (g.locked) for (const u of groupItems(board, g.uuid)) ids.add(u);
+    return ids;
+  }, [board]);
   const [drag, setDrag] = useState<{ from: Point; d: Point; committed?: Board } | null>(null);
   const [box, setBox] = useState<{ a: Point; b: Point } | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [cursor, setCursor] = useState<Point | null>(null);
   // A dimension being placed: its points so far.
   const [dim, setDim] = useState<{ start: Point; end?: Point; orthogonal: boolean } | null>(null);
+  /** The text box tool's first corner. */
+  const [boxCorner, setBoxCorner] = useState<Point | null>(null);
+  useEffect(() => setBoxCorner(null), [tool]);
   /** The point editor's shape: one selected zone or board graphic, while selecting. */
   const pointShape = useMemo(() => (editing && tool === "select" && picked.length === 1 && (picked[0]!.kind === "zone" || picked[0]!.kind === "graphic") ? editShape(board, picked[0]!.uuid) : undefined), [editing, tool, picked, board]);
   /** A handle being dragged, and where to. */
@@ -312,6 +321,7 @@ export function BoardView({
       ...board.zones.map((z) => z.uuid),
       ...board.drawings.flatMap((g) => (g.uuid ? [g.uuid] : [])),
       ...board.texts.flatMap((t) => (t.uuid ? [t.uuid] : [])),
+      ...board.textBoxes.map((t) => t.uuid),
       ...board.footprints.flatMap((f) => f.texts.flatMap((t) => (t.uuid ? [t.uuid] : []))),
     ]);
     // Copies just pasted or duplicated become the selection.
@@ -471,7 +481,7 @@ export function BoardView({
     const pts = picked.map((i) => {
       if (i.kind === "footprint") return board.footprints.find((f) => f.uuid === i.uuid)!.at;
       if (i.kind === "via") return board.vias.find((v) => v.uuid === i.uuid)!.at;
-      if (i.kind === "text") return board.texts.find((t) => t.uuid === i.uuid)!.at;
+      if (i.kind === "text") return board.texts.find((t) => t.uuid === i.uuid)?.at ?? board.textBoxes.find((t) => t.uuid === i.uuid)?.corners[0] ?? { x: 0, y: 0 };
       if (i.kind === "fptext") return board.footprints.find((f) => f.uuid === i.footprint)?.texts.find((t) => t.uuid === i.uuid)?.at ?? { x: 0, y: 0 };
       if (i.kind === "zone" || i.kind === "graphic") {
         const pts = i.kind === "zone" ? board.zones.find((z) => z.uuid === i.uuid)!.outline : board.drawings.find((g) => g.uuid === i.uuid)!.points;
@@ -561,6 +571,11 @@ export function BoardView({
           e.preventDefault();
           const at = cursor ? snap(cursor, ed.grid) : { x: clipboard.current.at.x + 5 * ed.grid, y: clipboard.current.at.y + 5 * ed.grid };
           copy(clipboard.current.uuids, at.x - clipboard.current.at.x, at.y - clipboard.current.at.y);
+        } else if (k === "g" && picked.length) {
+          // KiCad's Group (Ctrl+G) and Ungroup (Ctrl+Shift+G).
+          e.preventDefault();
+          if (e.shiftKey) ungroupSelection();
+          else groupSelection();
         } else if (k === "t" && picked.length) {
           // KiCad's Create Array.
           e.preventDefault();
@@ -659,8 +674,11 @@ export function BoardView({
         }
       } else if (key === "l" && picked.length && !route) {
         // KiCad's L: lock / unlock (footprints, tracks, vias).
-        const lockable = picked.filter((p) => p.kind === "footprint" || p.kind === "track" || p.kind === "via").map((p) => p.uuid);
-        const anyUnlocked = lockable.some((u) => !lockedIds.has(u));
+        // Grouped items lock through their group, as in KiCad.
+        const groups = pickedGroups();
+        const inGroups = new Set(groups.flatMap((g) => groupItems(board, g)));
+        const lockable = [...groups, ...picked.filter((p) => !inGroups.has(p.uuid) && (p.kind === "footprint" || p.kind === "track" || p.kind === "via")).map((p) => p.uuid)];
+        const anyUnlocked = lockable.some((u) => (board.groups.some((g) => g.uuid === u) ? !board.groups.find((g) => g.uuid === u)!.locked : !lockedIds.has(u)));
         if (lockable.length) ed.onEdit([{ op: "setLocked", file: ed.file, uuids: lockable, locked: anyUnlocked }]);
         setNote(anyUnlocked ? "Locked" : "Unlocked");
       }
@@ -975,6 +993,38 @@ export function BoardView({
           ctx.stroke();
           ctx.setLineDash([]);
         }
+        {
+          // Selected groups: a dashed box around each (KiCad draws their bounding box).
+          const ids = new Set(picked.map((p) => p.uuid));
+          for (const g of board.groups) {
+            const items = groupItems(board, g.uuid);
+            if (!items.length || topGroup(board, g.uuid) || !items.every((u) => ids.has(u))) continue;
+            const boxes = items.map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
+            if (!boxes.length) continue;
+            const d = drag ? drag.d : { x: 0, y: 0 };
+            const x0 = Math.min(...boxes.map((b) => b.x0)) + d.x, y0 = Math.min(...boxes.map((b) => b.y0)) + d.y;
+            const x1 = Math.max(...boxes.map((b) => b.x1)) + d.x, y1 = Math.max(...boxes.map((b) => b.y1)) + d.y;
+            ctx.strokeStyle = g.locked ? "rgba(255, 170, 60, 0.9)" : "rgba(255, 255, 255, 0.75)";
+            ctx.lineWidth = 1 / scale;
+            ctx.setLineDash([4 / scale, 3 / scale]);
+            ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+            ctx.setLineDash([]);
+            if (g.name) {
+              ctx.fillStyle = ctx.strokeStyle;
+              ctx.font = `${11 / scale}px sans-serif`;
+              ctx.textBaseline = "bottom";
+              ctx.fillText(g.name, x0, y0 - 2 / scale);
+            }
+          }
+        }
+        if (tool === "textbox" && boxCorner && cursor) {
+          // The text box being drawn.
+          ctx.strokeStyle = "#e6e600";
+          ctx.lineWidth = 1 / scale;
+          ctx.setLineDash([5 / scale, 3 / scale]);
+          ctx.strokeRect(Math.min(boxCorner.x, cursor.x), Math.min(boxCorner.y, cursor.y), Math.abs(cursor.x - boxCorner.x), Math.abs(cursor.y - boxCorner.y));
+          ctx.setLineDash([]);
+        }
         if (pointShape) {
           // The point editor: the shape being edited, and its handles (KiCad's squares).
           const live = ptDrag ? dragHandle(pointShape, ptDrag.h, ptDrag.to) : pointShape.points;
@@ -1043,7 +1093,7 @@ export function BoardView({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag]);
+  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner]);
 
   // ---- Pointer handling ------------------------------------------------------
 
@@ -1062,7 +1112,15 @@ export function BoardView({
     return { at: snap(p, edit!.grid), net: hit && (hit.kind === "track" || hit.kind === "via") ? hit.net : undefined, layer: hit?.kind === "track" ? board.tracks.find((x) => x.uuid === hit.uuid)?.layer : undefined };
   };
 
-  const select = (items: BoardItem[], add: boolean) => {
+  const select = (picks: BoardItem[], add: boolean) => {
+    // Picking any member of a group picks its whole top-level group (KiCad's group selection).
+    const items: BoardItem[] = [];
+    const seen = new Set<string>();
+    for (const it of picks) {
+      const g = it.kind === "fptext" ? undefined : topGroup(board, it.uuid);
+      const all = g ? groupItems(board, g.uuid).map((u) => (u === it.uuid ? it : boardItemOf(board, u))) : [it];
+      for (const x of all) if (x && !seen.has(x.uuid)) (seen.add(x.uuid), items.push(x));
+    }
     const next = add ? [...picked.filter((p) => !items.some((i) => i.uuid === p.uuid)), ...items.filter((i) => !pickedIds.has(i.uuid))] : items;
     setPicked(next);
     const first = next[0];
@@ -1138,7 +1196,7 @@ export function BoardView({
   const onPointerMove = (e: React.PointerEvent) => {
     if (editing && tool !== "select") {
       const p = toBoard(e);
-      setCursor((tool === "route" && route) || tool === "outline" || tool === "zone" || tool === "text" || tool === "dimension" ? snap(p, edit!.grid) : snapTarget(p).at);
+      setCursor((tool === "route" && route) || tool === "outline" || tool === "zone" || tool === "text" || tool === "textbox" || tool === "dimension" ? snap(p, edit!.grid) : snapTarget(p).at);
     }
     if (gesture.current === "drag" && drag) {
       if (leftPress(e)) setDrag({ ...drag, d: dragOffset(drag.from, toBoard(e)) });
@@ -1192,7 +1250,10 @@ export function BoardView({
     if (g === "box" && box) {
       const b = { x: Math.min(box.a.x, box.b.x), y: Math.min(box.a.y, box.b.y), w: Math.abs(box.b.x - box.a.x), h: Math.abs(box.b.y - box.a.y) };
       setBox(null);
-      select(itemsInBox(board, b).map(allowed).filter((x): x is BoardItem => !!x), true);
+      // A group is picked only when all of it is in the box.
+      const inBox = itemsInBox(board, b).map(allowed).filter((x): x is BoardItem => !!x);
+      const ids = new Set(inBox.map((x) => x.uuid));
+      select(inBox.filter((x) => { const g = topGroup(board, x.uuid); return !g || groupItems(board, g.uuid).every((u) => ids.has(u)); }), true);
       return;
     }
     vp.handlers.onPointerUp();
@@ -1218,6 +1279,16 @@ export function BoardView({
       const d = dimFor(dim, at);
       setDim(null);
       if (d) edit!.onEdit([{ op: "addDimension", file: edit!.file, layer: "Dwgs.User", ...d }]);
+      return;
+    }
+    if (editing && tool === "textbox") {
+      // Two corners, then the text (KiCad's text box tool).
+      const at = snap(p, edit!.grid);
+      if (!boxCorner) return setBoxCorner(at);
+      setBoxCorner(null);
+      if (Math.abs(at.x - boxCorner.x) < 1e-9 || Math.abs(at.y - boxCorner.y) < 1e-9) return;
+      const text = window.prompt("Text box (silkscreen; it wraps to the box)");
+      if (text) edit!.onEdit([{ op: "addTextBox", file: edit!.file, box: { text, a: boxCorner, b: at, layer: flipped ? "B.SilkS" : "F.SilkS" } }]);
       return;
     }
     if (editing && tool === "text") {
@@ -1399,6 +1470,27 @@ export function BoardView({
   };
 
   // ---- Context menu (right click), KiCad's actions for what's under the cursor ----
+  /** The top-level groups the selection covers whole. */
+  const pickedGroups = (): string[] => {
+    const ids = new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)));
+    return [...new Set([...ids].map((u) => topGroup(board, u)?.uuid).filter((g): g is string => !!g))].filter((g) => groupItems(board, g).every((u) => ids.has(u)));
+  };
+  /** Group the selection: its whole groups and loose items become one new group. */
+  const groupSelection = () => {
+    const groups = pickedGroups();
+    const inGroups = new Set(groups.flatMap((g) => groupItems(board, g)));
+    const loose = [...new Set(picked.filter((p) => p.kind !== "fptext" && !inGroups.has(p.uuid)).map((p) => p.uuid))];
+    const members = [...groups, ...loose];
+    if (members.length < 2 && !loose.length) return setNote("Already a group");
+    edit!.onEdit([{ op: "boardGroup", file: edit!.file, members }]);
+    setNote(`Grouped ${picked.length} item${picked.length > 1 ? "s" : ""}`);
+  };
+  const ungroupSelection = () => {
+    const groups = pickedGroups();
+    if (!groups.length) return setNote("No group selected");
+    edit!.onEdit([{ op: "boardUngroup", file: edit!.file, groups }]);
+    setNote("Ungrouped");
+  };
   /** Write the point editor's result: a zone's outline, or a graphic's points. */
   const commitPoints = (points: Point[], label: string) => {
     if (!pointShape) return;
@@ -1463,7 +1555,10 @@ export function BoardView({
     }
     if (it.kind === "via") return `Via ${shortName(it.net) || "(no net)"}`;
     if (it.kind === "zone") return `Zone ${shortName(it.net) || "(no net)"}`;
-    if (it.kind === "text") return `Text '${board.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
+    if (it.kind === "text") {
+      const box = board.textBoxes.find((t) => t.uuid === it.uuid);
+      return box ? `Text box '${box.text.split("\n")[0]}' on ${it.layer}` : `Text '${board.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
+    }
     if (it.kind === "fptext") return `${it.reference} text '${board.footprints.find((f) => f.uuid === it.footprint)?.texts.find((t) => t.uuid === it.uuid)?.text ?? ""}' on ${it.layer}`;
     return `Graphic on ${it.layer}`;
   };
@@ -1523,7 +1618,12 @@ export function BoardView({
     const out: MenuEntry[] = [];
     // KiCad offers Align/Distribute once more than one item is selected.
     if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at));
-    if (tool === "select" && picked.length) out.push(["Create Array…", "Ctrl+T", openArray], ["Position Relative To…", "Shift+P", openPosRel], "-");
+    if (tool === "select" && picked.length) {
+      out.push(["Create Array…", "Ctrl+T", openArray], ["Position Relative To…", "Shift+P", openPosRel]);
+      if (picked.length > 1) out.push(["Group", "Ctrl+G", groupSelection]);
+      if (pickedGroups().length) out.push(["Ungroup", "Ctrl+Shift+G", ungroupSelection]);
+      out.push("-");
+    }
     if (pointShape && (pointShape.kind === "zone" || pointShape.kind === "poly") && menu?.at) {
       // KiCad's point editor: add a corner on the nearest edge, or remove the corner under the cursor.
       const at = menu.at;
@@ -1581,6 +1681,8 @@ export function BoardView({
           : "Click a pad, via or track to start routing (X) · 6 differential pair"
       : tool === "text"
         ? `Click to place text on ${flipped ? "B.SilkS (mirrored)" : "F.SilkS"}`
+      : tool === "textbox"
+        ? boxCorner ? "Click the opposite corner, then type the text" : `Text box on ${flipped ? "B.SilkS (mirrored)" : "F.SilkS"}: click a corner`
       : tool === "measure"
         ? !ruler || ruler.b
           ? "Measure: click a start point (Ctrl+Shift+M or Esc to stop)"

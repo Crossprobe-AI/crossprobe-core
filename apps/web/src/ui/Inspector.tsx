@@ -93,6 +93,10 @@ const ERC_LABELS: Record<string, string> = {
   duplicate_sheet_names: "Two sheets with one name",
   same_local_global_label: "Local and global label with one name",
   unresolved_variable: "Text variable that names nothing",
+  single_global_label: "Global label that appears only once",
+  field_name_whitespace: "Field name with spaces around it",
+  similar_label_and_power: "Label and power net differ only in case",
+  similar_power: "Power nets differ only in case",
   duplicate_reference: "Duplicate reference",
 };
 

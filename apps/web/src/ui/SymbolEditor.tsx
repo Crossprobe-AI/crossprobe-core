@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { parse } from "@crossprobe/kicad-sexpr";
-import { describeSymbol, findLibSymbol, PIN_SHAPES, PIN_TYPES, symbolLibRoot, symbolProblems, type PinShape, type SymbolView } from "@crossprobe/kicad-model";
+import { describeSymbol, findLibSymbol, PIN_SHAPES, PIN_TYPES, symbolLibRoot, symbolProblems, type PinAlternate, type PinShape, type SymbolView } from "@crossprobe/kicad-model";
 import type { EditOp, SymbolEdit } from "../edit/ops";
 import { useViewport } from "./viewport";
 import { Icon } from "./icons";
@@ -535,6 +535,44 @@ export function SymbolEditor({
               <label className="prop">
                 <input type="checkbox" checked={pins.every((p) => p.hidden)} onChange={(e) => setPins({ hidden: e.target.checked })} /> Hidden
               </label>
+              {pins.length === 1 && (
+                <div className="pin-alternates">
+                  <span className="muted small" title="Other functions a placed part can switch this pin to, in the inspector (KiCad's alternate pin functions)">
+                    Alternate functions
+                  </span>
+                  {pins[0]!.alternates.map((a, i) => {
+                    const list = pins[0]!.alternates;
+                    const change = (patch: Partial<PinAlternate> | null) => setPins({ alternates: patch ? list.map((x, j) => (j === i ? { ...x, ...patch } : x)) : list.filter((_, j) => j !== i) });
+                    return (
+                      <div key={`${a.name}${i}`} className="pin-alternate-row">
+                        <Field label="" value={a.name} onCommit={(v) => v && change({ name: v })} />
+                        <select value={a.type} onChange={(e) => change({ type: e.target.value as PinTypeName })} title="Electrical type">
+                          {PIN_TYPES.map((t) => (
+                            <option key={t}>{t}</option>
+                          ))}
+                        </select>
+                        <select value={a.shape} onChange={(e) => change({ shape: e.target.value as PinShape })} title="Shape">
+                          {PIN_SHAPES.map((t) => (
+                            <option key={t}>{t}</option>
+                          ))}
+                        </select>
+                        <button className="icon-btn" title={`Remove ${a.name}`} onClick={() => change(null)}>
+                          <Icon name="close" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    className="link"
+                    onClick={() => {
+                      const name = window.prompt("Alternate function name (e.g. SDA)");
+                      if (name) setPins({ alternates: [...pins[0]!.alternates, { name, type: pins[0]!.type, shape: pins[0]!.shape }] });
+                    }}
+                  >
+                    + Alternate function
+                  </button>
+                </div>
+              )}
             </section>
           ) : (
             <section>

@@ -43,6 +43,7 @@ import { UpdateSchematic } from "./ui/UpdateSchematic";
 import { PageSettingsDialog } from "./ui/PageSettings";
 import { CleanupTracks } from "./ui/CleanupTracks";
 import { Annotate } from "./ui/Annotate";
+import { FindReplace } from "./ui/FindReplace";
 import { netlistFile } from "./netlist-file";
 import { BoardReannotate } from "./ui/BoardReannotate";
 import { BoardStats } from "./ui/BoardStats";
@@ -191,6 +192,7 @@ export function App() {
   const [showCleanup, setShowCleanup] = useState(false);
   const [showReannotate, setShowReannotate] = useState(false);
   const [showAnnotate, setShowAnnotate] = useState(false);
+  const [showFind, setShowFind] = useState(false);
   const [showStats, setShowStats] = useState(false);
   /** The sheet file or board whose page settings are open. */
   const [pageFile, setPageFile] = useState<string>();
@@ -675,6 +677,12 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl+F on the schematic: KiCad's Find (and Replace while editing).
+      if (e.key === "f" && (e.metaKey || e.ctrlKey) && project && mode === "schematic") {
+        e.preventDefault();
+        setShowFind(true);
+        return;
+      }
       if ((e.key === "/" || (e.key === "f" && (e.metaKey || e.ctrlKey))) && project) {
         e.preventDefault();
         document.getElementById("inspector-search")?.focus();
@@ -900,6 +908,8 @@ export function App() {
           readFiles={(paths) => session.current!.files(paths)}
           onEdit={edit}
           onClose={() => setPageFile(undefined)}
+          projectFile={project.projectFile}
+          intersheetRefs={project.intersheetRefs}
         />
       )}
       {showNets && project?.board && (
@@ -1117,6 +1127,7 @@ export function App() {
                         ["line", "Lines", "", "drawLine"],
                         ["rect", "Rectangle", "", "drawRect"],
                         ["circle", "Circle", "", "drawCircle"],
+                        ["arc", "Arc", "", "drawArc"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],
@@ -1169,6 +1180,9 @@ export function App() {
                   >
                     <Icon name="download" /> <span className="tl">Netlist</span>
                   </button>
+                  <button className={showFind ? "on" : ""} onClick={() => setShowFind((v) => !v)} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
+                    <Icon name="search" /> <span className="tl">Find</span>
+                  </button>
                   {editing && (
                     <>
                     <button onClick={() => openPanel("fields")} title="Symbol fields table: every part's fields, edited in one place">
@@ -1208,6 +1222,19 @@ export function App() {
                   ctx={editContext}
                 />
                 {showAnnotate && editing && <Annotate sheet={sheet} onEdit={edit} onClose={() => setShowAnnotate(false)} />}
+                {showFind && (
+                  <FindReplace
+                    project={project}
+                    files={async () => (session.current ? session.current.files() : {})}
+                    editing={editing}
+                    onEdit={edit}
+                    onShow={(path, uuid) => {
+                      setSheetPath(path);
+                      setReveal((r) => ({ token: (r?.token ?? 0) + 1, refs: [], uuids: [uuid] }));
+                    }}
+                    onClose={() => setShowFind(false)}
+                  />
+                )}
               </>
             )}
             {mode === "board" && project.board && (
@@ -1226,6 +1253,7 @@ export function App() {
                         ["outline", "Outline", "", "outline"],
                         ["zone", "Zone", "", "zone"],
                         ["text", "Text", "", "text"],
+                        ["textbox", "Text box", "", "textbox"],
                         ["dimension", "Dimension", "", "dimension"],
                       ] as const
                     ).map(([t, label, key, icon]) => (
@@ -1233,7 +1261,7 @@ export function App() {
                         key={t}
                         className={boardTool === t ? "on" : ""}
                         onClick={() => setBoardTool(t)}
-                        title={t === "outline" ? "Board outline on Edge.Cuts" : t === "zone" ? "Copper zone (pour)" : t === "text" ? "Silkscreen text" : t === "dimension" ? "Dimension: click two points, then the offset (O: horizontal/vertical)" : `${label} (${key})`}
+                        title={t === "outline" ? "Board outline on Edge.Cuts" : t === "zone" ? "Copper zone (pour)" : t === "text" ? "Silkscreen text" : t === "textbox" ? "Text box: click two corners, then type the text (it wraps to the box)" : t === "dimension" ? "Dimension: click two points, then the offset (O: horizontal/vertical)" : `${label} (${key})`}
                       >
                         <Icon name={icon} /> <span className="tl">{label}</span>
                       </button>
@@ -1276,7 +1304,7 @@ export function App() {
                           )}
                         </>
                       )}
-                      {boardTool !== "zone" && boardTool !== "outline" && boardTool !== "text" && boardTool !== "dimension" && (
+                      {boardTool !== "zone" && boardTool !== "outline" && boardTool !== "text" && boardTool !== "textbox" && boardTool !== "dimension" && (
                       <select value={trackWidth} onChange={(e) => setTrackWidth(Number(e.target.value))} title="Track width (mm)">
                         <option value={0}>Net class width</option>
                         {[...new Set([0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.8, 1, ...project.board.tracks.map((t) => t.width)])]
