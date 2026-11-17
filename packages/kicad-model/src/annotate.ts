@@ -6,7 +6,7 @@
  * sheet's number × 100 or × 1000. Units of one multi-unit part keep a shared
  * reference, and every instance of a reused sheet gets its own numbers.
  */
-import type { Schematic } from "./project.js";
+import { sheetsByPage, type Schematic } from "./project.js";
 
 export interface AnnotationOptions {
   /** "all" renumbers everything; "unannotated" only fills in references ending in "?"; "clear" takes the numbers away (R14 → R?). */
@@ -42,7 +42,7 @@ export function planAnnotation(schematic: Schematic, options: AnnotationOptions)
   // (annotated parts) or by symbol (unannotated ones are each their own part).
   type Part = { key: string; prefix: string; ref: string; sheetIndex: number; x: number; y: number; units: Schematic["placements"] };
   const parts = new Map<string, Part>();
-  const sheetIndex = new Map(schematic.sheets.map((s, i) => [s, i]));
+  const sheetIndex = new Map(sheetsByPage(schematic).map((s, i) => [s, i]));
   for (const pl of schematic.placements) {
     const unannotated = pl.reference.endsWith("?");
     const key = unannotated ? `${pl.sheet.path}|${pl.symbol.uuid}` : `${pl.reference}`;

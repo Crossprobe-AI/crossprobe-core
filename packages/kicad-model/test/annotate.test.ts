@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
-import { buildNetlist, findItem, loadSchematic, planAnnotation, setSymbolField, sheetRoot } from "../src/index.js";
+import { buildNetlist, findItem, loadSchematic, planAnnotation, setSymbolField, sheetRoot, sheetsByPage } from "../src/index.js";
 
 const DEMO = `${process.env.KICAD_DEMOS}/complex_hierarchy`;
 const KICAD_CLI = process.env.KICAD_CLI!;
@@ -66,7 +66,7 @@ describe.skipIf(!existsSync(DEMO) || !hasCli)("annotation", () => {
     // Sheet number × 100: every part's number is in its sheet's hundred (sheet 1: 101…, sheet 2: 201…).
     const bySheet = planAnnotation(s, { mode: "all", sheetMultiplier: 100 });
     expect(bySheet.length).toBeGreaterThan(0);
-    const index = new Map(s.sheets.map((x, i) => [x.path, i + 1]));
+    const index = new Map(sheetsByPage(s).map((x, i) => [x.path, i + 1]));
     for (const a of bySheet) expect(Math.floor(num(a.reference) / 100), `${a.from} → ${a.reference}`).toBe(index.get(a.sheetPath));
     const assigned = new Map(bySheet.map((a) => [`${a.sheetPath}|${a.symbolUuid}`, a.reference]));
     const refs = s.placements.map((p) => assigned.get(`${p.sheet.path}|${p.symbol.uuid}`) ?? p.reference);

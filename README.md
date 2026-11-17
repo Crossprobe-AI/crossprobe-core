@@ -142,7 +142,8 @@ completes a feature.
 | Find | Partly | Parts and nets; no text search or replace |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
 | ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, units of one part on different nets, hierarchical label mismatches, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
-| Netlist export, SPICE simulation | No | |
+| Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |
+| SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
 | Page settings and title block | Works | |
 | Plot to SVG and PDF | Works | PDF through the browser's print dialog. No PostScript, DXF or HPGL |
