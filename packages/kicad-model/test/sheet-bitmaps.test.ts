@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { base64Bytes, bitmapInfo, bitmapSizeMm, drawingSheetPrims, parseDrawingSheet, strokeAdvance } from "../src/index.js";
+import { base64Bytes, bitmapInfo, bitmapInfoBase64, bitmapSizeMm, drawingSheetPrims, parseDrawingSheet, strokeAdvance } from "../src/index.js";
 
 const KICAD_CLI = process.env.KICAD_CLI!;
 let cli = true;
@@ -23,7 +23,7 @@ try {
 }
 
 /** A grey PNG of w × h pixels, with a pHYs of `ppm` pixels per metre when given. */
-function png(w: number, h: number, ppm?: number): Buffer {
+function png(w: number, h: number, ppm?: number, before = 0): Buffer {
   const table = Array.from({ length: 256 }, (_, n) => {
     let c = n;
     for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
@@ -53,7 +53,7 @@ function png(w: number, h: number, ppm?: number): Buffer {
   ph.writeUInt32BE(ppm ?? 0);
   ph.writeUInt32BE(ppm ?? 0, 4);
   ph[8] = 1;
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]), chunk("IHDR", ih), ...(ppm ? [chunk("pHYs", ph)] : []), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]), chunk("IHDR", ih), ...(before ? [chunk("tEXt", Buffer.concat([Buffer.from("Comment\0"), Buffer.alloc(before, 0x61)]))] : []), ...(ppm ? [chunk("pHYs", ph)] : []), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
 describe("bitmap sizes", () => {
@@ -62,6 +62,30 @@ describe("bitmap sizes", () => {
     expect(bitmapInfo(png(60, 30, 11811))!.ppi).toBe(300);
     expect(bitmapInfo(png(60, 30))!.ppi).toBe(300);
     expect(bitmapSizeMm(bitmapInfo(png(300, 150))!, 2)).toEqual({ w: 50.8, h: 25.4 });
+  });
+
+  it("finds a PNG's resolution behind a large chunk, from base64 too", () => {
+    const big = png(60, 30, 2835, 100_000);
+    expect(bitmapInfo(big)!.ppi).toBe(71);
+    expect(bitmapInfoBase64(big.toString("base64"))!.ppi).toBe(71);
+    expect(bitmapInfoBase64("not base64 at all!")).toBeUndefined();
+  });
+
+  it("takes a JPEG's JFIF density (KiCad plots a 300 px JPEG saved at 72 dpi 105.83 mm wide)", () => {
+    // SOI, APP0 JFIF (units 1: per inch, 72 × 72), SOF0 of 150 × 300.
+    const jpeg = (units: number, density: number) =>
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, units, 0, density, 0, density, 0, 0, 0xff, 0xc0, 0, 11, 8, 0, 150, 1, 44, 1, 1, 0x11, 0]);
+    expect(bitmapInfo(jpeg(1, 72))).toMatchObject({ mime: "image/jpeg", width: 300, height: 150, ppi: 72 });
+    expect(bitmapSizeMm(bitmapInfo(jpeg(1, 72))!).w).toBeCloseTo(105.83, 2);
+    expect(bitmapInfo(jpeg(2, 40))!.ppi).toBe(102);
+    // Units 0 with density 1 (an aspect ratio only): 300.
+    expect(bitmapInfo(jpeg(0, 1))!.ppi).toBe(300);
+  });
+
+  it("leaves out a drawing-sheet logo whose data is malformed, not the frame", () => {
+    const ds = parseDrawingSheet(`(kicad_wks (version 20231118) (generator "x") (bitmap (name "") (pos 50 50) (data "%%%")) (line (start 0 0) (end 10 0)))`);
+    const prims = drawingSheetPrims(ds, 297, 210, { titleBlock: {}, paper: "A4", page: "1", pages: 1, sheetName: "", sheetPath: "/", fileName: "x" }, true);
+    expect(prims.map((p) => p.kind)).toEqual(["line"]);
   });
 });
 

@@ -414,14 +414,14 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
   for (const l of data.labels) add(l.at);
   for (const n of data.noConnects) add(n);
   for (const s of data.sheets) for (const p of s.pins) add(p.at);
-  const pinPoints: Array<{ at: Point; reference: string; number: string; symbol: string }> = [];
+  const pinPoints: Array<{ at: Point; reference: string; number: string; symbol: string; uuid?: string }> = [];
   for (const pl of schematic.placements) {
     if (pl.sheet !== sheet || !pl.lib) continue;
     for (const pin of unitPins(pl.lib, pl.unit, pl.symbol.bodyStyle)) {
       const at = transformLibPoint(pin.at, pl.symbol, pl.symbol.at);
       add(at);
       // No-connect pins are never wired, so their grid position doesn't matter.
-      if (pin.type !== "no_connect") pinPoints.push({ at, reference: pl.reference, number: pin.number, symbol: pl.symbol.uuid });
+      if (pin.type !== "no_connect") pinPoints.push({ at, reference: pl.reference, number: pin.number, symbol: pl.symbol.uuid, uuid: pl.symbol.pinUuids[pin.number] });
     }
   }
 
@@ -432,19 +432,19 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
       data.wires.some((o, j) => j !== i && onSegment(p, o.a, o.b));
     // One report per loose end, as KiCad does.
     for (const end of [w.a, w.b]) {
-      if (!connected(end)) report("unconnected_wire_endpoint", sheet, "Unconnected wire endpoint", [{ description: wireDesc(w), at: w.a }]);
+      if (!connected(end)) report("unconnected_wire_endpoint", sheet, "Unconnected wire endpoint", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }]);
     }
   });
 
   // Off-grid: in KiCad's 100 nm units, so the test is exact.
   const g = Math.round(grid * 1e4);
   const off = (p: Point) => Math.round(p.x * 1e4) % g !== 0 || Math.round(p.y * 1e4) % g !== 0;
-  for (const w of data.wires) if (off(w.a) || off(w.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: wireDesc(w), at: w.a }]);
-  for (const b of data.buses) if (off(b.a) || off(b.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus", at: b.a }]);
-  for (const e of data.busEntries) for (const end of [e.a, e.b]) if (off(end)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus to wire entry", at: e.a }]);
+  for (const w of data.wires) if (off(w.a) || off(w.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }]);
+  for (const b of data.buses) if (off(b.a) || off(b.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus", at: b.a, ...(b.uuid && { uuid: b.uuid }) }]);
+  for (const e of data.busEntries) for (const end of [e.a, e.b]) if (off(end)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus to wire entry", at: e.a, ...(e.uuid && { uuid: e.uuid }) }]);
   // One report per symbol, at its first off-grid pin.
   const reported = new Set<string>();
-  for (const p of pinPoints) if (off(p.at) && !reported.has(p.symbol) && reported.add(p.symbol)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: `Symbol ${p.reference} Pin ${p.number}`, at: p.at, reference: p.reference, pin: p.number }]);
+  for (const p of pinPoints) if (off(p.at) && !reported.has(p.symbol) && reported.add(p.symbol)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: `Symbol ${p.reference} Pin ${p.number}`, at: p.at, reference: p.reference, pin: p.number, ...(p.uuid && { uuid: p.uuid }) }]);
 
   // A label that is the only thing joining wires: wires ending at the label
   // already connect to each other, but each wire it sits in the middle of is
@@ -466,7 +466,7 @@ function checkDanglingWires(netlist: Netlist, report: Report) {
     for (const sg of group.subgraphs) {
       if (!sg.wires.length || sg.pins.length || sg.labels.length || sg.sheetPins || sg.noConnects.length) continue;
       const w = sg.sheet.data.wires[sg.wires[0]!]!;
-      report("wire_dangling", sg.sheet, "Wires not connected to anything", [{ description: "Wire", at: w.a }]);
+      report("wire_dangling", sg.sheet, "Wires not connected to anything", [{ description: "Wire", at: w.a, ...(w.uuid && { uuid: w.uuid }) }]);
     }
   }
 }
@@ -485,11 +485,11 @@ function checkSheetPins(schematic: Schematic, report: Report) {
     const names = new Set(labels.map((l) => l.text));
     for (const pin of sheet.ref.pins) {
       if (names.has(pin.name)) continue;
-      report("hier_label_mismatch", sheet.parent, `Sheet pin ${pin.name} has no matching hierarchical label inside the sheet`, [{ description: `Hierarchical Sheet Pin '${pin.name}'`, at: pin.at }]);
+      report("hier_label_mismatch", sheet.parent, `Sheet pin ${pin.name} has no matching hierarchical label inside the sheet`, [{ description: `Hierarchical Sheet Pin '${pin.name}'`, at: pin.at, ...(pin.uuid && { uuid: pin.uuid }) }]);
     }
     for (const label of labels) {
       if (pins.has(label.text)) continue;
-      report("hier_label_mismatch", sheet, `Hierarchical label ${label.text} has no matching sheet pin in the parent sheet`, [{ description: `Hierarchical Label '${label.text}'`, at: label.at }]);
+      report("hier_label_mismatch", sheet, `Hierarchical label ${label.text} has no matching sheet pin in the parent sheet`, [{ description: `Hierarchical Label '${label.text}'`, at: label.at, ...(label.uuid && { uuid: label.uuid }) }]);
     }
   }
 }

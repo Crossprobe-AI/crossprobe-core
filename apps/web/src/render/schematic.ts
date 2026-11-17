@@ -19,7 +19,7 @@ import {
   drawingSheetPrims,
   sheetsByPage,
   type DrawingSheet,
-  type DrawingSheetPrim, base64Bytes, bitmapInfo, bitmapSizeMm, type BitmapInfo } from "@crossprobe/kicad-model";
+  type DrawingSheetPrim, bitmapInfoBase64, bitmapSizeMm } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -488,7 +488,7 @@ function sheetPrim(p: DrawingSheetPrim): Prim[] {
       });
     }
     case "bitmap":
-      return [{ t: "image", x: p.at.x, y: p.at.y, w: p.w, h: p.h, href: `data:image/png;base64,${p.png}` }];
+      return [{ t: "image", x: p.at.x, y: p.at.y, w: p.w, h: p.h, href: `data:${p.mime};base64,${p.png}` }];
   }
 }
 
@@ -519,7 +519,7 @@ function bboxOf(prims: Prim[]): SchItem["bbox"] {
   return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : undefined;
 }
 
-/** Embedded schematic image (base64 PNG/JPEG). Size: pixels at 300 dpi × scale. */
+/** Embedded schematic image (base64 PNG/JPEG), sized as KiCad sizes it (see bitmapInfo) × scale. */
 function imagePrim(node: List): Prim | undefined {
   const at = pt(findChild(node, "at"));
   const scale = Number(arg(findChild(node, "scale"), 0) ?? 1);
@@ -527,12 +527,7 @@ function imagePrim(node: List): Prim | undefined {
   if (!data) return undefined;
   const b64 = data.children.slice(1).filter(isAtom).map(atomText).join("").replace(/\s+/g, "");
   // Sized as KiCad sizes it: by the PNG's own resolution, else 300 pixels per inch.
-  let info: BitmapInfo | undefined;
-  try {
-    info = bitmapInfo(base64Bytes(b64, 1 << 16));
-  } catch {
-    return undefined;
-  }
+  const info = bitmapInfoBase64(b64);
   if (!info) return undefined;
   const { w: mmW, h: mmH } = bitmapSizeMm(info, scale);
   return { t: "image", x: at.x - mmW / 2, y: at.y - mmH / 2, w: mmW, h: mmH, href: `data:${info.mime};base64,${b64}` };
