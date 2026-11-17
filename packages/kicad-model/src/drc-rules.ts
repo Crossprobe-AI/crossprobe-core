@@ -299,19 +299,28 @@ function classMatches(pattern: string, netClass: string): boolean {
   return wildcard(pattern, netClass) || netClass.split(",").some((c) => wildcard(pattern, c));
 }
 
-/** The other half of a diff pair's net name (P↔N, +↔-), if it is one. */
-function diffPartner(net: string): string | undefined {
-  const m = /^(.*?)([PN+-])$/.exec(net);
-  if (!m || !m[1]) return undefined;
-  const swap: Record<string, string> = { P: "N", N: "P", "+": "-", "-": "+" };
-  return m[1] + swap[m[2]!];
+/**
+ * KiCad's DRC_ENGINE::MatchDpSuffix: a diff pair net ends in P/N or +/-,
+ * possibly followed by digits and underscores (DQS_P0 pairs with DQS_N0).
+ * Gives the partner net's name and the pair's base name (the name less the
+ * suffix: "DQS_", "CLK_").
+ */
+export function matchDpSuffix(net: string): { positive: boolean; partner: string; base: string } | undefined {
+  let count = 0;
+  for (let k = net.length - 1; k >= 0; k--) {
+    const ch = net[k]!;
+    count++;
+    if ((ch >= "0" && ch <= "9") || ch === "_") continue;
+    const swap: Record<string, string> = { P: "N", N: "P", "+": "-", "-": "+" };
+    if (!swap[ch]) return undefined;
+    const base = net.slice(0, net.length - count);
+    return { positive: ch === "P" || ch === "+", partner: base + swap[ch] + net.slice(net.length - count + 1), base };
+  }
+  return undefined;
 }
 
-/** A diff pair's base name (net ending in +/- or P/N), as KiCad's inDiffPair sees it. */
-function diffBase(net: string): string | undefined {
-  const m = /^(.*?)(_?)([PN+-])$/.exec(net);
-  return m && m[1] ? m[1] + m[2] : undefined;
-}
+const diffPartner = (net: string) => matchDpSuffix(net)?.partner;
+const diffBase = (net: string) => matchDpSuffix(net)?.base;
 
 const layerMatches = (rule: DruRule, layer: string) => {
   if (!rule.layer) return true;
