@@ -405,8 +405,9 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
           powerName: lib.power ? resolveText(powerNetName(pl, pin), sheet, schematic) : undefined,
           order: pinOrder++,
         },
-        // Like KiCad's netlist, skip power symbols and parts excluded from the board.
-        powerSymbol: !!lib.power || pl.reference.startsWith("#") || !symbol.onBoard,
+        // Like KiCad's netlist, skip parts whose reference starts with # (power symbols, flags) and
+        // parts excluded from the board. A power symbol with an ordinary reference is listed.
+        powerSymbol: pl.reference.startsWith("#") || !symbol.onBoard,
       };
       const shown = pin.name && pin.name !== "~" && pin.name !== pin.number ? pin.name : "";
       namingHints.set(item.node, { shownName: shown, sharedName: (nameCount.get(pin.name)?.size ?? 0) > 1 });
@@ -479,6 +480,7 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
         break;
       case "pin":
         (sg.pins ??= []).push(it.erc);
+        if (it.power && !it.powerSymbol) sg.nodes.push(it.node);
         if (it.power) {
           if (it.power.kind === "global") {
             // A power symbol also joins same-named local labels on its sheet.
