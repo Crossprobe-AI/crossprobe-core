@@ -7,6 +7,7 @@ import type { EditOp } from "../edit/ops";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { BoardProps } from "./BoardProps";
+import { CreateArray } from "./CreateArray";
 import type { PlacingFootprint } from "./FootprintPicker";
 import { fromOverlay, useViewport } from "./viewport";
 
@@ -552,6 +553,10 @@ export function BoardView({
           e.preventDefault();
           const at = cursor ? snap(cursor, ed.grid) : { x: clipboard.current.at.x + 5 * ed.grid, y: clipboard.current.at.y + 5 * ed.grid };
           copy(clipboard.current.uuids, at.x - clipboard.current.at.x, at.y - clipboard.current.at.y);
+        } else if (k === "t" && picked.length) {
+          // KiCad's Create Array.
+          e.preventDefault();
+          openArray();
         } else if (k === "d" && picked.length) {
           e.preventDefault();
           const step = Math.max(ed.grid, 1);
@@ -1329,6 +1334,13 @@ export function BoardView({
   };
 
   // ---- Context menu (right click), KiCad's actions for what's under the cursor ----
+  /** The Create Array dialog: what it copies, and where the selection is (for the circle's centre). */
+  const [arrayFor, setArrayFor] = useState<{ uuids: string[]; origin: Point } | null>(null);
+  const openArray = () => {
+    // Footprint texts and pads stand for their footprint, once.
+    const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
+    if (uuids.length) setArrayFor({ uuids, origin: selectionCenter() });
+  };
   const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
   /** Menu entries: [label, shortcut, action], a separator, or a submenu. */
   type MenuEntry = [string, string, () => void] | "-" | { label: string; items: Array<[string, string, () => void] | "-"> };
@@ -1430,7 +1442,8 @@ export function BoardView({
     const ed = edit!;
     const out: MenuEntry[] = [];
     // KiCad offers Align/Distribute once more than one item is selected.
-    if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at), "-");
+    if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at));
+    if (tool === "select" && picked.length) out.push(["Create Array…", "Ctrl+T", openArray], "-");
     if (hit?.kind === "footprint") {
       if (pad?.net) out.push([`Select net ${shortName(pad.net)}`, "", () => selectNet(pad.net)], "-");
       out.push(["Rotate", "R", () => press("r")], ["Flip to other side", "F", () => press("f")]);
@@ -1583,6 +1596,9 @@ export function BoardView({
             edit!.onEdit(ops);
           }}
         />}
+      {editing && arrayFor && (
+        <CreateArray file={edit!.file} uuids={arrayFor.uuids} origin={arrayFor.origin} onEdit={(ops) => edit!.onEdit(ops)} onClose={() => setArrayFor(null)} />
+      )}
       <div className="view-tools">
         <button onClick={() => vp.fit(mirror(scene.bbox))} title="Fit board (F, or Home while editing)"><Icon name="fit" /> Fit</button>
       </div>

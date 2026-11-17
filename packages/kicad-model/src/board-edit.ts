@@ -350,7 +350,7 @@ function netNode(root: List, name: string): List {
 }
 
 /** Insert next to the last item of the same kind, else before the first track/footprint-less tail. */
-function insertBoardItem(root: List, item: List): void {
+export function insertBoardItem(root: List, item: List): void {
   const head = headOf(item);
   let index = -1;
   root.children.forEach((c, i) => {

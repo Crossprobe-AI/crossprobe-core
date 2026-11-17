@@ -323,6 +323,15 @@ covers directions, grid rounding, the mirrored back, exclusions, prefixes and st
 Undo puts everything back. `test/arrange.test.ts` compares our boxes with KiCad's on six demo
 boards and covers the target choice (locked item, item under the cursor, extreme item).
 
+## Create Array
+
+`scripts/e2e-array.mjs` box-selects 33 items on pic_programmer's board (six footprints, their
+tracks and texts) and makes a 3 × 1 grid 30 mm apart from the right-click menu's
+"Create Array…". kicad-cli's position file of the saved board has all 12 copies 30 and 60 mm
+right of a part like them, under unique references. Undo removes them. `test/board-array.test.ts`
+checks the cell offsets (grid, stagger, snake, circle) and has KiCad's pcbnew make the same copies:
+every copied footprint matches.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges

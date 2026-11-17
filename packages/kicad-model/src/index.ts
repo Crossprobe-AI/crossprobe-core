@@ -48,3 +48,4 @@ export * from "./symbol-edit.js";
 export * from "./step-scale.js";
 export * from "./third-party-libraries.js";
 export * from "./arrange.js";
+export * from "./board-array.js";
