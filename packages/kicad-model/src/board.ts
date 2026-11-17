@@ -10,6 +10,7 @@
 import { arcPoints } from "./drc.js";
 import { arg, atomText, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
 import type { Point } from "./geometry.js";
+import { pageSettings, type PageSettings } from "./page-settings.js";
 
 export interface BoardLayer {
   id: number;
@@ -256,6 +257,8 @@ export interface Zone {
   teardrop: boolean;
   /** Hatched (grid) fill instead of solid. */
   hatched: boolean;
+  /** The hatch pattern: line thickness, gap, angle (°), corner smoothing (0 none, 1 chamfer, 2–3 fillet) and its size (0–1), and the smallest hole kept (fraction of a whole one). */
+  hatch?: { thickness: number; gap: number; orientation: number; smoothingLevel: number; smoothingValue: number; holeMinArea: number };
 }
 
 export type ZoneConnection = "thermal" | "solid" | "none" | "tht";
@@ -302,6 +305,8 @@ export interface Board {
   texts: BoardText[];
   /** Groups (KiCad's (group …)): members by UUID, which may be other groups. */
   groups: BoardGroup[];
+  /** The paper and title block (KiCad's Page Settings). */
+  page?: PageSettings;
   /** Items in KiCad's tuning patterns (generated meanders): length checks leave them out. */
   tuningPatternMembers?: string[];
   /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
@@ -765,6 +770,7 @@ export function parseBoard(source: string): Board {
     version: Number(arg(findChild(root, "version"), 0) ?? 0),
     thickness: Number(arg(findChild(findChild(root, "general") ?? root, "thickness"), 0)) || undefined,
     revision: str(findChild(findChild(root, "title_block") ?? root, "rev")) || undefined,
+    page: pageSettings(root),
     stackup: (() => {
       const st = findChild(findChild(root, "setup") ?? root, "stackup");
       if (!st) return undefined;
@@ -937,6 +943,17 @@ export function parseBoard(source: string): Board {
           noVias: !!keep && str(findChild(keep, "vias")) === "not_allowed",
           teardrop: !!findChild(findChild(node, "attr") ?? node, "teardrop"),
           hatched: !!fill && str(findChild(fill, "mode")) === "hatch",
+          hatch:
+            fill && str(findChild(fill, "mode")) === "hatch"
+              ? {
+                  thickness: numOf(fill, "hatch_thickness") ?? 1,
+                  gap: numOf(fill, "hatch_gap") ?? 1.5,
+                  orientation: numOf(fill, "hatch_orientation") ?? 0,
+                  smoothingLevel: numOf(fill, "hatch_smoothing_level") ?? 0,
+                  smoothingValue: numOf(fill, "hatch_smoothing_value") ?? 0.1,
+                  holeMinArea: numOf(fill, "hatch_min_hole_area") ?? 0.3,
+                }
+              : undefined,
           uuid: itemUuid(node),
           net: str(findChild(node, "net_name")) || netOf(node),
           name: str(findChild(node, "name")),

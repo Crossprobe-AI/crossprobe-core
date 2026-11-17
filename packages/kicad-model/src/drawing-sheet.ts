@@ -6,6 +6,7 @@
  * %-codes (%T, %C0…) mean the same.
  */
 import { atomText, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
+import { base64Bytes, bitmapInfo, bitmapSizeMm } from "./bitmap.js";
 import type { Point } from "./geometry.js";
 import { strokeAdvance } from "./stroke-font.js";
 
@@ -40,7 +41,9 @@ export type DrawingSheetItem =
       maxlen: number;
       maxheight: number;
     })
-  | (ItemBase & { kind: "polygon"; pos: Pos; rotate: number; outlines: Point[][] });
+  | (ItemBase & { kind: "polygon"; pos: Pos; rotate: number; outlines: Point[][] })
+  /** A picture (a logo), centred on its position: PNG bytes as base64. */
+  | (ItemBase & { kind: "bitmap"; pos: Pos; scale: number; png: string });
 
 export interface DrawingSheet {
   textSize: { x: number; y: number };
@@ -74,7 +77,9 @@ export type DrawingSheetPrim =
   | { kind: "line"; a: Point; b: Point; width: number }
   | { kind: "rect"; a: Point; b: Point; width: number }
   | { kind: "polygon"; points: Point[]; width: number }
-  | { kind: "text"; at: Point; text: string; size: { x: number; y: number }; width: number; bold: boolean; italic: boolean; h: "left" | "center" | "right"; v: "top" | "center" | "bottom"; angle: number };
+  | { kind: "text"; at: Point; text: string; size: { x: number; y: number }; width: number; bold: boolean; italic: boolean; h: "left" | "center" | "right"; v: "top" | "center" | "bottom"; angle: number }
+  /** A picture: its top-left corner, size in mm, and PNG bytes as base64. */
+  | { kind: "bitmap"; at: Point; w: number; h: number; png: string };
 
 const num = (n: List | undefined, i: number, d = 0) => {
   const v = n?.children[i + 1];
@@ -107,7 +112,7 @@ function legacyCodes(t: string): string {
       const d = t[++i];
       out += d !== undefined && /[0-9]/.test(d) ? `\${COMMENT${Number(d) + 1}}` : "";
     } else if (codes[c]) out += `\${${codes[c]}}`;
-    else out += `%${c}`;
+    // An unknown code (and a % at the very end) is dropped, as KiCad's reader does.
   }
   return out;
 }
@@ -162,6 +167,20 @@ export function parseDrawingSheet(text: string): DrawingSheet {
         maxheight: num(findChild(n, "maxheight"), 0),
         lineWidth: font ? num(findChild(font, "linewidth"), 0, base.lineWidth) : base.lineWidth,
       });
+    } else if (head === "bitmap") {
+      // KiCad 7+ writes the PNG as base64 in (data …); older files as hex bytes in (pngdata (data …) …).
+      const data = findChild(n, "data");
+      const pngdata = findChild(n, "pngdata");
+      let png = "";
+      if (data) png = data.children.slice(1).filter(isAtom).map(atomText).join("").replace(/\s+/g, "");
+      else if (pngdata) {
+        const hex = findChildren(pngdata, "data").map((d) => atomText(d.children[1] as never) ?? "").join(" ");
+        const bytes = hex.split(/\s+/).filter(Boolean).map((h) => parseInt(h, 16)).filter((v) => !Number.isNaN(v));
+        let bin = "";
+        for (const b of bytes) bin += String.fromCharCode(b);
+        png = btoa(bin);
+      }
+      if (png) ds.items.push({ ...base, kind: "bitmap", pos: pos(findChild(n, "pos")), scale: num(findChild(n, "scale"), 0, 1), png });
     } else if (head === "polygon") {
       ds.items.push({ ...base, kind: "polygon", pos: pos(findChild(n, "pos")), rotate: num(findChild(n, "rotate"), 0), outlines: findChildren(n, "pts").map((p) => findChildren(p, "xy").map((xy) => ({ x: num(xy, 0), y: num(xy, 1) }))) });
     }
@@ -281,7 +300,8 @@ export function drawingSheetPrims(ds: DrawingSheet, width: number, height: numbe
         // Too long or too tall for its room: shrunk to fit, as KiCad does.
         let size = { ...item.size };
         if (item.maxlen > 0) {
-          const len = Math.max(...text.split("\n").map((l) => strokeAdvance(l))) * size.x;
+          // KiCad measures the text in whole millimetres.
+          const len = Math.round(Math.max(...text.split("\n").map((l) => strokeAdvance(l))) * size.x);
           if (len > item.maxlen) size = { ...size, x: (size.x * item.maxlen) / len };
         }
         if (item.maxheight > 0) {
@@ -290,6 +310,16 @@ export function drawingSheetPrims(ds: DrawingSheet, width: number, height: numbe
           if (h > item.maxheight) size = { ...size, y: (size.y * item.maxheight) / h };
         }
         out.push({ kind: "text", at, text, size, width: item.lineWidth || ds.textLineWidth, bold: item.bold, italic: item.italic, h: item.h, v: item.v, angle: item.rotate });
+      }
+    } else if (item.kind === "bitmap") {
+      const info = bitmapInfo(base64Bytes(item.png, 1 << 16));
+      if (!info) continue;
+      const { w, h } = bitmapSizeMm(info, item.scale);
+      const first = place(item.pos, 0, item.incrx, item.incry);
+      for (let i = 0; i < item.repeat; i++) {
+        const at = place(item.pos, i, item.incrx, item.incry);
+        if (i > 0 && !inside([at], [first])) continue;
+        out.push({ kind: "bitmap", at: { x: at.x - w / 2, y: at.y - h / 2 }, w, h, png: item.png });
       }
     } else if (item.kind === "polygon") {
       const first = place(item.pos, 0, item.incrx, item.incry);

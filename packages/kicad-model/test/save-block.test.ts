@@ -76,3 +76,26 @@ describe.skipIf(!cli)("save a selection as a design block", () => {
     expect(table).toBe('(design_block_lib_table\n\t(version 7)\n\t(lib (name "again")(type "KiCad")(uri "${KIPRJMOD}/again.kicad_blocks")(options "")(descr ""))\n)\n');
   });
 });
+
+describe.skipIf(!existsSync(join(process.env.KICAD_DEMOS!, "complex_hierarchy")))("a block from a reused sub-sheet", () => {
+  it("takes the references of the instance being viewed", () => {
+    // complex_hierarchy uses ampli_ht.kicad_sch twice: its parts are R1xx on one and R2xx on the other.
+    const dir = join(process.env.KICAD_DEMOS!, "complex_hierarchy");
+    const s = loadSchematic("complex_hierarchy.kicad_sch", (f) => readFileSync(join(dir, f), "utf8"));
+    const uses = s.sheets.filter((x) => x.file === "ampli_ht.kicad_sch");
+    expect(uses).toHaveLength(2);
+    const source = sheetRoot(parse(readFileSync(join(dir, "ampli_ht.kicad_sch"), "utf8")));
+    const parts = source.children.filter((c): c is List => isList(c) && headOf(c) === "symbol");
+    const uuids = parts.map((p) => String(arg(findChild(p, "uuid"), 0)));
+    const refsOf = (text: string) =>
+      sheetRoot(parse(text)).children.filter((c): c is List => isList(c) && headOf(c) === "symbol")
+        .map((p) => String(arg(findChildren(p, "property").find((q) => arg(q, 0) === "Reference")!, 1)))
+        .filter((r) => !r.startsWith("#"))
+        .sort();
+    const [a, b] = uses.map((u) => refsOf(blockFromSelection(source, uuids, "complex_hierarchy", u.path)));
+    const names = uses.map((u) => s.placements.filter((p) => p.sheet.path === u.path && !p.reference.startsWith("#")).map((p) => p.reference).sort());
+    expect(new Set(a!.map((r) => r[1]))).not.toEqual(new Set(b!.map((r) => r[1])));
+    expect([...new Set(a)]).toEqual([...new Set(names[0])]);
+    expect([...new Set(b)]).toEqual([...new Set(names[1])]);
+  });
+});

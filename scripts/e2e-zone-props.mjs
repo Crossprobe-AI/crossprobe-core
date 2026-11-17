@@ -1,6 +1,6 @@
 // End-to-end, zone properties: pic_programmer's copper zone is selected by its edge and, in its
 // properties panel, given a name, priority 2, clearance 0.3, minimum width 0.2, thermal gap 0.6,
-// spoke width 0.4 and "remove islands below 5 mm²". The zones refill. KiCad's pcbnew reads every
+// spoke width 0.4, "remove islands below 5 mm²", and a hatched fill (gap 2 mm, 30°). The zones refill. KiCad's pcbnew reads every
 // property back from the saved board as set. Undo restores them.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-zone-props.mjs <out-dir>
 import puppeteer from "puppeteer-core";
@@ -62,7 +62,9 @@ const choose = (label, value) =>
     label,
     value,
   );
-const zone = () => page.evaluate(() => { const z = window.__crossprobe.project.board.zones.find((x) => !x.keepout); return { uuid: z.uuid, name: z.name, priority: z.priority, clearance: z.clearance, minThickness: z.minThickness, thermalGap: z.thermalGap, thermalWidth: z.thermalWidth, islandMode: z.islandMode, islandAreaMin: z.islandAreaMin }; });
+const zone = () => page.evaluate(() => { const z = window.__crossprobe.project.board.zones.find((x) => !x.keepout); return { uuid: z.uuid, name: z.name, priority: z.priority, clearance: z.clearance, minThickness: z.minThickness, thermalGap: z.thermalGap, thermalWidth: z.thermalWidth, islandMode: z.islandMode, islandAreaMin: z.islandAreaMin, hatch: z.hatch ? [z.hatch.thickness, z.hatch.gap, z.hatch.orientation] : null }; });
+/** The zone's filled copper area (mm²), its fill polygons by the shoelace formula (KiCad's are holes joined by cuts). */
+const fillArea = () => page.evaluate(() => window.__crossprobe.project.board.zones.find((x) => !x.keepout).fills.reduce((a, f) => a + Math.abs(f.points.reduce((s, p, i) => { const q = f.points[(i + 1) % f.points.length]; return s + p.x * q.y - q.x * p.y; }, 0)) / 2, 0));
 
 await page.goto(URL + "?demo=pic_programmer/pic_programmer.kicad_pro", { waitUntil: "networkidle0" });
 await page.waitForSelector(".viewport", { timeout: 60000 });
@@ -87,9 +89,17 @@ expect(await choose("Islands", "2"), "islands: below an area");
 await idle();
 await wait(400);
 expect(await field("Minimum island", 5), "minimum island");
+const solidArea = await fillArea();
+expect(await choose("Fill", "hatch"), "fill: hatched");
+await idle();
+await wait(400);
+expect(await field("Hatch gap", 2), "hatch gap");
+expect(await field("Hatch angle", 30), "hatch angle");
+const hatchArea = await fillArea();
+expect(hatchArea < solidArea * 0.8, `hatched fill: ${hatchArea.toFixed(0)} mm² of copper (solid ${solidArea.toFixed(0)} mm²)`);
 await page.screenshot({ path: `${OUT}/panel.png` });
 const after = await zone();
-const want = { uuid: before.uuid, name: "Ground pour", priority: 2, clearance: 0.3, minThickness: 0.2, thermalGap: 0.6, thermalWidth: 0.4, islandMode: 2, islandAreaMin: 5 };
+const want = { uuid: before.uuid, name: "Ground pour", priority: 2, clearance: 0.3, minThickness: 0.2, thermalGap: 0.6, thermalWidth: 0.4, islandMode: 2, islandAreaMin: 5, hatch: [1, 2, 30] };
 expect(JSON.stringify(after) === JSON.stringify(want), `in the model: ${JSON.stringify(after)}`);
 
 console.log("-- KiCad reads them back");
@@ -102,7 +112,7 @@ try {
 }
 const k = JSON.parse(readFileSync(`${OUT}/zone.json`, "utf8"))[before.uuid];
 const near = (a, b) => Math.abs(a - b) < 1e-6;
-expect(k.name === "Ground pour" && k.priority === 2 && near(k.clearance, 0.3) && near(k.minThickness, 0.2) && near(k.thermalGap, 0.6) && near(k.thermalWidth, 0.4) && k.islandMode === 2 && near(k.islandAreaMin, 5), `pcbnew: ${JSON.stringify(k)}`);
+expect(k.name === "Ground pour" && k.priority === 2 && near(k.clearance, 0.3) && near(k.minThickness, 0.2) && near(k.thermalGap, 0.6) && near(k.thermalWidth, 0.4) && k.islandMode === 2 && near(k.islandAreaMin, 5) && k.hatched && near(k.hatch[0], 1) && near(k.hatch[1], 2) && near(k.hatch[2], 30), `pcbnew: ${JSON.stringify(k)}`);
 const filled = await page.evaluate(() => window.__crossprobe.project.board.zones.find((x) => !x.keepout).fills.length);
 expect(filled > 0, `refilled (${filled} fill polygons)`);
 
@@ -116,8 +126,8 @@ while (steps < 20 && JSON.stringify(await zone()) !== JSON.stringify(before)) {
   await wait(300);
   steps++;
 }
-// Eight changes: name, priority, clearance, width, gap, spokes, island mode, island area.
-expect(JSON.stringify(await zone()) === JSON.stringify(before) && steps === 8, `properties as they were after ${steps} undos`);
+// Eleven changes: name, priority, clearance, width, gap, spokes, island mode, island area, fill mode, hatch gap and angle.
+expect(JSON.stringify(await zone()) === JSON.stringify(before) && steps === 11, `properties as they were after ${steps} undos`);
 
 console.log(problems.length ? `PROBLEMS:\n- ${problems.join("\n- ")}` : "ALL OK");
 await browser.close();

@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { landPatternText, newFootprintText, newSymbolNode, withLibrarySymbol, withUuids } from "@crossprobe/kicad-model";
+import { boardFrame, landPatternText, newFootprintText, newSymbolNode, withLibrarySymbol, withUuids } from "@crossprobe/kicad-model";
 import { arg as sexprArg, parse as parseSexpr, setArg as setSexprArg, str as sexprStr } from "@crossprobe/kicad-sexpr";
 import { SymbolEditor } from "./ui/SymbolEditor";
 import { assistant, Fill, installed, Slot, SlotProvider, type AppHost, type Cited, type Contribution, type DraftPart, type SaveAction, type ProjectLinks } from "./extensions";
@@ -223,6 +223,11 @@ export function App() {
 
   // Zone fills go stale with board edits until they're refilled. The worker keeps track, undo included.
   const [zonesStale, setZonesStale] = useState(false);
+  // The board's page frame: its drawing sheet, else the default one, with its title block.
+  const boardPageFrame = useMemo(
+    () => (project?.board?.page ? boardFrame(project.board.page, (project.boardFile ?? "").split("/").pop() ?? "", project.boardDrawingSheet) : undefined),
+    [project?.board?.page, project?.boardFile, project?.boardDrawingSheet],
+  );
   /** Take a fresh analysis from the worker, keeping the user's place. */
   const applyState = useCallback((st: SessionState) => {
     setProject(st.project);
@@ -461,6 +466,7 @@ export function App() {
       project && {
         projectName: project.name,
         sheetPathsOf: (file: string) => project.sheets.filter((s) => s.file === file).map((s) => s.path),
+        blockExists: (lib: string, name: string) => project.projectBlocks.some((b) => b.lib === lib && b.name === name),
         pagePath: (page: string) => project.sheets.find((s) => s.page === page)?.path,
         references: project.references,
         placing,
@@ -1462,6 +1468,7 @@ export function App() {
                   netClasses={project.netClasses}
                   designRules={project.designRules}
                   dirty={zonesStale}
+                  frame={boardPageFrame}
                   edit={
                     project.boardFile
                       ? {

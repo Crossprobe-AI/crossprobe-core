@@ -85,6 +85,8 @@ console.log("-- an image, then half its size");
   writeFileSync(`${OUT}/picture.png`, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]));
 }
 await tool("Image");
+// The tool is in effect once its hint shows; a click before that goes to the previous tool.
+await page.waitForFunction(() => document.body.textContent.includes("Click where the image goes"), { timeout: 10000 });
 {
   const c = await sch({ x: 228.6, y: 76.2 });
   const [chooser] = await Promise.all([page.waitForFileChooser(), page.mouse.click(c.x, c.y)]);

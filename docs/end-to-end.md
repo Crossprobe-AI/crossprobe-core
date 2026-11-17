@@ -361,8 +361,15 @@ KiCad's pcbnew reads the saved board's outline as exactly those corners. Four un
 `scripts/e2e-zone-props.mjs` selects pic_programmer's copper zone. In its properties panel it sets a
 name, priority 2, clearance 0.3, minimum width 0.2, thermal gap 0.6, spoke width 0.4, and removing
 islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads every property back
-from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
-of properties into the zones of three demo boards, and pcbnew reads each one back.
+from the saved board as set. It then makes the zone hatched (gap 2 mm, 30°): the refilled copper
+shrinks, pcbnew reads the hatch settings back, and eleven undos restore everything.
+`test/zone-props.test.ts` writes two sets of properties (one hatched) into the zones of three demo
+boards, and pcbnew reads each one back.
+
+`test/zone-hatch.test.ts` makes pic_programmer's GND zone hatched four ways (straight, 30° with
+thin lines, chamfered holes, rounded holes at 45°). KiCad's pcbnew refills each one
+(`test/pcbnew-refill.py`), and so do we. The copper differs on 2.7–3.9% of KiCad's area, against
+1.8% for the same zone filled solid.
 
 ## Groups
 
@@ -372,6 +379,12 @@ Ctrl+G. KiCad's pcbnew reads the group back with its 33 members. Then:
    amount.
 2. L locks the group: pcbnew reads it as locked, and a drag moves nothing.
 3. Ctrl+Shift+G ungroups it: pcbnew finds no groups, and a click selects R1 alone again.
+
+`scripts/e2e-groups-unmodelled.mjs` serves pic_programmer's board with a group of R1, R2 and a
+`target` (an item the app doesn't model), with R1 also locked on its own:
+- a click on R2 selects the group, and a drag moves the target with R2 (R1 stays, locked);
+- L locks the group, and L again unlocks it and R1;
+- a box around the group picks it, so Ctrl+Shift+G ungroups it.
 
 `test/board-group.test.ts` reads the demo's own groups, then nests, locks, ungroups and prunes
 groups. pcbnew reads each step back the same.
@@ -547,6 +560,11 @@ tool lists it first, inserting it adds a renumbered copy, and KiCad reads the sa
 `test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's
 ISO, GOST and default templates on demo schematics: every frame text is in KiCad's SVG of the
 page, with the same text at the same place. In the app, vme-wren opens with its CERN title block.
+
+`scripts/e2e-board-sheet.mjs` opens interf_u's board, whose project names a board drawing sheet
+(`pcbnew.page_layout_descr_file`: `pagelayout_logo.kicad_wks`). The board view reads it and draws it
+around the board with the board's title block, and the "Drawing sheet" toggle hides it.
+pic_programmer's board names none and gets the default frame.
 
 ## Links
 

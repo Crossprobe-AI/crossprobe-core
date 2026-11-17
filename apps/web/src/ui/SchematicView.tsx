@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Prim, SchItem, SheetView } from "../render/types";
 import type { EditOp, SymbolSource } from "../edit/ops";
-import { arcThrough, type LabelShape } from "@crossprobe/kicad-model";
+import { arcThrough, type LabelShape, bitmapInfo } from "@crossprobe/kicad-model";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { fromOverlay, useViewport } from "./viewport";
@@ -27,6 +27,14 @@ function markup(text: string): ReactNode {
 
 const BASELINE = { top: "hanging", middle: "central", bottom: "alphabetic" } as const;
 
+/** A text's rotation, and its squeeze when narrowed to fit (about its anchor point). */
+export function textTransform(p: { x: number; y: number; angle: number; xScale?: number }): string | undefined {
+  const parts = [];
+  if (p.angle) parts.push(`rotate(${-p.angle} ${p.x} ${p.y})`);
+  if (p.xScale && p.xScale !== 1) parts.push(`translate(${p.x} ${p.y}) scale(${p.xScale} 1) translate(${-p.x} ${-p.y})`);
+  return parts.length ? parts.join(" ") : undefined;
+}
+
 function PrimEl({ p }: { p: Prim }) {
   switch (p.t) {
     case "path":
@@ -46,7 +54,7 @@ function PrimEl({ p }: { p: Prim }) {
           letterSpacing={p.size * 0.08}
           textAnchor={p.anchor}
           dominantBaseline={BASELINE[p.baseline]}
-          transform={p.angle ? `rotate(${-p.angle} ${p.x} ${p.y})` : undefined}
+          transform={textTransform(p)}
           className={`t-${p.role}`}
           fontWeight={p.bold ? 700 : undefined}
           fontStyle={p.italic ? "italic" : undefined}
@@ -60,24 +68,40 @@ function PrimEl({ p }: { p: Prim }) {
 
 const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output", "Output"], ["bidirectional", "Bidirectional"], ["tri_state", "Tri-state"], ["passive", "Passive"]];
 
-/** A picture as base64 PNG, as KiCad stores images: PNGs as they are, other kinds redrawn as PNG. */
-async function toPngBase64(file: File): Promise<string | undefined> {
+/** A PNG kept as it is up to this size; bigger pictures are redrawn smaller. */
+const IMAGE_KEEP_BYTES = 1 << 20;
+/** The longest side, in pixels, a picture is redrawn to. */
+const IMAGE_MAX_SIDE = 1600;
+/** Larger than this even when redrawn, a picture is refused (each one sits in the sheet's text, and in every undo step). */
+const IMAGE_MAX_BYTES = 4 << 20;
+
+/**
+ * A picture as base64 PNG, as KiCad stores images: a small PNG as it is; anything else redrawn as
+ * PNG, at most IMAGE_MAX_SIDE pixels on its longest side. `scale` keeps a shrunk picture at the
+ * size it would have had (KiCad's 300 pixels per inch, or the PNG's own resolution).
+ */
+async function toPngBase64(file: File): Promise<{ png: string; scale: number } | { error: string }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-  if (isPng) {
+  const info = bitmapInfo(bytes);
+  if (info?.mime === "image/png" && bytes.length <= IMAGE_KEEP_BYTES) {
     let s = "";
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return btoa(s);
+    return { png: btoa(s), scale: 1 };
   }
   try {
     const bitmap = await createImageBitmap(file);
+    const k = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
-    return canvas.toDataURL("image/png").split(",")[1];
+    canvas.width = Math.max(1, Math.round(bitmap.width * k));
+    canvas.height = Math.max(1, Math.round(bitmap.height * k));
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const png = canvas.toDataURL("image/png").split(",")[1] ?? "";
+    if ((png.length * 3) / 4 > IMAGE_MAX_BYTES) return { error: `This picture is too large for a schematic even when reduced (${((png.length * 3) / 4 / 1048576).toFixed(1)} MB as PNG). Use a smaller or simpler picture.` };
+    // The redrawn PNG has no resolution (300 ppi): keep the picture's size on the sheet.
+    const ppi = info?.ppi ?? 300;
+    return { png, scale: Math.round(((bitmap.width / canvas.width) * (300 / ppi)) * 10000) / 10000 };
   } catch {
-    return undefined;
+    return { error: "This file isn't a picture this browser can read." };
   }
 }
 
@@ -114,6 +138,8 @@ export interface EditContext {
   pagePath?: (page: string) => string | undefined;
   /** The project's folder ("" or "name/"), for files saved next to it (design blocks). */
   projectDir?: string;
+  /** Is there a design block of this name in the project's library already? */
+  blockExists?: (lib: string, name: string) => boolean;
   /** Names of the hierarchical labels inside a sheet instance. */
   hierLabelsOf: (sheetPath: string) => string[];
   /** Is a project-relative file name taken? */
@@ -243,8 +269,9 @@ export function SchematicView({
   const placeImage = async (file: File) => {
     const at = imageAt.current;
     if (!at) return;
-    const png = await toPngBase64(file);
-    if (png) onEdit?.([{ op: "addImage", file: sheet.file, at, png }]);
+    const r = await toPngBase64(file);
+    if ("error" in r) window.alert(r.error);
+    else onEdit?.([{ op: "addImage", file: sheet.file, at, png: r.png, scale: r.scale }]);
   };
   /** The one selected text or label, which can carry a link. */
   const pickedText = picked.size === 1 ? sheet.items.find((i) => (i.kind === "text" || i.kind === "label") && i.uuid && picked.has(i.uuid)) : undefined;
@@ -1056,7 +1083,8 @@ export function SchematicView({
                   if (!name) return;
                   const description = window.prompt("Description (optional)", "") ?? "";
                   const lib = (ctx.projectName || "project").replace(/[\\/:*?"<>|]+/g, "_");
-                  onEdit?.([{ op: "saveBlock", file: sheet.file, uuids: nodesOf([...picked]), dir: ctx.projectDir ?? "", lib, name, description, keywords: [], projectName: ctx.projectName }]);
+                  if (ctx.blockExists?.(lib, name) && !window.confirm(`A design block named ${name} already exists in ${lib}. Replace it?`)) return;
+                  onEdit?.([{ op: "saveBlock", file: sheet.file, uuids: nodesOf([...picked]), dir: ctx.projectDir ?? "", lib, name, description, keywords: [], projectName: ctx.projectName, sheetPath: sheet.path }]);
                 }}
               >
                 Save as block
