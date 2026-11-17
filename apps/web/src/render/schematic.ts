@@ -588,7 +588,51 @@ function imagePrim(node: List): Prim | undefined {
 }
 
 /** KiCad 7+ text box: a rectangle with word-wrapped text inside its margins. */
-function textBoxPrims(node: List, shown: string): Prim[] {
+/**
+ * A table: each cell's fill and text, the outside border, the line under the header row, and the
+ * lines between rows and columns, drawn along each cell's own edges so a spanned cell stays whole.
+ */
+function tablePrims(node: List, shown: (text: string) => string): Prim[] {
+  const out: Prim[] = [];
+  const cells = findChildren(findChild(node, "cells") ?? node, "table_cell");
+  if (!cells.length) return out;
+  const cols = Number(arg(findChild(node, "column_count"), 0) ?? 1) || 1;
+  const border = findChild(node, "border");
+  const seps = findChild(node, "separators");
+  const yes = (n: List | undefined, k: string) => !!n && arg(findChild(n, k), 0) === "yes";
+  const width = (n: List | undefined) => {
+    const stroke = n && findChild(n, "stroke");
+    return (stroke && Number(arg(findChild(stroke, "width"), 0) ?? 0)) || undefined;
+  };
+  const box = (c: List) => {
+    const p = pt(findChild(c, "at"));
+    const s = findChild(c, "size");
+    return { x: p.x, y: p.y, w: Number(arg(s, 0) ?? 0), h: Number(arg(s, 1) ?? 0) };
+  };
+  const live = cells.filter((c) => Number(arg(findChild(c, "span"), 0) ?? 1) > 0);
+  for (const c of live) out.push(...textBoxPrims(c, shown(str(c, 0)), false));
+  const all = live.map(box);
+  const x0 = Math.min(...all.map((b) => b.x));
+  const y0 = Math.min(...all.map((b) => b.y));
+  const x1 = Math.max(...all.map((b) => b.x + b.w));
+  const y1 = Math.max(...all.map((b) => b.y + b.h));
+  const line = (a: Point, b: Point, w?: number): Prim => ({ t: "path", d: polyPath([a, b]), role: "note", w });
+  const eps = 1e-6;
+  const sepW = width(seps);
+  for (const [i, c] of cells.entries()) {
+    if (Number(arg(findChild(c, "span"), 0) ?? 1) <= 0) continue;
+    const b = box(c);
+    // Right and bottom edges inside the table.
+    if (yes(seps, "cols") && b.x + b.w < x1 - eps) out.push(line({ x: b.x + b.w, y: b.y }, { x: b.x + b.w, y: b.y + b.h }, sepW));
+    const headerRow = i < cols;
+    if (b.y + b.h < y1 - eps && (yes(seps, "rows") || (headerRow && yes(border, "header")))) out.push(line({ x: b.x, y: b.y + b.h }, { x: b.x + b.w, y: b.y + b.h }, headerRow && yes(border, "header") ? width(border) : sepW));
+  }
+  if (yes(border, "external")) out.push({ t: "path", d: polyPath([{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }], true), role: "note", w: width(border) });
+  return out;
+}
+
+/** A text box, or (without its outline) a table cell: the fill, the outline, and the text wrapped and justified inside the margins. */
+function textBoxPrims(node: List, shown: string, outline = true): Prim[] {
   const out: Prim[] = [];
   const at = findChild(node, "at");
   const start = findChild(node, "start");
@@ -600,11 +644,13 @@ function textBoxPrims(node: List, shown: string): Prim[] {
   const fill = fillType(node);
   const rect = polyPath([p, { x: p.x + w, y: p.y }, { x: p.x + w, y: p.y + h }, { x: p.x, y: p.y + h }], true);
   if (fill !== "none") out.push({ t: "path", d: rect, role: "bodyFill", fill: true });
-  out.push({ t: "path", d: rect, role: "note", w: strokeWidth(node) });
+  if (outline) out.push({ t: "path", d: rect, role: "note", w: strokeWidth(node) });
   const e = effectsOf(node);
   const margins = findChild(node, "margins");
-  const m = margins ? Number(arg(margins, 0)) : e.size * 0.6;
-  const maxChars = Math.max(4, Math.floor((w - 2 * m) / (e.size * CHAR_W)));
+  // Left, top, right, bottom.
+  const [ml, mt, mr, mb] = margins ? [0, 1, 2, 3].map((i) => Number(arg(margins, i) ?? arg(margins, 0))) : [e.size * 0.6, e.size * 0.6, e.size * 0.6, e.size * 0.6];
+  const m = ml!;
+  const maxChars = Math.max(4, Math.floor((w - ml! - mr!) / (e.size * CHAR_W)));
   const lines: string[] = [];
   for (const para of shown.split("\n")) {
     let line = "";
@@ -616,7 +662,12 @@ function textBoxPrims(node: List, shown: string): Prim[] {
     }
     lines.push(line);
   }
-  lines.forEach((line, i) => out.push(text(p.x + m, p.y + m + i * e.size * 1.6, line, { ...e, h: "start", v: "top" }, 0, "note")));
+  // Justified in the box: left, centre or right; top, middle or bottom.
+  const x = e.h === "end" ? p.x + w - mr! : e.h === "middle" ? p.x + (ml! + w - mr!) / 2 : p.x + m;
+  const step = e.size * 1.6;
+  const block = (lines.length - 1) * step;
+  const y0 = e.v === "bottom" ? p.y + h - mb! - block : e.v === "middle" ? p.y + (mt! + h - mb!) / 2 - block / 2 : p.y + mt!;
+  lines.forEach((line, i) => out.push(text(x, y0 + i * step, line, { ...e, h: e.h, v: e.v === "bottom" ? "bottom" : e.v === "middle" ? "middle" : "top" }, 0, "note")));
   return out;
 }
 
@@ -735,6 +786,19 @@ export function renderSheet(
       case "image": {
         const img = imagePrim(node);
         if (img) items.push({ kind: "graphic", prims: [img] });
+        break;
+      }
+      case "table": {
+        // The table's lines are one item (selected and moved as a whole); each cell is its own, to edit.
+        items.push({ kind: "graphic", prims: tablePrims(node, (t) => shown(t)).filter((p) => p.t !== "text") });
+        for (const c of findChildren(findChild(node, "cells") ?? node, "table_cell")) {
+          if (Number(arg(findChild(c, "span"), 0) ?? 1) <= 0) continue;
+          const p = pt(findChild(c, "at"));
+          const s = findChild(c, "size");
+          const [w, h] = [Number(arg(s, 0) ?? 0), Number(arg(s, 1) ?? 0)];
+          const hit: Prim = { t: "path", d: polyPath([p, { x: p.x + w, y: p.y }, { x: p.x + w, y: p.y + h }, { x: p.x, y: p.y + h }], true), role: "cellHit", fill: true };
+          items.push({ kind: "cell", prims: [hit, ...textBoxPrims(c, shown(str(c, 0)), false).filter((q) => q.t === "text")], uuid: str(findChild(c, "uuid")), owner: str(findChild(node, "uuid")) || undefined, text: str(c, 0) });
+        }
         break;
       }
       case "text_box": {

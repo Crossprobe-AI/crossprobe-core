@@ -1138,6 +1138,7 @@ export function App() {
                         ["netclass", "Net class", "", "netClass"],
                         ["rulearea", "Rule area", "", "ruleArea"],
                         ["image", "Image", "", "image"],
+                        ["table", "Table", "", "table"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],
