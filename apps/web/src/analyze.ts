@@ -87,7 +87,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     }
   }
   // Custom constraints this DRC doesn't check yet (it applies clearance rules).
-  const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width", "track_width", "via_diameter", "length", "skew"].includes(t)))];
+  const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width", "track_width", "via_diameter", "length", "skew", "diff_pair_gap", "diff_pair_uncoupled"].includes(t)))];
   let rootSheet: string | undefined;
   let intersheetRefs: ProjectView["intersheetRefs"];
 

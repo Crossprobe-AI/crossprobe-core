@@ -302,6 +302,8 @@ export interface Board {
   texts: BoardText[];
   /** Groups (KiCad's (group …)): members by UUID, which may be other groups. */
   groups: BoardGroup[];
+  /** Items in KiCad's tuning patterns (generated meanders): length checks leave them out. */
+  tuningPatternMembers?: string[];
   /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
   textBoxes: TextBox[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
@@ -984,6 +986,10 @@ export function parseBoard(source: string): Board {
         });
         break;
       }
+      case "generated":
+        if (str(findChild(node, "type")) === "tuning_pattern")
+          (board.tuningPatternMembers ??= []).push(...(findChild(node, "members")?.children.slice(1) ?? []).filter(isAtom).map(atomText));
+        break;
       case "group":
         board.groups.push({
           uuid: itemUuid(node),

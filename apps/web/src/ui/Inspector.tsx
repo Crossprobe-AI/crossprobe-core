@@ -69,6 +69,8 @@ const DRC_LABELS: Record<string, string> = {
   footprint_type_mismatch: "Footprint type doesn't match its pads",
   length_out_of_range: "Trace length out of range (custom rule)",
   skew_out_of_range: "Skew between traces out of range (custom rule)",
+  diff_pair_gap_out_of_range: "Differential pair gap out of range (custom rule)",
+  diff_pair_uncoupled_length_too_long: "Differential pair uncoupled too long (custom rule)",
 };
 
 const ERC_LABELS: Record<string, string> = {
