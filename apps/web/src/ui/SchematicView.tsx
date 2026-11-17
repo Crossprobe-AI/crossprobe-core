@@ -183,7 +183,7 @@ export function SchematicView({
   /** Changes when the selection should be brought into view (e.g. picked in the inspector). */
   focusToken?: number;
   /** Frame these parts when `token` changes (e.g. a design block was just inserted below the page). */
-  reveal?: { token: number; refs: string[] };
+  reveal?: { token: number; refs: string[]; /** Items by UUID (a field: "<symbol>#<name>"), selected when editing. */ uuids?: string[] };
   /** Issue markers to draw (all sheets; filtered here). */
   markers?: Array<{ sheet: string; at: { x: number; y: number }; severity: "error" | "warning"; label: string }>;
   editing?: boolean;
@@ -308,8 +308,10 @@ export function SchematicView({
   useEffect(() => {
     if (!reveal?.token) return;
     const wanted = new Set(reveal.refs);
-    const boxes = sheet.items.filter((i) => i.bbox && i.kind === "symbol" && i.ref && wanted.has(i.ref)).map((i) => i.bbox!);
+    const ids = new Set(reveal.uuids ?? []);
+    const boxes = sheet.items.filter((i) => i.bbox && ((i.kind === "symbol" && i.ref && wanted.has(i.ref)) || (i.uuid && ids.has(i.uuid)))).map((i) => i.bbox!);
     if (!boxes.length) return;
+    if (ids.size && editing) setPicked(new Set([...ids].filter((id) => byUuid.has(id))));
     const x0 = Math.min(...boxes.map((b) => b.x));
     const y0 = Math.min(...boxes.map((b) => b.y));
     const x1 = Math.max(...boxes.map((b) => b.x + b.w));

@@ -450,3 +450,14 @@ does the same. A drag moves J2 and snaps it to the grid.
 `scripts/e2e-zone-undo.mjs` deletes a track on pic_programmer's board, refills the zones and
 undoes both. The fill from before the refill comes back, in the model and on the canvas, and
 the "zones are out of date" notice follows undo and redo.
+
+## Find and replace
+
+`scripts/e2e-find.mjs` searches KiCad's pic_programmer demo for "RB7" (Ctrl+F):
+- labels on both sheets and the sheet pin between them are found, and Enter goes from one to
+  the next, opening the sheet each is on;
+- while editing, Replace all makes them "SDATA" in one step: undo brings them all back, redo
+  renames them again.
+
+KiCad's netlist of the saved project has the same connections, with the net named SDATA.
+`test/find-replace.test.ts` checks the matching rules and Replace all the same way.
