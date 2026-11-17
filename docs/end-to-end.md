@@ -373,6 +373,12 @@ Ctrl+G. KiCad's pcbnew reads the group back with its 33 members. Then:
 2. L locks the group: pcbnew reads it as locked, and a drag moves nothing.
 3. Ctrl+Shift+G ungroups it: pcbnew finds no groups, and a click selects R1 alone again.
 
+`scripts/e2e-groups-unmodelled.mjs` serves pic_programmer's board with a group of R1, R2 and a
+`target` (an item the app doesn't model), with R1 also locked on its own:
+- a click on R2 selects the group, and a drag moves the target with R2 (R1 stays, locked);
+- L locks the group, and L again unlocks it and R1;
+- a box around the group picks it, so Ctrl+Shift+G ungroups it.
+
 `test/board-group.test.ts` reads the demo's own groups, then nests, locks, ungroups and prunes
 groups. pcbnew reads each step back the same.
 
