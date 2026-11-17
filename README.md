@@ -141,7 +141,7 @@ completes a feature.
 | Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |
 | Images | View only | |
 | Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
-| Find | Partly | Parts and nets; no text search or replace |
+| Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
 | ERC | Partly | 24 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts). Not checked: units of one part on different nets, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |

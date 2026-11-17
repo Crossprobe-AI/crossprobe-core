@@ -9,6 +9,7 @@ export * from "./erc.js";
 export * from "./copper.js";
 export * from "./schematic-edit.js";
 export * from "./netlist-export.js";
+export * from "./find-replace.js";
 export * from "./annotate.js";
 export * from "./library.js";
 export * from "./board-edit.js";

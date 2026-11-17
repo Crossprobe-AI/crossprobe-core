@@ -760,3 +760,9 @@ export function syncSheetPins(sheet: List, childRoot: List): { pins: string[]; l
   for (const p of missing.pins) addLabel(childRoot, "hierarchical_label", p.name, { x: 25.4, y: 25.4 + 5.08 * count++ }, 180, p.shape);
   return { pins: missing.labels.map((l) => l.name), labels: missing.pins.map((p) => p.name) };
 }
+
+/** Rename one pin of a sheet symbol (by the pin's UUID). */
+export function setSheetPinName(sheet: List, pinUuid: string, name: string): void {
+  const pin = findChildren(sheet, "pin").find((p) => uuidOf(p) === pinUuid);
+  if (pin) setArg(pin, 0, str(name));
+}

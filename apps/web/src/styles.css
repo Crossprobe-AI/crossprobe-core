@@ -3341,3 +3341,35 @@ button.sb-checks:hover {
 .row-buttons button.on {
   outline: 2px solid var(--accent, #4c8bf5);
 }
+.find-panel .prop input {
+  min-width: 0;
+  width: 100%;
+}
+.find-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+.find-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.find-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+}
+.find-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 4px;
+}
+.find-list button.on {
+  background: var(--panel-2);
+}
