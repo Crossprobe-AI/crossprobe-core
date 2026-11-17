@@ -86,6 +86,11 @@ export function rotatePoint(p: Point, c: Point, deg: number): Point {
 }
 
 const getXY = (n: List): Point => ({ x: Number(arg(n, 0) ?? 0), y: Number(arg(n, 1) ?? 0) });
+/** An `(at x y [angle])`'s angle; 0 when it has none (older files may write `unlocked` there). */
+const angleOf = (at: List): number => {
+  const v = Number(arg(at, 2));
+  return Number.isFinite(v) ? v : 0;
+};
 function setXY(n: List, p: Point) {
   setArg(n, 0, num(r6(p.x)));
   setArg(n, 1, num(r6(p.y)));
@@ -131,19 +136,19 @@ export function rotateBoardItem(node: List, deg: number, center?: Point): void {
     const at = findChild(node, "at")!;
     const c = center ?? getXY(at);
     setXY(at, rotatePoint(getXY(at), c, deg));
-    setAngle(at, norm180(Number(arg(at, 2) ?? 0) + deg), false);
+    setAngle(at, norm180(angleOf(at) + deg), false);
     for (const ch of node.children) {
       if (!isList(ch)) continue;
       const h = headOf(ch);
       if (h === "pad" || h === "property" || h === "fp_text") {
         const a = findChild(ch, "at");
         if (!a) continue;
-        if (h === "pad") setAngle(a, norm360(Number(arg(a, 2) ?? 0) + deg), false);
-        else setTextAngle(ch, a, Number(arg(a, 2) ?? 0) + deg);
+        if (h === "pad") setAngle(a, norm360(angleOf(a) + deg), false);
+        else setTextAngle(ch, a, angleOf(a) + deg);
       }
     }
     // KiCad rectangles are axis-aligned: at other angles they become polygons.
-    if (norm360(Number(arg(at, 2) ?? 0)) % 90 !== 0) {
+    if (norm360(angleOf(at)) % 90 !== 0) {
       for (const ch of findChildren(node, "fp_rect")) rectToPoly(ch);
     }
     return;
@@ -173,7 +178,7 @@ export function rotateBoardItem(node: List, deg: number, center?: Point): void {
   mapPoints(node, (p) => rotatePoint(p, c, deg));
   if (head === "gr_text") {
     const a = findChild(node, "at");
-    if (a) setAngle(a, norm360(Number(arg(a, 2) ?? 0) + deg), true);
+    if (a) setAngle(a, norm360(angleOf(a) + deg), true);
   }
 }
 
@@ -240,6 +245,15 @@ function toggleMirror(text: List) {
   } else insertAt(justify, justify.children.length, sym("mirror"));
 }
 
+/** Swap an arc's start and end (a mirrored arc runs the other way). */
+function swapArcEnds(arc: List): void {
+  const s0 = findChild(arc, "start"), e0 = findChild(arc, "end");
+  if (!s0 || !e0) return;
+  const a0 = getXY(s0), b0 = getXY(e0);
+  setXY(s0, b0);
+  setXY(e0, a0);
+}
+
 /**
  * Flip a footprint to the other side, mirrored left/right around `centerX`
  * (default: in place), the way KiCad's Flip does it.
@@ -249,7 +263,7 @@ export function flipFootprint(node: List, centerX?: number): void {
   const p = getXY(at);
   const cx = centerX ?? p.x;
   setXY(at, { x: 2 * cx - p.x, y: p.y });
-  setAngle(at, norm180(180 - Number(arg(at, 2) ?? 0)), false);
+  setAngle(at, norm180(180 - angleOf(at)), false);
   flipLayers(node);
   for (const ch of node.children) {
     if (!isList(ch)) continue;
@@ -259,8 +273,10 @@ export function flipFootprint(node: List, centerX?: number): void {
     if (h === "pad") {
       const a = findChild(ch, "at")!;
       setArg(a, 1, num(r6(-getXY(a).y)));
-      setAngle(a, norm360(180 - Number(arg(a, 2) ?? 0)), false);
+      setAngle(a, norm360(180 - angleOf(a)), false);
       for (const sub of ch.children) if (isList(sub) && headOf(sub) !== "at") mirrorLocalY(sub);
+      // A custom pad's arcs run the other way too (PAD::FlipPrimitives flips each shape).
+      for (const arc of findChildren(findChild(ch, "primitives") ?? ch, "gr_arc")) swapArcEnds(arc);
       const chamfer = findChild(ch, "chamfer");
       if (chamfer) {
         chamfer.children.forEach((c, i) => {
@@ -273,13 +289,15 @@ export function flipFootprint(node: List, centerX?: number): void {
       const a = findChild(ch, "at");
       if (a) {
         setArg(a, 1, num(r6(-getXY(a).y)));
-        setTextAngle(ch, a, -Number(arg(a, 2) ?? 0));
+        setTextAngle(ch, a, -angleOf(a));
       }
       // Only side-specific texts (F./B. layers) mirror; Cmts.User etc. stay readable.
       if (/^[FB]\./.test(String(arg(findChild(ch, "layer"), 0) ?? ""))) toggleMirror(ch);
     } else if (h === "fp_text_box" || h.startsWith("fp_") || h === "zone" || h === "dimension") {
       mirrorLocalY(ch);
       if (h === "fp_text_box") toggleMirror(ch);
+      // A mirrored arc runs the other way: KiCad swaps its ends (EDA_SHAPE::flip).
+      if (h === "fp_arc") swapArcEnds(ch);
     }
   }
 }

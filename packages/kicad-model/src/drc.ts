@@ -27,14 +27,20 @@ export interface NetClass {
   diffPairWidth?: number;
   /** Gap between a differential pair's two vias. */
   diffPairViaGap?: number;
+  /** Lower comes first when classes combine (KiCad's priority; Default is last). */
+  priority?: number;
+  /** The values the project sets for this class (the others come from Default). */
+  defines?: string[];
+  /** A net in several classes: the classes, by priority, that make this combined one. */
+  constituents?: string[];
 }
 
 export interface DesignRules {
   classes: Map<string, NetClass>;
   /** Net class patterns in order (KiCad wildcards * and ?). */
   patterns: Array<{ pattern: string; netclass: string }>;
-  /** Explicit net → class assignments. */
-  assignments: Map<string, string>;
+  /** Explicit net → class assignments (KiCad keeps the classes the schematic gives each net here). */
+  assignments: Map<string, string[]>;
   minClearance: number;
   /** Copper to board edge (min_copper_edge_clearance). */
   copperEdgeClearance?: number;
@@ -73,6 +79,8 @@ export function projectDesignRules(proText?: string): DesignRules {
       const base = rules.classes.get("Default")!;
       rules.classes.set(c.name, {
         name: c.name,
+        priority: c.name === "Default" ? Number.MAX_SAFE_INTEGER : typeof c.priority === "number" ? c.priority : 0,
+        defines: NET_CLASS_FIELDS.filter((k) => typeof c[k] === "number"),
         clearance: num(c.clearance, base.clearance),
         ...(typeof c.clearance !== "number" && c.name !== "Default" ? { clearanceUnset: true } : {}),
         trackWidth: num(c.track_width, base.trackWidth),
@@ -85,8 +93,8 @@ export function projectDesignRules(proText?: string): DesignRules {
     }
     for (const p of ns.netclass_patterns ?? []) if (p?.pattern && p?.netclass) rules.patterns.push({ pattern: p.pattern, netclass: p.netclass });
     for (const [net, cls] of Object.entries(ns.netclass_assignments ?? {})) {
-      const c = Array.isArray(cls) ? cls[0] : cls;
-      if (typeof c === "string") rules.assignments.set(net, c);
+      const list = (Array.isArray(cls) ? cls : [cls]).filter((c): c is string => typeof c === "string" && c !== "");
+      if (list.length) rules.assignments.set(net, list);
     }
     const r = pro.board?.design_settings?.rules;
     rules.minClearance = num(r?.min_clearance, 0);
@@ -139,16 +147,56 @@ export function netClassOf(rules: DesignRules, net: string): NetClass {
   if (!c) cache.set(net, (c = resolveNetClass(rules, net)));
   return c;
 }
+/**
+ * A net's class as KiCad 10 makes it: every class assigned to the net (by the schematic) and
+ * every class whose pattern matches its name. One that sets all its values is the class itself;
+ * several, or one that leaves values unset, combine: values from the highest priority class
+ * that sets them, the rest from Default, named after the classes in priority order ("A,B,Default").
+ * A class named in the schematic but not set up is an empty one, just above Default.
+ */
 function resolveNetClass(rules: DesignRules, net: string): NetClass {
-  const explicit = rules.assignments.get(net);
-  if (explicit && rules.classes.has(explicit)) return rules.classes.get(explicit)!;
+  const fallback = rules.classes.get("Default") ?? DEFAULT_CLASS;
+  const found = new Map<string, NetClass>();
+  const take = (name: string) => {
+    if (found.has(name)) return;
+    found.set(name, rules.classes.get(name) ?? { ...fallback, name, priority: Number.MAX_SAFE_INTEGER - 1, defines: [] });
+  };
+  for (const name of rules.assignments.get(net) ?? []) take(name);
   const short = net.slice(net.lastIndexOf("/") + 1);
   for (const p of rules.patterns) {
     const re = wildcard(p.pattern);
-    if ((re.test(net) || re.test(short)) && rules.classes.has(p.netclass)) return rules.classes.get(p.netclass)!;
+    if (re.test(net) || re.test(short)) take(p.netclass);
   }
-  return rules.classes.get("Default") ?? DEFAULT_CLASS;
+  if (!found.size) return fallback;
+  const order = [...found.values()].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const defined = (c: NetClass) => c.defines ?? NET_CLASS_FIELDS;
+  const needsDefault = !order.some((c) => c.name === "Default") && REQUIRED_FIELDS.some((k) => !order.some((c) => defined(c).includes(k)));
+  if (order.length === 1 && !needsDefault) return order[0]!;
+  const all = needsDefault ? [...order, fallback] : order;
+  // Each value from the first class (by priority) that sets it.
+  const pick = <K extends keyof NetClass>(field: (typeof NET_CLASS_FIELDS)[number], key: K): NetClass[K] => (all.find((c) => defined(c).includes(field)) ?? fallback)[key];
+  return {
+    name: all.map((c) => c.name).join(","),
+    clearance: pick("clearance", "clearance"),
+    trackWidth: pick("track_width", "trackWidth"),
+    viaDiameter: pick("via_diameter", "viaDiameter"),
+    viaDrill: pick("via_drill", "viaDrill"),
+    diffPairGap: pick("diff_pair_gap", "diffPairGap"),
+    diffPairWidth: pick("diff_pair_width", "diffPairWidth"),
+    diffPairViaGap: pick("diff_pair_via_gap", "diffPairViaGap"),
+    // Only Default sets the clearance: as for a single class that leaves it unset.
+    ...(!order.some((c) => c.name !== "Default" && defined(c).includes("clearance")) && order.some((c) => c.clearanceUnset) ? { clearanceUnset: true } : {}),
+    constituents: all.map((c) => c.name),
+  };
 }
+
+/** The values a net class can set, by their project file names. */
+const NET_CLASS_FIELDS = ["clearance", "track_width", "via_diameter", "via_drill", "microvia_diameter", "microvia_drill", "diff_pair_width", "diff_pair_gap", "diff_pair_via_gap", "wire_width", "bus_width"] as const;
+/**
+ * The values a class must set to stand alone; one missing brings Default in. (KiCad lists the via
+ * gap of a pair too, but a class that leaves only that unset stands alone in its netlists.)
+ */
+const REQUIRED_FIELDS: ReadonlyArray<(typeof NET_CLASS_FIELDS)[number]> = ["clearance", "track_width", "via_diameter", "via_drill", "microvia_diameter", "microvia_drill", "diff_pair_width", "diff_pair_gap"];
 
 /**
  * The base name if `a` and `b` are the two nets of a differential pair, as

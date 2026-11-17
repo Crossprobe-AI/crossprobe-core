@@ -389,6 +389,16 @@ every justification, bold, a quarter turn, 30° and 180°, mirrored on the back,
 border. Our silkscreen Gerbers of that board equal kicad-cli's, also after turning every box by 30°
 and 90° as pcbnew does.
 
+## Footprints against libraries
+
+`scripts/e2e-libcheck.mjs` opens KiCad's video demo and runs the board toolbar's "Libraries".
+1. It flags exactly the 129 footprints KiCad's DRC flags as differing from their library copy
+   (`lib_footprint_mismatch`).
+2. "Update 129 from library" replaces them, and KiCad's DRC of the saved board then flags none.
+
+`test/library-parity.test.ts` runs the same comparison on every demo board, about 2,600 footprints
+in all: we flag exactly the ones `kicad-cli pcb drc` flags.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
@@ -503,3 +513,14 @@ settings, with brackets. The root's label lists [2,3], the two instances of the 
 [1,3] and [1,2]; the setting is saved in the project file, and KiCad's plot of the saved project
 shows the same lists. `test/intersheet-refs.test.ts` checks four variants of the setting
 against KiCad's plots.
+
+## Net classes in the schematic
+
+`scripts/e2e-netclass.mjs` adds a "Fast" class to KiCad's pic_programmer demo, then:
+- puts a directive for it on a wire with the Net class tool;
+- draws a rule area across another wire with the Rule area tool, for "Fast" too;
+- changes the directive's class to "Slow" by double-clicking it (not in the project: ERC says so).
+
+The project file keeps each net's classes as KiCad does, and KiCad's netlist of the saved
+project gives the two nets "Slow,Default" and "Fast". `test/netclass-directives.test.ts`
+checks the classes on KiCad's jetson and royalblue demos against those KiCad saved.

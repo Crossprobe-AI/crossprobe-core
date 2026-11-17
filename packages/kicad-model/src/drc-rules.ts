@@ -260,7 +260,7 @@ export function evalExpr(e: Expr, A: RuleItem, B?: RuleItem): Val {
           return typeof a0 !== "string" || wildcard(a0, base);
         }
         case "hasNetclass":
-          return typeof a0 === "string" ? wildcard(a0, it.netClass) : undefined;
+          return typeof a0 === "string" ? classMatches(a0, it.netClass) : undefined;
         case "existsOnLayer":
           return typeof a0 === "string" ? [...it.layers].some((l) => wildcard(a0, l)) : undefined;
         case "isPlated":
@@ -281,8 +281,10 @@ export function evalExpr(e: Expr, A: RuleItem, B?: RuleItem): Val {
       // As in KiCad: anything compared with an undefined value is false (for != too).
       if (a === undefined || b === undefined) return false;
       if (e.op === "==" || e.op === "!=") {
-        // The right-hand string is the pattern (wildcards, case-insensitive).
-        const eq = typeof a === "string" && typeof b === "string" ? wildcard(b, a) : a === b;
+        // The right-hand string is the pattern (wildcards, case-insensitive). A net in several
+        // classes ("A,B,Default") is in any of them, as in KiCad.
+        const isClass = e.a.k === "prop" && e.a.name === "NetClass";
+        const eq = typeof a === "string" && typeof b === "string" ? (isClass ? classMatches(b, a) : wildcard(b, a)) : a === b;
         return e.op === "==" ? eq : !eq;
       }
       const x = Number(a);
@@ -290,6 +292,11 @@ export function evalExpr(e: Expr, A: RuleItem, B?: RuleItem): Val {
       return e.op === "<" ? x < y : e.op === ">" ? x > y : e.op === "<=" ? x <= y : x >= y;
     }
   }
+}
+
+/** Does a net class (a combined one is "A,B,Default") match the pattern: as a whole, or any of its classes? */
+function classMatches(pattern: string, netClass: string): boolean {
+  return wildcard(pattern, netClass) || netClass.split(",").some((c) => wildcard(pattern, c));
 }
 
 /** The other half of a diff pair's net name (P↔N, +↔-), if it is one. */

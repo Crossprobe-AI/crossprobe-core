@@ -42,6 +42,7 @@ import { NetInspector } from "./ui/NetInspector";
 import { UpdateSchematic } from "./ui/UpdateSchematic";
 import { PageSettingsDialog } from "./ui/PageSettings";
 import { CleanupTracks } from "./ui/CleanupTracks";
+import { LibraryCheck } from "./ui/LibraryCheck";
 import { Annotate } from "./ui/Annotate";
 import { FindReplace } from "./ui/FindReplace";
 import { netlistFile } from "./netlist-file";
@@ -190,6 +191,9 @@ export function App() {
   const [showNets, setShowNets] = useState(false);
   const [showUpdateSch, setShowUpdateSch] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
+  const [showLibCheck, setShowLibCheck] = useState(false);
+  /** Current file texts, for dialogs that need a file as written (stable, so their effects don't rerun). */
+  const readBoardFiles = useCallback((paths: string[]) => session.current!.files(paths), []);
   const [showReannotate, setShowReannotate] = useState(false);
   const [showAnnotate, setShowAnnotate] = useState(false);
   const [showFind, setShowFind] = useState(false);
@@ -199,7 +203,7 @@ export function App() {
   const [showFab, setShowFab] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   /** One floating panel at a time: opening one closes the others (and the part/block pickers behind a dialog). */
-  const openPanel = useCallback((name: "setup" | "fab" | "update" | "assign" | "fields" | "plot" | "nets" | "updateSch" | "cleanup" | "reannotate") => {
+  const openPanel = useCallback((name: "setup" | "fab" | "update" | "assign" | "fields" | "plot" | "nets" | "updateSch" | "cleanup" | "reannotate" | "libcheck") => {
     setShowSetup((v) => (name === "setup" ? !v : false));
     setShowFab(name === "fab");
     setShowUpdate((v) => (name === "update" ? !v : false));
@@ -209,6 +213,7 @@ export function App() {
     setShowNets(name === "nets");
     setShowUpdateSch((v) => (name === "updateSch" ? !v : false));
     setShowCleanup((v) => (name === "cleanup" ? !v : false));
+    setShowLibCheck((v) => (name === "libcheck" ? !v : false));
     setShowReannotate((v) => (name === "reannotate" ? !v : false));
     if (name === "assign") setTool("select");
   }, []);
@@ -472,6 +477,7 @@ export function App() {
         nextPage: project.sheets.length + 1,
         hierLabelsOf: (path: string) => [...new Set((project.sheets.find((s) => s.path === path)?.items ?? []).filter((i) => i.kind === "label" && i.prims.some((p) => p.t !== "image" && p.role === "labelHier")).map((i) => i.text ?? ""))],
         fileExists: (file: string) => project.sheets.some((s) => s.file === file),
+        netClasses: project.designRules?.classes.map((c) => c.name),
       },
     [project, placing, placingBlock],
   );
@@ -1128,6 +1134,8 @@ export function App() {
                         ["rect", "Rectangle", "", "drawRect"],
                         ["circle", "Circle", "", "drawCircle"],
                         ["arc", "Arc", "", "drawArc"],
+                        ["netclass", "Net class", "", "netClass"],
+                        ["rulearea", "Rule area", "", "ruleArea"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],
@@ -1379,6 +1387,9 @@ export function App() {
                   <button className={showCleanup ? "on" : ""} onClick={() => openPanel("cleanup")} title="Cleanup tracks & vias: merge collinear segments, remove redundant and dangling tracks and vias">
                     <Icon name="route" /> <span className="tl">Cleanup</span>
                   </button>
+                  <button className={showLibCheck ? "on" : ""} onClick={() => openPanel("libcheck")} title="Compare every footprint with its library copy (KiCad's library parity check), and update the ones that differ">
+                    <Icon name="sync" /> <span className="tl">Libraries</span>
+                  </button>
                   <button onClick={() => project.boardFile && setPageFile(project.boardFile)} title="Page settings: the board's paper size and title block">
                     <Icon name="doc" /> <span className="tl">Page</span>
                   </button>
@@ -1414,6 +1425,18 @@ export function App() {
                     onClose={() => setShowCleanup(false)}
                     onShow={(at) => {
                       select({ kind: "marker", sheet: "board", at, label: "Cleanup" });
+                      setFocusToken((t) => t + 1);
+                    }}
+                  />
+                )}
+                {showLibCheck && project.board && project.boardFile && (
+                  <LibraryCheck
+                    project={project}
+                    readFiles={readBoardFiles}
+                    onEdit={edit}
+                    onClose={() => setShowLibCheck(false)}
+                    onShow={(reference) => {
+                      select({ kind: "component", reference });
                       setFocusToken((t) => t + 1);
                     }}
                   />
