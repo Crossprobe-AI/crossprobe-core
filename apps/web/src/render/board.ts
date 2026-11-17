@@ -584,8 +584,14 @@ export function drawViaLabels(ctx: CanvasRenderingContext2D, board: Board, scale
 /** KiCad's drawing sheet colour in the board editor. */
 export const SHEET_COLOR = "#c872ab";
 
-/** The page frame (drawing sheet primitives, page mm = board mm), texts in KiCad's stroke font. */
-export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim[], scale: number): void {
+/** Drawing sheet bitmaps, decoded once (by their data). */
+const sheetImages = new Map<string, HTMLImageElement>();
+
+/**
+ * The page frame (drawing sheet primitives, page mm = board mm), texts in KiCad's stroke font,
+ * bitmaps (logos) as images. `onImage` is called when a bitmap has loaded, to draw again.
+ */
+export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim[], scale: number, onImage?: () => void): void {
   ctx.save();
   ctx.strokeStyle = SHEET_COLOR;
   ctx.fillStyle = SHEET_COLOR;
@@ -605,8 +611,17 @@ export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim
       p.points.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
       ctx.closePath();
       ctx.fill();
+    } else if (p.kind === "bitmap") {
+      let img = sheetImages.get(p.png);
+      if (!img) {
+        img = new Image();
+        img.onload = () => onImage?.();
+        // PNG unless the sheet says otherwise (KiCad also embeds JPEG).
+        img.src = `data:${(p as { mime?: string }).mime ?? "image/png"};base64,${p.png}`;
+        sheetImages.set(p.png, img);
+      }
+      if (img.complete && img.naturalWidth) ctx.drawImage(img, p.at.x, p.at.y, p.w, p.h);
     } else if (p.kind !== "text") {
-      // Other kinds (drawing sheet bitmaps) aren't drawn on the board yet.
       continue;
     } else {
       // Too small to read: skip the strokes.
