@@ -180,6 +180,38 @@ export function rotateBoardItem(node: List, deg: number, center?: Point): void {
     const a = findChild(node, "at");
     if (a) setAngle(a, norm360(angleOf(a) + deg), true);
   }
+  if (head === "dimension") rotateDimension(node, deg);
+}
+
+/**
+ * The rest of turning a dimension (its points are already turned), as KiCad's
+ * PCB_DIM_ORTHOGONAL::Rotate and PCB_DIMENSION_BASE::Rotate do: its text turns with it, and an
+ * orthogonal one measures along the axis nearest its new direction (horizontal ↔ vertical at
+ * about a quarter turn), its height's sign following.
+ */
+function rotateDimension(node: List, deg: number): void {
+  const text = findChild(node, "gr_text");
+  const at = text && findChild(text, "at");
+  if (at) setAngle(at, norm360(angleOf(at) + deg), true);
+  if (String(arg(findChild(node, "type"), 0)) !== "orthogonal") return;
+  const angle = norm180(deg);
+  const o = findChild(node, "orientation");
+  const vertical = Number(arg(o, 0) ?? 0) === 1;
+  const h = findChild(node, "height");
+  let flip = false;
+  let nowVertical = vertical;
+  if (angle > 45 && angle <= 135) {
+    nowVertical = !vertical;
+    flip = vertical;
+  } else if (angle < -45 && angle >= -135) {
+    nowVertical = !vertical;
+    flip = !vertical;
+  } else if (angle > 135 || angle < -135) flip = true;
+  if (flip && h) setArg(h, 0, num(r6(-Number(arg(h, 0) ?? 0))));
+  if (nowVertical !== vertical) {
+    if (o) setArg(o, 0, num(nowVertical ? 1 : 0));
+    else insertAt(node, h ? node.children.indexOf(h) + 1 : node.children.length, list("orientation", nowVertical ? 1 : 0));
+  }
 }
 
 /** Mean of an item's coordinates; good enough as a rotation centre for drawings. */
