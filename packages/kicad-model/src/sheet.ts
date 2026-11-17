@@ -52,6 +52,10 @@ export interface LibSymbol {
   id: string;
   /** Number of units (gates); >1 means references get a unit letter (U1A). */
   unitCount: number;
+  /** Body styles a placed symbol can be drawn in: 1, 2 (De Morgan), or as many as are named. */
+  bodyStyles: number;
+  /** Their names, where the library names them (KiCad 10). */
+  bodyStyleNames?: string[];
   power?: PowerKind;
   pins: LibPin[];
   properties: Record<string, string>;
@@ -85,6 +89,8 @@ export interface PlacedSymbol {
   instances: SymbolInstance[];
   /** Pins switched to one of their alternate functions: pin number → alternate name. */
   pinAlternates?: Record<string, string>;
+  /** Fields not shown on the sheet. */
+  hiddenFields: string[];
 }
 
 export interface Segment {
@@ -192,12 +198,14 @@ function parseLibSymbol(node: List): LibSymbol {
   const power: PowerKind | undefined = powerNode ? (arg(powerNode, 0) === "local" ? "local" : "global") : undefined;
   const pins: LibPin[] = [];
   let unitCount = 1;
+  let bodyStyles = 1;
   for (const sub of findChildren(node, "symbol")) {
     // Unit sub-symbols are named "<name>_<unit>_<bodyStyle>".
     const m = /_(\d+)_(\d+)$/.exec(text(sub, 0));
     const unit = m ? Number(m[1]) : 0;
     const bodyStyle = m ? Number(m[2]) : 0;
     unitCount = Math.max(unitCount, unit);
+    bodyStyles = Math.max(bodyStyles, bodyStyle);
     for (const pin of findChildren(sub, "pin")) {
       const type = (arg(pin, 0) as PinType) ?? "unspecified";
       const alternates = findChildren(pin, "alternate");
@@ -213,7 +221,13 @@ function parseLibSymbol(node: List): LibSymbol {
       });
     }
   }
-  const lib: LibSymbol = { id, unitCount, power, pins, properties: properties(node) };
+  const lib: LibSymbol = { id, unitCount, bodyStyles, power, pins, properties: properties(node) };
+  const styles = findChild(node, "body_styles");
+  const names = styles?.children.slice(1).filter(isAtom).filter((a) => a.kind === "string").map(atomText) ?? [];
+  if (names.length) {
+    lib.bodyStyleNames = names;
+    lib.bodyStyles = Math.max(bodyStyles, names.length);
+  } else if (styles) lib.bodyStyles = Math.max(bodyStyles, 2);
   const groups = findChild(node, "jumper_pin_groups");
   if (groups) lib.jumperGroups = groups.children.filter(isList).map((g) => g.children.filter(isAtom).map(atomText));
   if (flag(findChild(node, "duplicate_pin_numbers_are_jumpers"), false)) lib.duplicatePinsAreJumpers = true;
@@ -242,8 +256,15 @@ function parsePlacedSymbol(node: List): PlacedSymbol {
     const alternate = findChild(pin, "alternate");
     if (alternate) (pinAlternates ??= {})[text(pin)] = text(alternate);
   }
+  const hiddenFields = findChildren(node, "property")
+    .filter((p) => {
+      const e = findChild(p, "effects");
+      return !!e && (e.children.some((c) => isAtom(c) && c.raw === "hide") || arg(findChild(e, "hide"), 0) === "yes") || arg(findChild(p, "hide"), 0) === "yes";
+    })
+    .map((p) => text(p, 0));
   return {
     pinAlternates,
+    hiddenFields,
     uuid: text(findChild(node, "uuid")),
     // `lib_name` overrides which embedded library symbol is used.
     libId: text(findChild(node, "lib_name")) || text(findChild(node, "lib_id")),

@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Prim, SchItem, SheetView } from "../render/types";
 import type { EditOp, SymbolSource } from "../edit/ops";
+import type { LabelShape } from "@crossprobe/kicad-model";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { fromOverlay, useViewport } from "./viewport";
@@ -57,9 +58,11 @@ function PrimEl({ p }: { p: Prim }) {
   }
 }
 
+const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output", "Output"], ["bidirectional", "Bidirectional"], ["tri_state", "Tri-state"], ["passive", "Passive"]];
+
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "label" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -204,6 +207,10 @@ export function SchematicView({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ start: { x: number; y: number }; dx: number; dy: number; committed?: SheetView } | undefined>();
   const [wire, setWire] = useState<Array<{ x: number; y: number }>>([]);
+  /** The shape new global and hierarchical labels get (KiCad's defaults). */
+  const [labelShape, setLabelShape] = useState<{ glabel: LabelShape; hlabel: LabelShape }>({ glabel: "input", hlabel: "bidirectional" });
+  /** The one selected global or hierarchical label, whose shape can be changed. */
+  const pickedLabel = picked.size === 1 ? sheet.items.find((i) => i.kind === "label" && i.shape && i.uuid && picked.has(i.uuid)) : undefined;
   const [cursor, setCursor] = useState<{ x: number; y: number }>();
   const dragRef = useRef(drag);
   dragRef.current = drag;
@@ -347,7 +354,11 @@ export function SchematicView({
       else if (k === "b" && !e.shiftKey) onTool?.("bus");
       else if (k === "z") onTool?.("busentry");
       else if (k === "r" && tool === "busentry") setEntry((n) => (n + 1) % 4);
-      else if (k === "l") onTool?.("label");
+      else if (k === "l" && (e.ctrlKey || e.metaKey)) {
+        // KiCad's Ctrl+L, where the browser hands it over.
+        e.preventDefault();
+        onTool?.("glabel");
+      } else if (k === "l") onTool?.("label");
       else if (k === "h") onTool?.("hlabel");
       else if (k === "s" && e.shiftKey) onTool?.("sheet");
       else if (k === "j") onTool?.("junction");
@@ -448,12 +459,12 @@ export function SchematicView({
         });
         if (wire.length && (near || onWire)) return finishWire(next);
         setWire(next);
-      } else if (tool === "label" || tool === "hlabel") {
-        const text = window.prompt(tool === "label" ? "Label name" : "Hierarchical label name");
+      } else if (tool === "label" || tool === "glabel" || tool === "hlabel") {
+        const text = window.prompt(tool === "label" ? "Label name" : tool === "glabel" ? "Global label name (one net across every sheet)" : "Hierarchical label name");
         // On a pin, the label reads away from the part (as one would rotate it in KiCad).
         const pin = sheet.items.find((i) => i.kind === "pin" && i.outward !== undefined && i.points?.[0] && Math.hypot(i.points[0].x - p.x, i.points[0].y - p.y) < 1e-6);
         const angle = pin ? pin.outward! : tool === "hlabel" ? 180 : 0;
-        if (text) onEdit?.([{ op: "addLabel", file: sheet.file, kind: tool === "label" ? "label" : "hierarchical_label", text, at: p, angle }]);
+        if (text) onEdit?.([{ op: "addLabel", file: sheet.file, kind: tool === "label" ? "label" : tool === "glabel" ? "global_label" : "hierarchical_label", text, at: p, angle, shape: tool === "label" ? undefined : labelShape[tool] }]);
       } else if (tool === "sheetpin") {
         // The sheet whose rectangle (with a little slack for the edge) contains the click.
         const q = toSheet(e);
@@ -809,7 +820,24 @@ export function SchematicView({
           {tool === "label" && "Click a wire to place a label"}
           {tool === "junction" && "Click to place a junction"}
           {tool === "noconnect" && "Click a pin to mark it as not connected"}
+          {tool === "glabel" && "Click to place a global label (one net across every sheet)"}
           {tool === "hlabel" && "Click to place a hierarchical label (connects to a sheet pin in the parent)"}
+          {(tool === "glabel" || tool === "hlabel") && (
+            <label className="hint-option">
+              {" · shape "}
+              <select value={labelShape[tool]} onChange={(e) => setLabelShape((s) => ({ ...s, [tool]: e.target.value as LabelShape }))}>
+                {LABEL_SHAPES.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
+              </select>
+            </label>
+          )}
+          {tool === "select" && pickedLabel && (
+            <label className="hint-option">
+              {" · shape "}
+              <select value={pickedLabel.shape} onChange={(e) => onEdit?.([{ op: "setLabelShape", file: sheet.file, uuid: pickedLabel.uuid!, shape: e.target.value as LabelShape }])}>
+                {LABEL_SHAPES.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
+              </select>
+            </label>
+          )}
           {tool === "sheet" && "Drag a rectangle to add a sub-sheet"}
           {tool === "sheetpin" && "Click a sheet's edge to add a pin"}
           {(tool === "place" || tool === "power") && (ctx?.placing ? `Click to place ${ctx.placing.reference && ctx.placing.units?.length ? `${ctx.placing.reference}${String.fromCharCode(64 + ctx.placing.units[0]!)} (${ctx.placing.name})` : ctx.placing.name} · Esc to stop` : tool === "power" ? "Pick a power symbol to place" : "Pick a part to place")}

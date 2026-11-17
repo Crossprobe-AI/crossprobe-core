@@ -123,17 +123,17 @@ completes a feature.
 | Wires, junctions, no-connects | Works | Dragging keeps connections |
 | Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
 | Local and hierarchical labels | Works | |
-| Global labels | View only | Read, drawn and netlisted; no tool to place one |
+| Global labels | Works | With the shape (input, output, …); the list of other sheets (intersheet references) is not shown |
 | Power symbols, PWR_FLAG | Works | |
 | Hierarchical sheets and sheet pins | Works | No sheet properties dialog, no "sync sheet pins" |
 | Placing symbols from project and KiCad libraries | Works | |
 | Multi-unit symbols | Works | |
-| Body styles (De Morgan) | Partly | Made in the symbol editor and drawn; a placed symbol's style can't be switched |
-| Alternate pin functions | No | |
+| Body styles (De Morgan) | Works | Made in the symbol editor; a placed symbol is switched in the inspector |
+| Alternate pin functions | Works | A placed symbol's pin is switched in the inspector; the sheet, ERC and netlist follow. Alternates can't be defined in the symbol editor |
 | Move, rotate, mirror, delete, box select, copy, paste, duplicate | Works | Its own clipboard: not the system's, not between projects |
 | Undo and redo | Works | |
-| Fields, and the symbol fields table | Works | No per-field visibility, position or style; no BOM presets |
-| DNP, exclude from BOM, exclude from board | View only | Shown as flags |
+| Fields, and the symbol fields table | Works | Fields can be shown and hidden; no per-field position or style; no BOM presets |
+| DNP, exclude from BOM, exclude from board, exclude from simulation | Works | No DNP cross drawn over the part |
 | Annotation | Works | Unannotated only, or all by X or Y; no scope or start number |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
 | Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |

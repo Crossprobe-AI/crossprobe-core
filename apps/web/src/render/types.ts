@@ -61,6 +61,8 @@ export interface SchItem {
   bbox?: { x: number; y: number; w: number; h: number };
   /** UUID of the file node this came from (pins: their symbol's), for editing. */
   uuid?: string;
+  /** Global and hierarchical labels: the shape (input, output, bidirectional, tri_state, passive). */
+  shape?: string;
   /** Symbols: the reference as stored (also for power symbols). */
   reference?: string;
   /** Connection points: pin tip, wire ends, label / junction / no-connect anchor. */
@@ -96,6 +98,14 @@ export interface ComponentInfo {
   dnp: boolean;
   inBom: boolean;
   onBoard: boolean;
+  excludeFromSim: boolean;
+  /** Fields not shown on the sheet (as on the first placed unit). */
+  hiddenFields: string[];
+  /** The body style the part is drawn in (1 = the first), and the names of the styles the symbol has (one name: no choice). */
+  bodyStyle: number;
+  bodyStyles: string[];
+  /** Pins that have alternate functions: what they can be, and what each is switched to (unset: its own function). */
+  pinAlternates: Array<{ pin: string; name: string; alternates: string[]; current?: string }>;
   /** The library symbol's footprint filters (ki_fp_filters), e.g. ["R_*"]. */
   fpFilters: string[];
   /** Distinct pin numbers of the symbol (all units), for matching footprint pad counts. */

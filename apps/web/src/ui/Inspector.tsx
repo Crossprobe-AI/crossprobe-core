@@ -313,6 +313,16 @@ export function Inspector({
                       <Icon name="search" />
                     </button>
                   )}
+                  {name in selectedComponent.properties && (
+                    <input
+                      type="checkbox"
+                      className="field-shown"
+                      title={`Show ${name} on the sheet`}
+                      aria-label={`Show ${name} on the sheet`}
+                      checked={!selectedComponent.hiddenFields.includes(name)}
+                      onChange={(e) => onEdit?.(selectedComponent.units.map((u) => ({ op: "setFieldVisible" as const, file: u.file, uuid: u.uuid, name, visible: e.target.checked })))}
+                    />
+                  )}
                 </label>
               ))}
               <button
@@ -324,6 +334,35 @@ export function Inspector({
               >
                 + Add field
               </button>
+              <div className="symbol-flags">
+                {(
+                  [
+                    ["dnp", "Do not populate", selectedComponent.dnp, "Left off the board at assembly; kept in the design"],
+                    ["inBom", "In the BOM", selectedComponent.inBom, "Listed in the bill of materials"],
+                    ["onBoard", "On the board", selectedComponent.onBoard, "Gets a footprint when the PCB is updated"],
+                    ["excludeFromSim", "Exclude from simulation", selectedComponent.excludeFromSim, "Left out of SPICE netlists"],
+                  ] as const
+                ).map(([key, text, on, title]) => (
+                  <label key={key} title={title}>
+                    <input type="checkbox" checked={on} onChange={(e) => onEdit?.(selectedComponent.units.map((u) => ({ op: "setSymbolAttributes" as const, file: u.file, uuid: u.uuid, [key]: e.target.checked })))} />
+                    {text}
+                  </label>
+                ))}
+              </div>
+              {selectedComponent.bodyStyles.length > 1 && (
+                <label>
+                  <span>Body style</span>
+                  <select
+                    className="field-input"
+                    value={selectedComponent.bodyStyle}
+                    onChange={(e) => onEdit?.(selectedComponent.units.map((u) => ({ op: "setBodyStyle" as const, file: u.file, uuid: u.uuid, style: Number(e.target.value) })))}
+                  >
+                    {selectedComponent.bodyStyles.map((n, i) => (
+                      <option key={n} value={i + 1}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
           )}
           <dl className={editing ? "compact" : undefined}>
@@ -429,7 +468,26 @@ export function Inspector({
                 {componentPins.map((p) => (
                   <li key={p.pin}>
                     <span className="mono pin">{p.pin}</span>
-                    <span className="pinname">{p.pinName !== "~" ? p.pinName : ""}</span>
+                    {(() => {
+                      // A pin with alternate functions: pick which one it is (editing), or see the one chosen.
+                      const alt = selectedComponent.pinAlternates.find((a) => a.pin === p.pin);
+                      if (!alt || !editing) return <span className="pinname">{alt?.current ?? (p.pinName !== "~" ? p.pinName : "")}</span>;
+                      return (
+                        <select
+                          className="pinname pin-alternate"
+                          title="This pin's function"
+                          value={alt.current ?? ""}
+                          onChange={(e) =>
+                            onEdit?.(selectedComponent.units.map((u) => ({ op: "setPinAlternate" as const, file: u.file, uuid: u.uuid, pin: p.pin, alternate: e.target.value || null })))
+                          }
+                        >
+                          <option value="">{alt.name}</option>
+                          {alt.alternates.map((a) => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                     <button className="link net" onClick={() => onSelect({ kind: "net", name: p.net })}>
                       {displayName(p.net)}
                     </button>

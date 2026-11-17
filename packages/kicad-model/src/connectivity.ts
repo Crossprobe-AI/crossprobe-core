@@ -355,14 +355,14 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
     for (const pin of pins) {
       const at = transformLibPoint(pin.at, symbol, symbol.at);
       const numbers = stackedPinNumbers(pin.number) ?? [pin.number];
-      // A pin switched to an alternate function takes that function's electrical type.
+      // A pin switched to an alternate function takes that function's name and electrical type.
       const alternate = symbol.pinAlternates?.[pin.number];
       const type = (alternate !== undefined && pin.alternates?.[alternate]) || pin.type;
       const nodeFor = (number: string): NetNode => ({
         reference: pl.reference,
         unitReference: lib.unitCount > 1 ? pl.reference + unitLetter(pl.unit) : pl.reference,
         pin: number,
-        pinName: pin.name,
+        pinName: alternate !== undefined && pin.alternates?.[alternate] ? alternate : pin.name,
         pinType: type,
       });
       const item: LocalItem = {
