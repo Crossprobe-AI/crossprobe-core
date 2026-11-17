@@ -756,7 +756,8 @@ export function SchematicView({
     vp.handlers.onPointerMove(e);
   };
   const onPointerUp = (e: React.PointerEvent) => {
-    const bx = marqueeRef.current;
+    // The box to where the pointer is now: on a big sheet the last move may not have been drawn yet.
+    const bx = marqueeRef.current && { ...marqueeRef.current, b: toSheet(e) };
     if (bx && tool === "sheet") {
       setMarquee(undefined);
       justDragged.current = true;
@@ -787,7 +788,8 @@ export function SchematicView({
       setMarquee(undefined);
       justDragged.current = true;
       const x0 = Math.min(bx.a.x, bx.b.x), x1 = Math.max(bx.a.x, bx.b.x), y0 = Math.min(bx.a.y, bx.b.y), y1 = Math.max(bx.a.y, bx.b.y);
-      const inside = sheet.items.filter((i) => i.uuid && i.kind !== "field" && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
+      // A table is taken whole: its cells are left out (moved alone, they would leave its grid).
+      const inside = sheet.items.filter((i) => i.uuid && i.kind !== "field" && i.kind !== "cell" && i.bbox && i.bbox.x >= x0 && i.bbox.y >= y0 && i.bbox.x + i.bbox.w <= x1 && i.bbox.y + i.bbox.h <= y1);
       setPicked(new Set([...picked, ...inside.map((i) => i.uuid!)]));
       return;
     }
