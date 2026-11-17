@@ -87,6 +87,8 @@ export interface EditContext {
   /** File of a sheet instance (for sheet pins), and the next free page number. */
   sheetFileOf: (sheetPath: string) => string | undefined;
   nextPage: number;
+  /** Names of the hierarchical labels inside a sheet instance. */
+  hierLabelsOf: (sheetPath: string) => string[];
   /** Is a project-relative file name taken? */
   fileExists: (file: string) => boolean;
 }
@@ -229,6 +231,14 @@ export function SchematicView({
     });
   /** The selected items that are nodes of the file (not fields). */
   const nodesOf = (ids: string[]) => ids.filter((id) => !id.includes("#"));
+  /** The one selected sheet symbol, with what it and its sheet disagree on: labels inside without a pin, pins without a label. */
+  const pickedSheet = picked.size === 1 ? sheet.items.find((i) => i.kind === "sheet" && i.uuid && picked.has(i.uuid)) : undefined;
+  const sheetSync = useMemo(() => {
+    if (!pickedSheet?.sheetPath) return undefined;
+    const labels = ctx?.hierLabelsOf(pickedSheet.sheetPath) ?? [];
+    const pins = pickedSheet.pinNames ?? [];
+    return { pins: labels.filter((l) => !pins.includes(l)), labels: pins.filter((p) => !labels.includes(p)) };
+  }, [pickedSheet, ctx]);
   const byUuid = useMemo(() => {
     const m = new Map<string, SchItem[]>();
     for (const it of sheet.items) if (it.uuid) m.set(it.uuid, [...(m.get(it.uuid) ?? []), it]);
@@ -856,6 +866,47 @@ export function SchematicView({
                 {LABEL_SHAPES.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
               </select>
             </label>
+          )}
+          {tool === "select" && pickedSheet && (
+            <span className="hint-option">
+              {" · "}
+              <button
+                className="link"
+                title="Rename the sheet"
+                onClick={() => {
+                  const name = window.prompt("Sheet name", pickedSheet.text ?? "");
+                  if (name && name !== pickedSheet.text) onEdit?.([{ op: "setSheetProps", file: sheet.file, uuid: pickedSheet.uuid!, name }]);
+                }}
+              >
+                Rename
+              </button>
+              {" · "}
+              <button
+                className="link"
+                title="The sheet's page number (annotation by sheet number and the netlist follow it)"
+                onClick={() => {
+                  const number = window.prompt("Page number", pickedSheet.page ?? "");
+                  if (number && number !== pickedSheet.page) onEdit?.([{ op: "setSheetProps", file: sheet.file, uuid: pickedSheet.uuid!, page: { path: sheet.path, number } }]);
+                }}
+              >
+                Page {pickedSheet.page}
+              </button>
+              {sheetSync && sheetSync.pins.length + sheetSync.labels.length > 0 && (
+                <>
+                  {" · "}
+                  <button
+                    className="link"
+                    title={[sheetSync.pins.length && `Add pins for the labels inside: ${sheetSync.pins.join(", ")}`, sheetSync.labels.length && `Add labels inside for the pins: ${sheetSync.labels.join(", ")}`].filter(Boolean).join(". ")}
+                    onClick={() => {
+                      const childFile = ctx?.sheetFileOf(pickedSheet.sheetPath!);
+                      if (childFile) onEdit?.([{ op: "syncSheetPins", file: sheet.file, sheetUuid: pickedSheet.uuid!, childFile }]);
+                    }}
+                  >
+                    Sync pins ({sheetSync.pins.length + sheetSync.labels.length})
+                  </button>
+                </>
+              )}
+            </span>
           )}
           {tool === "select" && pickedLabel && (
             <label className="hint-option">

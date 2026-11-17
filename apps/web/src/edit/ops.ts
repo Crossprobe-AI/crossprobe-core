@@ -52,6 +52,9 @@ import {
   setLabelShape,
   moveField,
   rotateField,
+  setSheetName,
+  setSheetPage,
+  syncSheetPins,
   type LabelShape,
   resolveLibrarySymbol,
   sheetRoot,
@@ -245,6 +248,10 @@ export type EditOp =
   | { op: "addSheet"; file: string; newFile: string; name: string; at: Point; size: Point; parentPaths: string[]; projectName: string; page: number }
   /** A sheet pin; also adds the matching hierarchical label in the child sheet's file. */
   | { op: "addSheetPin"; file: string; sheetUuid: string; childFile: string; name: string; shape: string; at: Point }
+  /** A sheet symbol's name, and the page number of the instance drawn on the sheet at `path`. */
+  | { op: "setSheetProps"; file: string; uuid: string; name?: string; page?: { path: string; number: string } }
+  /** Pins for the child sheet's hierarchical labels that have none, and labels in it for the pins that have none. */
+  | { op: "syncSheetPins"; file: string; sheetUuid: string; childFile: string }
   /** Renumber references across the design (expanded into setField ops). */
   | { op: "annotate"; file: string; mode: "all" | "unannotated" | "clear"; order?: "x" | "y"; sheetPath?: string; startAfter?: number; sheetMultiplier?: 100 | 1000 }
   // Board (.kicad_pcb) operations; items are named by UUID.
@@ -382,6 +389,8 @@ export function describeOp(op: EditOp): string {
     case "annotate": return op.mode === "all" ? "Annotate all" : op.mode === "clear" ? "Clear annotation" : "Annotate new parts";
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
+    case "setSheetProps": return op.name !== undefined ? `Rename sheet to ${op.name}` : "Sheet page number";
+    case "syncSheetPins": return "Synchronize sheet pins";
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "boardArrange": return op.label;
     case "moveFootprintText": return "Move footprint text";
@@ -643,6 +652,23 @@ export class Editor {
           if (!hier.some((l) => arg(l, 0) === op.name)) {
             const count = hier.length;
             addLabel(childRoot, "hierarchical_label", op.name, { x: 25.4, y: 25.4 + 5.08 * count }, 180);
+            const t = serialize(child.doc);
+            this.docs.set(op.childFile, { text: t, doc: child.doc });
+            changed[op.childFile] = t;
+          }
+          break;
+        }
+        case "setSheetProps":
+          each([op.uuid], (n) => {
+            if (op.name !== undefined) setSheetName(n, op.name);
+            if (op.page) setSheetPage(n, op.page.path, op.page.number);
+          });
+          break;
+        case "syncSheetPins": {
+          const sheet = findItem(root, op.sheetUuid);
+          if (!sheet) throw new Error("Sheet not found");
+          const child = load(op.childFile);
+          if (syncSheetPins(sheet, sheetRoot(child.doc)).labels.length) {
             const t = serialize(child.doc);
             this.docs.set(op.childFile, { text: t, doc: child.doc });
             changed[op.childFile] = t;

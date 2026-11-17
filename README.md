@@ -127,7 +127,7 @@ completes a feature.
 | Local and hierarchical labels | Works | |
 | Global labels | Works | With the shape (input, output, …); the list of other sheets (intersheet references) is not shown |
 | Power symbols, PWR_FLAG | Works | |
-| Hierarchical sheets and sheet pins | Works | No sheet properties dialog, no "sync sheet pins" |
+| Hierarchical sheets and sheet pins | Works | A selected sheet symbol is renamed, given a page number, and its pins synchronised with the labels inside. Its file can't be changed, and its pins can't be moved or deleted one by one |
 | Placing symbols from project and KiCad libraries | Works | |
 | Multi-unit symbols | Works | |
 | Body styles (De Morgan) | Works | Made in the symbol editor; a placed symbol is switched in the inspector |
@@ -143,7 +143,7 @@ completes a feature.
 | Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
 | Find | Partly | Parts and nets; no text search or replace |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
-| ERC | Partly | 15 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references. Not checked: missing units, units of one part on different nets, hierarchical label mismatches, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
+| ERC | Partly | 16 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner. Not checked: missing units, units of one part on different nets, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |
 | SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
