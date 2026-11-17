@@ -908,6 +908,8 @@ export function App() {
           readFiles={(paths) => session.current!.files(paths)}
           onEdit={edit}
           onClose={() => setPageFile(undefined)}
+          projectFile={project.projectFile}
+          intersheetRefs={project.intersheetRefs}
         />
       )}
       {showNets && project?.board && (

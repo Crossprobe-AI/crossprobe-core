@@ -461,3 +461,12 @@ the "zones are out of date" notice follows undo and redo.
 
 KiCad's netlist of the saved project has the same connections, with the net named SDATA.
 `test/find-replace.test.ts` checks the matching rules and Replace all the same way.
+
+## Intersheet references
+
+`scripts/e2e-intersheet-refs.mjs` places a global label on the root of KiCad's complex_hierarchy
+demo and one in its reused sheet, then switches on "Show the pages of global labels" in Page
+settings, with brackets. The root's label lists [2,3], the two instances of the reused sheet
+[1,3] and [1,2]; the setting is saved in the project file, and KiCad's plot of the saved project
+shows the same lists. `test/intersheet-refs.test.ts` checks four variants of the setting
+against KiCad's plots.

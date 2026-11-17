@@ -319,6 +319,8 @@ export type EditOp =
       /** Delete a net class (and its patterns); its nets fall back to the others or Default. */
       removeClass?: string;
     }
+  /** The project file's schematic formatting (schematic.drawing), KiCad's key names. */
+  | { op: "setSchematicDrawing"; file: string; drawing: Record<string, boolean | string | number> }
   | { op: "addBoardText"; file: string; text: NewBoardText }
   | { op: "setBoardText"; file: string; uuids: string[]; text?: string; size?: number; layer?: string }
   /** A copper zone outline; follow with refillZones to compute its copper. */
@@ -430,6 +432,7 @@ export function describeOp(op: EditOp): string {
     case "setZoneOutline": return op.label ?? "Edit zone outline";
     case "autoroute": return op.connections.length === 1 ? `Autoroute ${op.connections[0]!.net}` : `Autoroute ${op.connections.length} connections`;
     case "setProjectRules": return op.exclude ? "Exclude DRC finding" : op.include ? "Include DRC finding" : op.removeClass ? `Remove net class ${op.removeClass}` : op.classPatterns ? `Nets of ${op.classPatterns.name}` : "Board setup";
+    case "setSchematicDrawing": return "Schematic formatting";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
     case "teardrops": return op.remove ? "Remove teardrops" : "Teardrops";
     case "addDimension": return "Add dimension";
@@ -528,6 +531,15 @@ export class Editor {
       }
       if (op.op === "setRequirements") {
         changed[op.file] = serializeRequirements(op.requirements);
+        continue;
+      }
+      if (op.op === "setSchematicDrawing") {
+        const text = changed[op.file] ?? files[op.file];
+        if (text === undefined) throw new Error(`No such file: ${op.file}`);
+        const pro = JSON.parse(text) as { schematic?: { drawing?: Record<string, unknown> } };
+        pro.schematic ??= {};
+        pro.schematic.drawing = { ...(pro.schematic.drawing ?? {}), ...op.drawing };
+        changed[op.file] = JSON.stringify(pro, null, 2) + "\n";
         continue;
       }
       if (op.op === "setProjectRules") {

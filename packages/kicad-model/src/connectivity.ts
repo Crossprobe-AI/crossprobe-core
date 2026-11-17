@@ -11,7 +11,7 @@
  * priority order.
  */
 import { onSegment, pointKey, transformLibPoint, type Point } from "./geometry.js";
-import { compareRefs, unitPins, type Schematic, type SheetInstance } from "./project.js";
+import { compareRefs, sheetsByPage, unitPins, type Schematic, type SheetInstance } from "./project.js";
 import type { Label, LibPin, PinType } from "./sheet.js";
 import { UnionFind } from "./unionfind.js";
 import { busShape, type BusShape } from "./bus.js";
@@ -661,6 +661,25 @@ export function shownText(text: string, sheet: SheetInstance, schematic: Schemat
     return all;
   });
   return resolveText(replaced, sheet, schematic);
+}
+
+/**
+ * The pages a global label is on, as KiCad's ${INTERSHEET_REFS} gives them next to it: the
+ * pages of every global label with the same shown text, sorted, without the label's own page
+ * (unless the project lists it), "2..5" in the short form for more than two, with the
+ * project's prefix and suffix.
+ */
+export function intersheetRefs(schematic: Schematic, sheet: SheetInstance, labelText: string): string {
+  const s = schematic.intersheetRefs ?? { show: false, ownPage: false, short: false, prefix: "", suffix: "" };
+  const pages = sheetsByPage(schematic);
+  const virtual = new Map(pages.map((p, i) => [p, i + 1]));
+  const shown = shownText(labelText, sheet, schematic);
+  const on = [...new Set(pages.filter((p) => p.data.labels.some((l) => l.kind === "global" && shownText(l.text, p, schematic) === shown)).map((p) => virtual.get(p)!))].sort((a, b) => a - b);
+  if (!on.length) return `${s.prefix}?${s.suffix}`;
+  const list = s.ownPage ? on : on.filter((n) => n !== virtual.get(sheet));
+  const page = (n: number) => pages[n - 1]!.pageNumber ?? String(n);
+  const ref = s.short && list.length > 2 ? `${page(list[0]!)}..${page(list[list.length - 1]!)}` : list.map(page).join(",");
+  return `${s.prefix}${ref}${s.suffix}`;
 }
 
 /** KiCad's net-name escaping: "/" is the hierarchy separator, so it is spelled {slash}. */

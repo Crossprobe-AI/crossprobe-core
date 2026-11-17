@@ -125,7 +125,7 @@ completes a feature.
 | Wires, junctions, no-connects | Works | Dragging keeps connections |
 | Buses, bus entries, vector buses | Works | Bus aliases are read; they can't be defined here |
 | Local and hierarchical labels | Works | |
-| Global labels | Works | With the shape (input, output, …); the list of other sheets (intersheet references) is not shown |
+| Global labels | Works | With the shape (input, output, …) |
 | Power symbols, PWR_FLAG | Works | |
 | Hierarchical sheets and sheet pins | Works | A selected sheet symbol is renamed, given a page number, and its pins synchronised with the labels inside. Its file can't be changed, and its pins can't be moved or deleted one by one |
 | Placing symbols from project and KiCad libraries | Works | |
@@ -140,7 +140,8 @@ completes a feature.
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
 | Text, text boxes, lines, rectangles, circles, arcs | Works | No font or style settings; beziers are view only |
 | Images | View only | |
-| Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
+| Intersheet references | Works | The pages a global label is on, as KiCad lists them (own page, short form, prefix and suffix), switched on in Page settings; drawn where KiCad places them, not movable |
+| Tables, rule areas, net class directives, hyperlinks | No | |
 | Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
 | ERC | Partly | 24 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts). Not checked: units of one part on different nets, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
