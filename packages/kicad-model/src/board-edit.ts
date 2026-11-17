@@ -709,7 +709,73 @@ export function addZone(root: List, z: NewZone): string {
 }
 
 /** Change a zone's net and/or copper layer. Its old fill no longer applies, so it is dropped. */
-export function setZoneProps(root: List, zone: List, p: { net?: string; layer?: string; connect?: "thermal" | "solid" | "none" | "tht" }): void {
+/** Zone properties as KiCad's zone dialog edits them (numbers in mm, the island area in mm²). */
+export interface ZoneProps {
+  net?: string;
+  layer?: string;
+  connect?: "thermal" | "solid" | "none" | "tht";
+  name?: string;
+  priority?: number;
+  clearance?: number;
+  minThickness?: number;
+  thermalGap?: number;
+  thermalWidth?: number;
+  /** 0: always remove islands, 1: never, 2: below `islandAreaMin`. */
+  islandMode?: 0 | 1 | 2;
+  islandAreaMin?: number;
+}
+
+/** Set `(head value)` in `parent`, inserting it before the first of `before` present (else at the end). */
+function setOrInsert(parent: List, head: string, value: Parameters<typeof list>[1], before: string[]): void {
+  const n = findChild(parent, head);
+  if (n) return setArg(n, 0, value as Parameters<typeof setArg>[2]);
+  const at = parent.children.findIndex((c) => before.includes(headOf(c) ?? ""));
+  insertAt(parent, at < 0 ? parent.children.length : at, list(head, value));
+}
+
+export function setZoneProps(root: List, zone: List, p: ZoneProps): void {
+  // KiCad's order in a zone: net, layer(s), uuid, name, hatch, priority, connect_pads, min_thickness, …, fill, polygon.
+  const AFTER_HATCH = ["priority", "attr", "connect_pads", "min_thickness", "filled_areas_thickness", "keepout", "placement", "fill", "polygon", "filled_polygon"];
+  if (p.name !== undefined) {
+    const n = findChild(zone, "name");
+    if (!p.name) n && removeChild(zone, n);
+    else setOrInsert(zone, "name", str(p.name), ["hatch", ...AFTER_HATCH]);
+  }
+  if (p.priority !== undefined) {
+    // KiCad writes a priority only when it isn't 0.
+    const n = findChild(zone, "priority");
+    if (!p.priority) n && removeChild(zone, n);
+    else setOrInsert(zone, "priority", Math.round(p.priority), AFTER_HATCH.slice(1));
+  }
+  if (p.clearance !== undefined) {
+    let cp = findChild(zone, "connect_pads");
+    if (!cp) {
+      cp = list("connect_pads", list("clearance", r6(p.clearance)));
+      const at = zone.children.findIndex((c) => ["min_thickness", "filled_areas_thickness", "keepout", "placement", "fill", "polygon"].includes(headOf(c) ?? ""));
+      insertAt(zone, at < 0 ? zone.children.length : at, cp);
+    } else setOrInsert(cp, "clearance", r6(p.clearance), []);
+  }
+  if (p.minThickness !== undefined) setOrInsert(zone, "min_thickness", r6(p.minThickness), ["filled_areas_thickness", "keepout", "placement", "fill", "polygon", "filled_polygon"]);
+  if (p.thermalGap !== undefined || p.thermalWidth !== undefined || p.islandMode !== undefined || p.islandAreaMin !== undefined) {
+    let fill = findChild(zone, "fill");
+    if (!fill) {
+      fill = list("fill");
+      const at = zone.children.findIndex((c) => ["polygon", "filled_polygon"].includes(headOf(c) ?? ""));
+      insertAt(zone, at < 0 ? zone.children.length : at, fill);
+    }
+    const order = ["mode", "thermal_gap", "thermal_bridge_width", "smoothing", "radius", "island_removal_mode", "island_area_min", "hatch_thickness", "hatch_gap", "hatch_orientation"];
+    const after = (h: string) => order.slice(order.indexOf(h) + 1);
+    if (p.thermalGap !== undefined) setOrInsert(fill, "thermal_gap", r6(p.thermalGap), after("thermal_gap"));
+    if (p.thermalWidth !== undefined) setOrInsert(fill, "thermal_bridge_width", r6(p.thermalWidth), after("thermal_bridge_width"));
+    if (p.islandMode !== undefined) {
+      setOrInsert(fill, "island_removal_mode", p.islandMode, after("island_removal_mode"));
+      // The minimum area goes with "below an area" only.
+      const min = findChild(fill, "island_area_min");
+      if (p.islandMode !== 2 && min) removeChild(fill, min);
+    }
+    const mode = Number(arg(findChild(fill, "island_removal_mode"), 0) ?? 0);
+    if (mode === 2 && (p.islandAreaMin !== undefined || !findChild(fill, "island_area_min"))) setOrInsert(fill, "island_area_min", r6(p.islandAreaMin ?? 10), after("island_area_min"));
+  }
   if (p.connect !== undefined) {
     // KiCad: (connect_pads [yes | no | thru_hole_only] (clearance …)); no keyword is thermal reliefs.
     let cp = findChild(zone, "connect_pads");
