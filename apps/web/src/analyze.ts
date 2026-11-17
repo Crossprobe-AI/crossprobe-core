@@ -281,15 +281,35 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
   }
 
   /** The board's drawing sheet (pcbnew's Page Settings › Drawing sheet), relative to the project. */
+  // Its path may use the project's text variables, as KiCad expands it; ${KIPRJMOD} is the project folder.
   function boardDrawingSheet(): ReturnType<typeof parseDrawingSheet> | undefined {
     try {
-      const wks = String(JSON.parse(files[project] ?? "{}")?.pcbnew?.page_layout_descr_file ?? "").replace(/^\$\{KIPRJMOD\}\//, "");
+      const raw = String(JSON.parse(files[project] ?? "{}")?.pcbnew?.page_layout_descr_file ?? "");
+      const vars = projectTextVariables();
+      const wks = raw
+        .replace(/\$\{([^}]+)\}/g, (m, name: string) => (name === "KIPRJMOD" ? "." : (vars?.[name] ?? m)))
+        .replace(/\\/g, "/")
+        .replace(/^(\.\/)+/, "");
       if (wks && files[dir + wks] !== undefined) return parseDrawingSheet(files[dir + wks]!);
-      if (wks) warnings.push(`board drawing sheet ${wks} not found: the default frame is drawn`);
+      if (wks)
+        warnings.push(
+          /^(\/|[A-Za-z]:)/.test(wks) || wks.includes("${")
+            ? `board drawing sheet ${raw} is outside the project (only the project's own files are read): the default frame is drawn`
+            : `board drawing sheet ${raw} not found: the default frame is drawn`,
+        );
     } catch {
       // An unreadable project file leaves the default frame.
     }
     return undefined;
+  }
+  /** The project's text variables (Project Settings › Text Variables), for drawing sheet texts. */
+  function projectTextVariables(): Record<string, string> | undefined {
+    try {
+      const v = JSON.parse(files[project] ?? "{}")?.text_variables;
+      return v && typeof v === "object" ? (v as Record<string, string>) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   return {
@@ -307,6 +327,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     board,
     boardFile: board ? `${base}.kicad_pcb` : undefined,
     boardDrawingSheet: board ? boardDrawingSheet() : undefined,
+    textVariables: projectTextVariables(),
     projectFile: project,
     clearance,
     boardChecks,
