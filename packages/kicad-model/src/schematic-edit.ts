@@ -635,6 +635,16 @@ function renewUuids(node: List): string {
     const u = findChild(pin, "uuid");
     if (u) setArg(u, 0, str(newUuid()));
   }
+  if (headOf(node) === "table") {
+    // A table's cells have UUIDs of their own; a KiCad 9 table (none of its own) is named by its first cell.
+    const cells = findChildren(findChild(node, "cells") ?? node, "table_cell");
+    for (const cell of cells) {
+      const u = findChild(cell, "uuid");
+      if (u) setArg(u, 0, str(newUuid()));
+    }
+    const first = cells[0] && findChild(cells[0], "uuid");
+    if (!own && first) return `${TABLE_BY_CELL}${String(arg(first, 0))}`;
+  }
   return id;
 }
 
