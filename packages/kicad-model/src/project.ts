@@ -155,7 +155,8 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
       if (!lib) warnings.push(`${sheet.namePath}: missing library symbol ${symbol.libId} for ${reference}`);
       placements.push({ sheet, symbol, reference, unit, lib, value: legacy?.value || undefined });
 
-      if (reference.startsWith("#") || lib?.power) continue;
+      // Power symbols and flags have references starting with #; KiCad lists any other part.
+      if (reference.startsWith("#")) continue;
       let comp = byRef.get(reference);
       if (!comp) {
         comp = {

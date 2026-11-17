@@ -108,7 +108,7 @@ completes a feature.
 | `.kicad_pro` | Partly | Net classes, design-rule minimums, severities, DRC exclusions and the pin conflict map are read and written; other settings are kept, with no way to edit them |
 | New project, open a folder, save in place | Works | Saving in place needs a Chromium browser; others download the changed files. New files are written as KiCad 10 |
 | Unsaved changes survive a reload | Works | |
-| File versions before KiCad 9 | Partly | KiCad 6, 7 and 8 files are read: every file in KiCad's own test data is written back byte for byte, and netlists (of annotated designs) and IPC-D-356 files match KiCad's on them. Editing and saving such files is untested |
+| File versions before KiCad 9 | Works | KiCad 6, 7 and 8 files are read: every file in KiCad's own test data is written back byte for byte, and netlists (of annotated designs) and IPC-D-356 files match KiCad's on them. Edited and saved, all 113 of its files from before KiCad 8 are read by KiCad with every edit, and give KiCad's netlist |
 | KiCad's installed libraries (symbols, footprints, 3D models) | Partly | Served by the dev server or the Docker image; your own path variables are not resolved |
 | Library tables | Partly | Project tables with `${KIPRJMOD}` entries; no table editor |
 | Custom design rules (`.kicad_dru`) | Partly | Read and applied for some constraints (see PCB editor); no editor |
