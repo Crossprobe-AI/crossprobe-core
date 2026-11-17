@@ -8,6 +8,7 @@ export type Role =
   | "noconnect"
   | "dnp"
   | "directive"
+  | "cellHit"
   | "ruleArea"
   | "body"
   | "bodyFill"
@@ -50,7 +51,7 @@ export type Prim =
   | { t: "image"; x: number; y: number; w: number; h: number; href: string };
 
 export interface SchItem {
-  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "directive" | "ruleArea" | "sheet" | "text" | "graphic";
+  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "directive" | "ruleArea" | "cell" | "sheet" | "text" | "graphic";
   prims: Prim[];
   /** Net this item belongs to (wires, labels, pins). */
   net?: string;
@@ -69,6 +70,8 @@ export interface SchItem {
   /** Fields: the field's name and the UUID of the symbol it belongs to (their own `uuid` is "<symbol>#<name>"). */
   field?: string;
   owner?: string;
+  /** Texts and labels with a link (KiCad's href): a web address or "#<page>". */
+  href?: string;
   /** Labels, texts, text boxes and fields: the text as the file has it (what is drawn has its variables replaced). */
   text?: string;
   /** Sheet symbols: the names of their pins, and the page number of the sheet they show (their `text` is its name). */

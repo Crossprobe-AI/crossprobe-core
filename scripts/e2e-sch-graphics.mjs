@@ -1,5 +1,5 @@
 // End-to-end, schematic text and graphics: in a new project a text (T), a text box, lines, a
-// rectangle, a circle, an image (then halved) and an arc are drawn with the schematic tools, then the text is double-clicked and
+// rectangle, a circle, an image (then halved), a table (a cell filled in) and an arc are drawn with the schematic tools, then the text is double-clicked and
 // renamed. KiCad reads the saved schematic and writes the same items back (`sch upgrade`), and its SVG
 // plot shows both texts.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-sch-graphics.mjs <out-dir>
@@ -106,6 +106,41 @@ await page.keyboard.press("Escape");
   await idle();
   await wait(300);
 }
+console.log("-- a table, a cell filled in by double-click");
+await tool("Table");
+globalThis.nextPrompt = "2 x 3";
+await clickSch({ x: 101.6, y: 152.4 });
+await idle();
+await page.keyboard.press("Escape");
+{
+  const cell = await page.evaluate(() => {
+    const g = [...document.querySelectorAll(".viewport.schematic g.i-cell")][4];
+    const r = g.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  globalThis.nextPrompt = "3.3 V";
+  await page.mouse.click(cell.x, cell.y, { count: 2 });
+  await idle();
+  await wait(300);
+}
+{
+  // Dragging a cell moves the whole table.
+  const g = await page.evaluate(() => {
+    const r = [...document.querySelectorAll(".viewport.schematic g.i-cell")][0].getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  const before = await page.evaluate(() => window.__crossprobe.sheet.items.filter((i) => i.kind === "cell").map((i) => i.prims[0].d).join());
+  const scale = await page.evaluate(() => window.__schematicView.toClient({ x: 10, y: 0 }).x - window.__schematicView.toClient({ x: 0, y: 0 }).x);
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x, g.y + 0.635 * scale, { steps: 3 });
+  await page.mouse.move(g.x, g.y + 1.27 * scale, { steps: 3 });
+  await page.mouse.up();
+  await idle();
+  await wait(300);
+  const after = await page.evaluate(() => window.__crossprobe.sheet.items.filter((i) => i.kind === "cell").map((i) => i.prims[0].d).join());
+  expect(after !== before && (await page.evaluate(() => window.__crossprobe.sheet.items.filter((i) => i.kind === "cell").length)) === 6, "dragging a cell moves the whole table");
+}
 await tool("Arc");
 await clickSch({ x: 190.5, y: 101.6 });
 await clickSch({ x: 215.9, y: 101.6 });
@@ -134,6 +169,7 @@ expect(count(/\(text "Power input"/g) === 1 && !ours.includes("Power stage"), "t
 expect(count(/\(text_box "Keep C1 close to U1"/g) === 1, "a text box");
 expect(count(/\(polyline/g) === 1 && count(/\(rectangle/g) === 1 && count(/\(circle/g) === 1 && count(/\(arc/g) === 1, `lines, rectangle, circle and arc (polyline ${count(/\(polyline/g)}, rectangle ${count(/\(rectangle/g)}, circle ${count(/\(circle/g)}, arc ${count(/\(arc/g)})`);
 const k = await kinds();
+expect(count(/\(table\b/g) === 1 && count(/\(table_cell\b/g) === 6 && /\(table_cell "3\.3 V"/.test(ours), "a 2 × 3 table, one cell filled in");
 expect(count(/\(image\b/g) === 1 && /\(scale 0\.5\)/.test(ours), "an image, at half size");
 expect(k.text >= 2 && k.graphic >= 4, `drawn items: ${JSON.stringify(k)}`);
 

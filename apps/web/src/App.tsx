@@ -467,6 +467,7 @@ export function App() {
         projectName: project.name,
         sheetPathsOf: (file: string) => project.sheets.filter((s) => s.file === file).map((s) => s.path),
         blockExists: (lib: string, name: string) => project.projectBlocks.some((b) => b.lib === lib && b.name === name),
+        pagePath: (page: string) => project.sheets.find((s) => s.page === page)?.path,
         references: project.references,
         placing,
         // Placing further units: on to the next one, and back to select after the last.
@@ -1144,6 +1145,7 @@ export function App() {
                         ["netclass", "Net class", "", "netClass"],
                         ["rulearea", "Rule area", "", "ruleArea"],
                         ["image", "Image", "", "image"],
+                        ["table", "Table", "", "table"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],
