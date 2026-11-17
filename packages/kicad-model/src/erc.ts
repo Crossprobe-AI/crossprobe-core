@@ -55,6 +55,7 @@ export type ErcType =
   | "field_name_whitespace"
   | "similar_label_and_power"
   | "similar_power"
+  | "undefined_netclass"
   | "duplicate_reference";
 
 export interface ErcItem {
@@ -83,6 +84,8 @@ export interface ErcOptions {
   pinMap?: number[][];
   /** Connection grid in mm (KiCad's default is 50 mil = 1.27 mm). */
   gridMm?: number;
+  /** The project's net classes (names); a directive naming another is an error. Unknown: not checked. */
+  netClasses?: string[];
 }
 
 // KiCad's pin type order for the conflict matrix.
@@ -127,7 +130,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
   missing_unit: "warning", missing_input_pin: "warning", missing_bidi_pin: "warning", missing_power_pin: "error", different_unit_footprint: "error",
   duplicate_sheet_names: "error", same_local_global_label: "warning", unresolved_variable: "error",
-  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning",
+  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning", undefined_netclass: "error",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -136,12 +139,14 @@ export function projectErcSettings(kicadPro: string): ErcOptions {
     const json = JSON.parse(kicadPro) as {
       erc?: { rule_severities?: Record<string, Severity>; pin_map?: number[][] };
       schematic?: { connection_grid_size?: number };
+      net_settings?: { classes?: Array<{ name?: string }> };
     };
     const grid = json.schematic?.connection_grid_size;
     return {
       severities: json.erc?.rule_severities,
       pinMap: json.erc?.pin_map?.length === 12 ? json.erc.pin_map : undefined,
       gridMm: grid ? grid * 0.0254 : undefined,
+      netClasses: Array.isArray(json.net_settings?.classes) ? json.net_settings.classes.map((c) => String(c?.name ?? "")).filter(Boolean) : undefined,
     };
   } catch {
     return {};
@@ -198,6 +203,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   checkSingleGlobalLabels(schematic, report);
   checkSimilarNames(schematic, netlist, report);
   checkFieldNames(schematic, report);
+  if (options.netClasses) checkNetClassNames(schematic, new Set([...options.netClasses, "Default"]), report);
   checkDuplicateReferences(schematic, report);
   return out;
 }
@@ -580,6 +586,23 @@ function checkSimilarNames(schematic: Schematic, netlist: Netlist, report: Repor
         else if (powers === 1) report("similar_label_and_power", a.sheet, "Power pin and label are similar (lower/upper case difference only)", [a.item, b.item]);
         else report("similar_labels", a.sheet, "Labels are similar (lower/upper case difference only)", [a.item, b.item]);
       }
+    }
+  }
+}
+
+/** Directives and labels naming a net class the project doesn't have. */
+function checkNetClassNames(schematic: Schematic, known: Set<string>, report: Report) {
+  const names = (fields?: Record<string, string>) => (fields?.["Netclass"] ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+  const files = new Set<string>();
+  for (const sheet of schematic.sheets) {
+    if (files.has(sheet.file)) continue;
+    files.add(sheet.file);
+    for (const d of sheet.data.directives) {
+      for (const n of names(d.fields)) if (!known.has(n)) report("undefined_netclass", sheet, `Netclass ${n} is not defined`, [{ description: `Directive Label [Net Class ${n}]`, at: d.at }]);
+    }
+    for (const l of sheet.data.labels) {
+      const kind = l.kind === "global" ? "Global Label" : l.kind === "hierarchical" ? "Hierarchical Label" : "Label";
+      for (const n of names(l.fields)) if (!known.has(n)) report("undefined_netclass", sheet, `Netclass ${n} is not defined`, [{ description: `${kind} '${l.text}'`, at: l.at }]);
     }
   }
 }

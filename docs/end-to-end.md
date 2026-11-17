@@ -503,3 +503,14 @@ settings, with brackets. The root's label lists [2,3], the two instances of the 
 [1,3] and [1,2]; the setting is saved in the project file, and KiCad's plot of the saved project
 shows the same lists. `test/intersheet-refs.test.ts` checks four variants of the setting
 against KiCad's plots.
+
+## Net classes in the schematic
+
+`scripts/e2e-netclass.mjs` adds a "Fast" class to KiCad's pic_programmer demo, then:
+- puts a directive for it on a wire with the Net class tool;
+- draws a rule area across another wire with the Rule area tool, for "Fast" too;
+- changes the directive's class to "Slow" by double-clicking it (not in the project: ERC says so).
+
+The project file keeps each net's classes as KiCad does, and KiCad's netlist of the saved
+project gives the two nets "Slow,Default" and "Fast". `test/netclass-directives.test.ts`
+checks the classes on KiCad's jetson and royalblue demos against those KiCad saved.

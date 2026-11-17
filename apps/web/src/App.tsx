@@ -472,6 +472,7 @@ export function App() {
         nextPage: project.sheets.length + 1,
         hierLabelsOf: (path: string) => [...new Set((project.sheets.find((s) => s.path === path)?.items ?? []).filter((i) => i.kind === "label" && i.prims.some((p) => p.t !== "image" && p.role === "labelHier")).map((i) => i.text ?? ""))],
         fileExists: (file: string) => project.sheets.some((s) => s.file === file),
+        netClasses: project.designRules?.classes.map((c) => c.name),
       },
     [project, placing, placingBlock],
   );
@@ -1128,6 +1129,8 @@ export function App() {
                         ["rect", "Rectangle", "", "drawRect"],
                         ["circle", "Circle", "", "drawCircle"],
                         ["arc", "Arc", "", "drawArc"],
+                        ["netclass", "Net class", "", "netClass"],
+                        ["rulearea", "Rule area", "", "ruleArea"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],

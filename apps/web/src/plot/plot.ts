@@ -14,6 +14,8 @@ const SCH: Record<Role, string> = {
   junction: "#009600",
   noconnect: "#0000ff",
   dnp: "#dc090d",
+  directive: "#5c3c00",
+  ruleArea: "#4a5a8c",
   body: "#840000",
   bodyFill: "#ffffc2",
   pin: "#840000",
