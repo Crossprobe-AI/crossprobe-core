@@ -40,9 +40,15 @@ export function sheetRoot(doc: Document): List {
 // A rule area keeps its UUID on its outline.
 const uuidOf = (node: List) => String(arg(findChild(node, "uuid") ?? findChild(findChild(node, "polyline") ?? node, "uuid"), 0) ?? "");
 
-/** A top-level item (symbol, wire, label, junction, …) by its UUID. */
+/** A top-level item (symbol, wire, label, junction, …) by its UUID, or a table's cell by its own. */
 export function findItem(root: List, uuid: string): List | undefined {
-  return root.children.find((c): c is List => isList(c) && uuidOf(c) === uuid);
+  const top = root.children.find((c): c is List => isList(c) && uuidOf(c) === uuid);
+  if (top || !uuid) return top;
+  for (const t of findChildren(root, "table")) {
+    const cell = findChildren(findChild(t, "cells") ?? t, "table_cell").find((c) => uuidOf(c) === uuid);
+    if (cell) return cell;
+  }
+  return undefined;
 }
 
 /** KiCad schematic coordinates are 100 nm units: keep edits on that grid. */
@@ -71,6 +77,9 @@ export function moveItem(node: List, dx: number, dy: number): void {
       return;
     case "arc":
       for (const k of ["start", "mid", "end"]) shiftAt(findChild(node, k), dx, dy);
+      return;
+    case "table":
+      for (const c of findChildren(findChild(node, "cells") ?? node, "table_cell")) shiftAt(findChild(c, "at"), dx, dy);
       return;
     case "rule_area":
       for (const xy of findChildren(findChild(findChild(node, "polyline") ?? node, "pts") ?? node, "xy")) shiftAt(xy, dx, dy);
@@ -866,4 +875,49 @@ export function setImageScale(node: List, scale: number): void {
   const s = findChild(node, "scale");
   if (s) setArg(s, 0, scale);
   else insertAt(node, node.children.indexOf(findChild(node, "at")!) + 1, list("scale", scale));
+}
+
+/**
+ * A table of `rows` × `cols` cells, its top-left corner at `at`, as KiCad writes one: an outside
+ * border, a line under the header row, lines between rows and columns, text in each cell (row by
+ * row; missing ones empty).
+ */
+export function addTable(root: List, at: Point, rows: number, cols: number, texts: string[][] = [], o: { colWidth?: number; rowHeight?: number } = {}): string {
+  const id = newUuid();
+  const cw = o.colWidth ?? 22.86;
+  const rh = o.rowHeight ?? 5.08;
+  const x0 = snapIU(at.x);
+  const y0 = snapIU(at.y);
+  const stroke = () => list("stroke", list("width", 0), list("type", "solid"));
+  const cells = list("cells");
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      cells.children.push(
+        list(
+          "table_cell",
+          str(texts[r]?.[c] ?? ""),
+          list("exclude_from_sim", "no"),
+          list("at", snapIU(x0 + c * cw), snapIU(y0 + r * rh), 0),
+          list("size", cw, rh),
+          list("margins", 0.9525, 0.9525, 0.9525, 0.9525),
+          list("span", 1, 1),
+          list("fill", list("type", "none")),
+          list("effects", list("font", list("size", 1.27, 1.27)), list("justify", "left", "top")),
+          list("uuid", str(newUuid())),
+        ),
+      );
+    }
+  }
+  const node = list(
+    "table",
+    list("column_count", cols),
+    list("border", list("external", "yes"), list("header", "yes"), stroke()),
+    list("separators", list("rows", "yes"), list("cols", "yes"), stroke()),
+    list("column_widths", ...Array.from({ length: cols }, () => cw)),
+    list("row_heights", ...Array.from({ length: rows }, () => rh)),
+    list("uuid", str(id)),
+    cells,
+  );
+  insertTopLevel(root, node);
+  return id;
 }

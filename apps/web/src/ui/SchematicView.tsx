@@ -83,7 +83,7 @@ async function toPngBase64(file: File): Promise<string | undefined> {
 
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label", "directive", "ruleArea"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "image" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "image" | "table" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -158,6 +158,7 @@ const Item = memo(function Item({
       data-ref={item.ref}
       data-sheet={item.sheetPath}
       data-uuid={item.uuid}
+      data-owner={item.owner}
       transform={offset ? `translate(${offset.dx} ${offset.dy})` : undefined}
     >
       {item.prims.map((p, i) => (
@@ -497,6 +498,12 @@ export function SchematicView({
         if (text) onEdit?.([{ op: "addSchText", file: sheet.file, text, at: p0 }]);
         return;
       }
+      if (tool === "table") {
+        const size = window.prompt("Rows × columns", "3 x 3");
+        const m = size && /^\s*(\d+)\s*[x×*,\s]\s*(\d+)\s*$/i.exec(size);
+        if (m && Number(m[1]) > 0 && Number(m[2]) > 0) onEdit?.([{ op: "addTable", file: sheet.file, at: p0, rows: Math.min(100, Number(m[1])), cols: Math.min(30, Number(m[2])) }]);
+        return;
+      }
       if (tool === "image") {
         // The browser asks for the file; the image goes where the sheet was clicked.
         imageAt.current = p0;
@@ -628,14 +635,17 @@ export function SchematicView({
         }
         return;
       }
-      if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text"))) {
+      if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text") || it.classList.contains("i-cell"))) {
         // The text as written: what is drawn has its ${VARIABLES} replaced.
         const now = sheet.items.find((i) => i.uuid === id)?.text ?? it.textContent ?? "";
         const text = window.prompt("Text", now);
         if (text && text !== now) onEdit?.([{ op: "setText", file: sheet.file, uuid: id, text }]);
         return;
       }
+      // A table's cell selects its table (double-click above edits the cell).
+      const pickId = it?.classList.contains("i-cell") ? it.dataset.owner : id;
       setPicked((prev) => {
+        const id = pickId;
         if (!id) return new Set();
         if (e.shiftKey) {
           const next = new Set(prev);
@@ -670,8 +680,9 @@ export function SchematicView({
     }
     if (editing && tool === "select" && e.button === 0) {
       const it = itemAt(hitElement(e));
-      const id = it?.dataset.uuid;
-      const kind = it?.getAttribute("class")?.match(/i-(\w+)/)?.[1] as SchItem["kind"] | undefined;
+      const id = it?.classList.contains("i-cell") ? it.dataset.owner : it?.dataset.uuid;
+      // Dragging a cell drags its table.
+      const kind = it?.classList.contains("i-cell") ? "graphic" : (it?.getAttribute("class")?.match(/i-(\w+)/)?.[1] as SchItem["kind"] | undefined);
       if (id && kind && MOVABLE.has(kind)) {
         if (!picked.has(id)) setPicked(e.shiftKey ? new Set([...picked, id]) : new Set([id]));
         setDrag({ start: toSheet(e), dx: 0, dy: 0 });
@@ -948,6 +959,7 @@ export function SchematicView({
           {tool === "line" && (draw.length ? "Click the next corner · double-click or Enter to finish · Esc cancels" : "Click to start lines")}
           {tool === "netclass" && "Click a wire to give its net a net class"}
           {tool === "image" && "Click where the image goes (its centre), then pick a picture"}
+          {tool === "table" && "Click where the table's top-left corner goes · double-click a cell to fill it in"}
           {tool === "select" && pickedImage && (
             <label className="hint-option">
               {" · size "}

@@ -761,6 +761,8 @@ button.link:hover {
 .r-directive { stroke: var(--sch-directive); }
 .schematic text.r-directive { fill: var(--sch-directive); }
 .r-ruleArea { stroke: var(--sch-rule-area); }
+/* A table cell's click area: not drawn. */
+.r-cellHit.fill { fill: transparent; stroke: none; }
 .r-body { stroke: var(--sch-body); --w: 0.254px; }
 .r-body.fill { fill: var(--sch-body); stroke: none; }
 .r-bodyFill.fill { fill: var(--sch-body-fill); stroke: none; }

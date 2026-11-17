@@ -8,6 +8,7 @@ export type Role =
   | "noconnect"
   | "dnp"
   | "directive"
+  | "cellHit"
   | "ruleArea"
   | "body"
   | "bodyFill"
@@ -48,7 +49,7 @@ export type Prim =
   | { t: "image"; x: number; y: number; w: number; h: number; href: string };
 
 export interface SchItem {
-  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "directive" | "ruleArea" | "sheet" | "text" | "graphic";
+  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "directive" | "ruleArea" | "cell" | "sheet" | "text" | "graphic";
   prims: Prim[];
   /** Net this item belongs to (wires, labels, pins). */
   net?: string;

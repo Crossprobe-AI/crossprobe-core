@@ -15,6 +15,7 @@ const SCH: Record<Role, string> = {
   noconnect: "#0000ff",
   dnp: "#dc090d",
   directive: "#5c3c00",
+  cellHit: "none",
   ruleArea: "#4a5a8c",
   body: "#840000",
   bodyFill: "#ffffc2",
@@ -115,7 +116,7 @@ export function sheetSvg(sheet: SheetView, o: SchPlotOptions = {}): string {
   const color = (r: Role) => (o.blackAndWhite ? (r === "bodyFill" ? "none" : "#000") : SCH[r]);
   const body = sheet.items
     .filter((it) => !(o.noFrame && it.kind === "graphic" && it.prims.some((p) => "role" in p && p.role === "frame")))
-    .map((it) => it.prims.map((p) => prim(p, color, o.strokeText)).join(""))
+    .map((it) => it.prims.filter((p) => !("role" in p && p.role === "cellHit")).map((p) => prim(p, color, o.strokeText)).join(""))
     .join("\n");
   const { w, h } = sheet.paper;
   const bg = o.background ?? "#fff";
