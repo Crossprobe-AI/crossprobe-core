@@ -125,6 +125,12 @@ await page.waitForFunction(() => document.querySelector(".sym-editor .fpe-side h
 await sideField("Type", "open_collector");
 v = await symView();
 expect(v.pins.find((p) => p.number === "6").type === "open_collector", `pin 6 type ${v.pins.find((p) => p.number === "6").type}`);
+globalThis.nextPrompt = "INT_N";
+await page.evaluate(() => [...document.querySelectorAll(".sym-editor .pin-alternates button")].find((b) => b.textContent.includes("Alternate function"))?.click());
+await idle();
+await wait(200);
+v = await symView();
+expect(JSON.stringify(v.pins.find((p) => p.number === "6").alternates) === JSON.stringify([{ name: "INT_N", type: "open_collector", shape: "line" }]), `pin 6 can also be INT_N: ${JSON.stringify(v.pins.find((p) => p.number === "6").alternates)}`);
 expect(v.fields.Footprint === "Package_TO_SOT_SMD:SOT-23-6", `footprint field ${v.fields.Footprint}`);
 expect(await page.evaluate(() => [...document.querySelectorAll(".sym-editor .fpe-side")].some((s) => s.textContent.includes("Checks: all clear")) || true), "checks");
 await shot("1-symbol");
@@ -144,6 +150,7 @@ await page.keyboard.press("Escape");
 let p = await proj();
 const u1 = p.components.find((c) => c.libId === "symdemo:MYAMP1");
 expect(!!u1 && u1.footprint === "Package_TO_SOT_SMD:SOT-23-6", `placed: ${p.components.map((c) => `${c.reference} ${c.libId} ${c.footprint}`).join(", ")}`);
+expect(JSON.stringify(u1.pinAlternates) === JSON.stringify([{ pin: "6", name: "FAULT", alternates: ["INT_N"] }]), `the placed part offers pin 6's alternate: ${JSON.stringify(u1.pinAlternates)}`);
 
 step("edit it again from the part, add a pin, update the schematic");
 await page.evaluate(() => [...document.querySelectorAll(".tabs [role=tab]")].find((b) => b.textContent.includes("Parts"))?.click());

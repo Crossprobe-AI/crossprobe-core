@@ -264,7 +264,18 @@ export interface NewPin {
   angle: 0 | 90 | 180 | 270;
   length?: number;
   hidden?: boolean;
+  /** Other functions a placed symbol can switch the pin to (I2C's SDA on a GPIO pin): they replace the pin's list. */
+  alternates?: PinAlternate[];
 }
+
+export interface PinAlternate {
+  name: string;
+  type: PinType;
+  shape: PinShape;
+}
+
+/** Alternates in KiCad's order: by name, as plain character codes. */
+const byName = (list: PinAlternate[]) => [...list].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 /** Add a pin to a unit (1 unless given), in every body style. */
 export function addSymPin(s: List, p: NewPin, unit = 1): void {
@@ -277,6 +288,7 @@ export function addSymPin(s: List, p: NewPin, unit = 1): void {
     ...(p.hidden ? [list("hide", sym("yes"))] : []),
     list("name", str(p.name || "~"), font()),
     list("number", str(p.number), font()),
+    ...byName(p.alternates ?? []).map((a) => list("alternate", str(a.name), sym(a.type), sym(a.shape))),
   );
   for (let st = 1; st <= symbolUnits(s).styles; st++) {
     const u = unitNode(s, unit, st);
@@ -299,6 +311,11 @@ function setOnePin(pin: List, p: Partial<Omit<NewPin, "at">>): void {
     const h = findChild(pin, "hide");
     if (p.hidden && !h) insertAt(pin, pin.children.indexOf(findChild(pin, "length")!) + 1, list("hide", sym("yes")));
     if (!p.hidden && h) removeChild(pin, h);
+  }
+  if (p.alternates) {
+    // KiCad writes them last, after the number, sorted by name.
+    for (const a of findChildren(pin, "alternate")) removeChild(pin, a);
+    for (const a of byName(p.alternates)) insertAt(pin, pin.children.length, list("alternate", str(a.name), sym(a.type), sym(a.shape)));
   }
 }
 
@@ -501,6 +518,7 @@ export interface SymbolPinView {
   angle: number;
   length: number;
   hidden: boolean;
+  alternates: PinAlternate[];
 }
 
 export interface SymbolGraphicView {
@@ -552,6 +570,7 @@ export function describeSymbol(s: List): SymbolView {
       angle: Number(arg(a, 2) ?? 0),
       length: Number(arg(findChild(p, "length"), 0) ?? 2.54),
       hidden: !!findChild(p, "hide") || p.children.some((c) => isAtom(c) && c.raw === "hide"),
+      alternates: findChildren(p, "alternate").map((a) => ({ name: String(arg(a, 0) ?? ""), type: String(arg(a, 1) ?? "input") as PinType, shape: String(arg(a, 2) ?? "line") as PinShape })),
     };
   });
   const graphics = symGraphics(s).map((g, index): SymbolGraphicView => {

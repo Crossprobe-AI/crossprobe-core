@@ -3383,3 +3383,21 @@ button.sb-checks:hover {
   font-size: 12px;
   padding: 0 4px;
 }
+.pin-alternates {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.pin-alternate-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 4px;
+  align-items: center;
+}
+.pin-alternate-row .prop {
+  grid-template-columns: 0 1fr;
+  gap: 0;
+}
+.pin-alternate-row select {
+  max-width: 96px;
+}

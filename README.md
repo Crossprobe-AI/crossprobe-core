@@ -131,7 +131,7 @@ completes a feature.
 | Placing symbols from project and KiCad libraries | Works | |
 | Multi-unit symbols | Works | |
 | Body styles (De Morgan) | Works | Made in the symbol editor; a placed symbol is switched in the inspector |
-| Alternate pin functions | Works | A placed symbol's pin is switched in the inspector; the sheet, ERC and netlist follow. Alternates can't be defined in the symbol editor |
+| Alternate pin functions | Works | Defined per pin in the symbol editor (name, type, shape); a placed symbol's pin is switched in the inspector, and the sheet, ERC and netlist follow |
 | Move, rotate, mirror, delete, box select, copy, paste, duplicate | Works | Its own clipboard: not the system's, not between projects |
 | Undo and redo | Works | |
 | Fields, and the symbol fields table | Works | A field on the sheet is dragged, turned (R) and edited (double-click) on its own, and shown or hidden in the inspector. No font or justification settings, no autoplace; no BOM presets |
@@ -200,7 +200,8 @@ completes a feature.
 | Symbols: pins (all electrical types and shapes), pin table, body graphics, fields | Works | Beziers are view only |
 | Symbols: units, unit names, body styles, jumper pin groups, power symbols | Works | |
 | Symbols: update placed symbols from the library | Works | Wires on moved pins are not re-attached |
-| Symbols: derived symbols, alternate pin functions, import and export | No | Derived symbols in existing libraries are read |
+| Symbols: alternate pin functions | Works | Name, electrical type and shape per alternate |
+| Symbols: derived symbols, import and export | No | Derived symbols in existing libraries are read |
 | Footprints: pads singly, in rows and in grids; move, rotate, mirror, renumber | Works | Compared with KiCad's result |
 | Footprints: pad types and shapes | Partly | SMD, through-hole and NPTH; rectangle, rounded rectangle, circle, oval, custom polygon. No trapezoid, chamfered or slotted pads |
 | Footprints: mask and paste overrides, paste windows | Works | |
