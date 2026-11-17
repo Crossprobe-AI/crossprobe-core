@@ -337,6 +337,8 @@ export type EditOp =
       /** Delete a net class (and its patterns); its nets fall back to the others or Default. */
       removeClass?: string;
     }
+  /** ERC exclusions in the project file (erc.erc_exclusions): add one with its comment, or take entries out. */
+  | { op: "setErcExclusions"; file: string; exclude?: { entry: string; comment: string }; include?: string[] }
   /** The project file's schematic formatting (schematic.drawing), KiCad's key names. */
   | { op: "setSchematicDrawing"; file: string; drawing: Record<string, boolean | string | number> }
   | { op: "addBoardText"; file: string; text: NewBoardText }
@@ -496,6 +498,7 @@ export function describeOp(op: EditOp): string {
     case "autoroute": return op.connections.length === 1 ? `Autoroute ${op.connections[0]!.net}` : `Autoroute ${op.connections.length} connections`;
     case "setProjectRules": return op.exclude ? "Exclude DRC finding" : op.include ? "Include DRC finding" : op.removeClass ? `Remove net class ${op.removeClass}` : op.classPatterns ? `Nets of ${op.classPatterns.name}` : "Board setup";
     case "setSchematicDrawing": return "Schematic formatting";
+    case "setErcExclusions": return op.exclude ? "Exclude ERC finding" : "Include ERC finding";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
     case "teardrops": return op.remove ? "Remove teardrops" : "Teardrops";
     case "addDimension": return "Add dimension";
@@ -595,6 +598,18 @@ export class Editor {
       }
       if (op.op === "setRequirements") {
         changed[op.file] = serializeRequirements(op.requirements);
+        continue;
+      }
+      if (op.op === "setErcExclusions") {
+        const text = changed[op.file] ?? files[op.file];
+        if (text === undefined) throw new Error(`No such file: ${op.file}`);
+        const pro = JSON.parse(text) as { erc?: { erc_exclusions?: unknown[] } };
+        pro.erc ??= {};
+        const entryOf = (e: unknown) => String(Array.isArray(e) ? e[0] : e);
+        let list = (pro.erc.erc_exclusions ?? []).filter((e) => !op.include?.includes(entryOf(e)));
+        if (op.exclude && !list.some((e) => entryOf(e) === op.exclude!.entry)) list = [...list, [op.exclude.entry, op.exclude.comment]];
+        pro.erc.erc_exclusions = list;
+        changed[op.file] = JSON.stringify(pro, null, 2) + "\n";
         continue;
       }
       if (op.op === "setSchematicDrawing") {

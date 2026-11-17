@@ -33,6 +33,7 @@ import {
   type Board,
   type ParityFinding,
   unitPins,
+  isErcExcluded,
 } from "@crossprobe/kicad-model";
 import { evidenceFileName, parseEvidence } from "./datasheet/evidence";
 import { parseRequirements, requirementsFileName } from "./requirements/requirements";
@@ -74,6 +75,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
   let clearance: ClearanceViolation[] = [];
   let boardChecks: BoardViolation[] = [];
   const drcExcluded: ProjectView["drcExcluded"] = [];
+  const ercExcluded: ProjectView["ercExcluded"] = [];
   const netClasses: ProjectView["netClasses"] = {};
   const rules = projectDesignRules(files[project]);
   const druText = files[`${base}.kicad_dru`];
@@ -195,7 +197,12 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
 
     const pro = files[project];
     try {
-      erc = runErc(schematic, netlist, pro ? projectErcSettings(pro) : {});
+      const settings = pro ? projectErcSettings(pro) : {};
+      const entries = (settings.exclusions ?? []).map((x) => x.entry);
+      for (const v of runErc(schematic, netlist, settings)) {
+        if (!isErcExcluded(v, entries)) erc.push(v);
+        else ercExcluded.push({ ...v, entries: entries.filter((e) => isErcExcluded(v, [e])), comment: settings.exclusions!.find((x) => isErcExcluded(v, [x.entry]))?.comment ?? "" });
+      }
     } catch (e) {
       warnings.push(`ERC: ${(e as Error).message}`);
     }
@@ -267,6 +274,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     clearance,
     boardChecks,
     drcExcluded,
+    ercExcluded,
     customRules: druText !== undefined,
     unsupportedRules,
     netClasses,

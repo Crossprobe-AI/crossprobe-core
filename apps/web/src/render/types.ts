@@ -149,6 +149,8 @@ export interface ProjectView {
   board?: Board;
   parity: ParityFinding[];
   erc: ErcViolation[];
+  /** ERC findings the project excludes, with the exclusion entries that match them and the comment. */
+  ercExcluded: Array<ErcViolation & { entries: string[]; comment: string }>;
   /** Missing connections on the board (ratsnest). */
   unconnected: Unconnected[];
   /** Every symbol definition embedded in the project's sheets: the parts available to place. */
