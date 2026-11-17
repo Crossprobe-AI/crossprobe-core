@@ -56,3 +56,4 @@ export * from "./textbox.js";
 export * from "./drc-length.js";
 export * from "./library-parity.js";
 export * from "./drc-diffpair.js";
+export * from "./page-frame.js";
