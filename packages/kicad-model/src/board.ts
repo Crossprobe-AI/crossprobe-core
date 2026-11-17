@@ -153,6 +153,14 @@ export interface BoardText {
   keepUpright?: boolean;
 }
 
+export interface BoardGroup {
+  uuid: string;
+  name: string;
+  locked?: boolean;
+  /** Member UUIDs: footprints, tracks, vias, zones, drawings, texts, or other groups. */
+  members: string[];
+}
+
 export interface Track {
   uuid: string;
   locked?: boolean;
@@ -262,6 +270,8 @@ export interface Board {
   /** Board-level graphics on all layers. */
   drawings: Graphic[];
   texts: BoardText[];
+  /** Groups (KiCad's (group …)): members by UUID, which may be other groups. */
+  groups: BoardGroup[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
   setup: { maskMargin: number; pasteMargin: number; pasteRatio: number; tentFront: boolean; tentBack: boolean; allowMaskBridgesInFootprints?: boolean; /** Drill/place origin (fab outputs' 0,0 when used). */ auxOrigin?: Point; /** Grid origin (Position Relative's reference). */ gridOrigin?: Point };
   warnings: string[];
@@ -769,6 +779,7 @@ export function parseBoard(source: string): Board {
     outline: [],
     drawings: [],
     texts: [],
+    groups: [],
     setup: { maskMargin: 0, pasteMargin: 0, pasteRatio: 0, tentFront: true, tentBack: true },
     warnings: doc.diagnostics.map((d) => `${d.line}:${d.column}: ${d.message}`),
   };
@@ -903,6 +914,14 @@ export function parseBoard(source: string): Board {
         });
         break;
       }
+      case "group":
+        board.groups.push({
+          uuid: itemUuid(node),
+          name: str(node, 0),
+          locked: isLocked(node) || undefined,
+          members: (findChild(node, "members")?.children.slice(1) ?? []).filter(isAtom).map(atomText),
+        });
+        break;
       case "gr_text":
         if (!isHidden(node)) board.texts.push({ ...textOf(node, str(node, 0), (p) => p), uuid: itemUuid(node) });
         break;
