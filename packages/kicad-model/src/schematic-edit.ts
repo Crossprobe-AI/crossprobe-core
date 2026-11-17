@@ -30,6 +30,29 @@ import type { Point } from "./geometry.js";
 
 export type NewLabelKind = "label" | "global_label" | "hierarchical_label";
 
+/** A sheet file's format version (its `(version …)`; KiCad 6's files are 2021…). */
+export function sheetVersion(root: List): number {
+  return Number(arg(findChild(root, "version"), 0) ?? 0) || 0;
+}
+
+/**
+ * The first version of KiCad's schematic format that has each kind of item. A sheet saved by an
+ * older KiCad keeps its version when edited here, and that KiCad refuses a file with an item it
+ * doesn't know, so such items are refused on it.
+ */
+export const SHEET_FEATURE_VERSION = {
+  directive: { version: 20220124, kicad: "KiCad 7", what: "Net class directives" },
+  table: { version: 20240101, kicad: "KiCad 8", what: "Tables" },
+  rule_area: { version: 20240417, kicad: "KiCad 9", what: "Rule areas" },
+} as const;
+
+/** Throw if the sheet's file version is too old for this kind of item. */
+export function requireSheetVersion(root: List, feature: keyof typeof SHEET_FEATURE_VERSION): void {
+  const v = sheetVersion(root);
+  const f = SHEET_FEATURE_VERSION[feature];
+  if (v && v < f.version) throw new Error(`${f.what} need a sheet saved by ${f.kicad} or later; this one is from an older KiCad. Open and save it in a newer KiCad first.`);
+}
+
 /** The `(kicad_sch …)` root of a parsed sheet file. */
 export function sheetRoot(doc: Document): List {
   const root = doc.children.find((c): c is List => isList(c) && headOf(c) === "kicad_sch");
@@ -489,6 +512,7 @@ export function addLabel(root: List, kind: NewLabelKind, text: string, at: Point
  * At 0° the stub points up.
  */
 export function addDirective(root: List, at: Point, netclass: string, angle = 0): string {
+  requireSheetVersion(root, "directive");
   const id = newUuid();
   const p = { x: snapIU(at.x), y: snapIU(at.y) };
   // The field sits past the stub's end, reading away from the wire.
@@ -513,6 +537,7 @@ export function addDirective(root: List, at: Point, netclass: string, angle = 0)
 
 /** A rule area: a closed outline (its directives go on the outline, with addDirective). */
 export function addRuleArea(root: List, points: Point[]): string {
+  requireSheetVersion(root, "rule_area");
   const id = newUuid();
   const node = list(
     "rule_area",
