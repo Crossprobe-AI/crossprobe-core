@@ -138,7 +138,7 @@ completes a feature.
 | DNP, exclude from BOM, exclude from board, exclude from simulation | Works | A part not populated is crossed out, on the sheet and in plots |
 | Annotation | Works | The whole schematic or one sheet; new parts only or all, by X or Y; from a start number or the sheet number × 100 or × 1000; clear annotation. No selection scope |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
-| Text, text boxes, lines, rectangles, circles | Works | No font or style settings; arcs and beziers are view only |
+| Text, text boxes, lines, rectangles, circles, arcs | Works | No font or style settings; beziers are view only |
 | Images | View only | |
 | Tables, rule areas, net class directives, hyperlinks, intersheet references | No | |
 | Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |

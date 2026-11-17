@@ -384,7 +384,7 @@ bus findings.
 
 `scripts/e2e-sch-graphics.mjs` draws notes in a new project:
 - a text (T) and a text box;
-- lines, a rectangle and a circle;
+- lines, a rectangle, a circle and an arc (start, end, a point it passes through);
 - then a double-click on the text renames it.
 
 KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both texts.
