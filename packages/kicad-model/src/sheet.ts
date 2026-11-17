@@ -136,6 +136,7 @@ export interface SheetPin {
   name: string;
   shape: string;
   at: Point;
+  uuid?: string;
 }
 
 export interface SheetRef {
@@ -441,6 +442,7 @@ export function parseSheetFile(source: string): SheetFile {
             name: text(p, 0),
             shape: text(p, 1),
             at: point(findChild(p, "at")),
+            ...(text(findChild(p, "uuid")) && { uuid: text(findChild(p, "uuid")) }),
           })),
         });
         break;
