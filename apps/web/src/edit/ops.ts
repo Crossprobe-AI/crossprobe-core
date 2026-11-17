@@ -7,6 +7,8 @@ import { applyEvidence } from "../datasheet/evidence";
 import { serializeRequirements } from "../requirements/requirements";
 import { arg, findChild, findChildren, format, headOf, insertAt, isList, parse, removeChild, serialize, type Document, type List } from "@crossprobe/kicad-sexpr";
 import {
+  createBoardArray,
+  type ArrayOptions,
   addJunction,
   addLabel,
   addNoConnect,
@@ -253,6 +255,8 @@ export type EditOp =
   | { op: "setLocked"; file: string; uuids: string[]; locked: boolean }
   /** Copies of board items `uuids`, moved by (dx, dy); `fresh[i]` is the new UUID of copy i. */
   | { op: "boardDuplicate"; file: string; uuids: string[]; fresh: string[]; dx: number; dy: number }
+  /** KiCad's Create Array: copies in a grid or circle (references renumbered unless kept), or the items themselves laid out. */
+  | { op: "boardArray"; file: string; uuids: string[]; options: ArrayOptions; reannotate: boolean; arrange: boolean }
   /** A dimension (aligned, or orthogonal: horizontal unless `vertical`) between two points, `height` from them. */
   | { op: "addDimension"; file: string; start: Point; end: Point; height: number; layer: string; orthogonal?: boolean; vertical?: boolean }
   /** Teardrops at every track-to-pad/via joint (replacing any there were), or none with `remove`; follow with refillZones. */
@@ -372,6 +376,7 @@ export function describeOp(op: EditOp): string {
     case "addDimension": return "Add dimension";
     case "setLocked": return op.locked ? "Lock" : "Unlock";
     case "setPadProps": return `Pad ${op.pad} properties`;
+    case "boardArray": return op.arrange ? "Arrange selection" : "Create array";
     case "boardDuplicate": return `Duplicate ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "setEvidence": return "Datasheet evidence";
     case "setRequirements": return "Requirements";
@@ -781,6 +786,9 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       if (op.net !== undefined) setPadNet(root, fp, op.pad, op.net);
       break;
     }
+    case "boardArray":
+      createBoardArray(root, op.uuids, op.options, { reannotate: op.reannotate, arrange: op.arrange });
+      break;
     case "boardDuplicate": {
       const copies = op.uuids.flatMap((u, i) => {
         const n = findBoardItem(root, u);
