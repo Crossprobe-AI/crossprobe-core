@@ -37,7 +37,8 @@ export function sheetRoot(doc: Document): List {
   return root;
 }
 
-const uuidOf = (node: List) => String(arg(findChild(node, "uuid"), 0) ?? "");
+// A rule area keeps its UUID on its outline.
+const uuidOf = (node: List) => String(arg(findChild(node, "uuid") ?? findChild(findChild(node, "polyline") ?? node, "uuid"), 0) ?? "");
 
 /** A top-level item (symbol, wire, label, junction, …) by its UUID. */
 export function findItem(root: List, uuid: string): List | undefined {
@@ -70,6 +71,9 @@ export function moveItem(node: List, dx: number, dy: number): void {
       return;
     case "arc":
       for (const k of ["start", "mid", "end"]) shiftAt(findChild(node, k), dx, dy);
+      return;
+    case "rule_area":
+      for (const xy of findChildren(findChild(findChild(node, "polyline") ?? node, "pts") ?? node, "xy")) shiftAt(xy, dx, dy);
       return;
     default:
       shiftAt(findChild(node, "at"), dx, dy);
@@ -479,6 +483,45 @@ export function addLabel(root: List, kind: NewLabelKind, text: string, at: Point
   return id;
 }
 
+/**
+ * A net class directive (KiCad's netclass_flag) at a point of a wire, or of a rule area's outline:
+ * a short stub with a round end, carrying the class in its Netclass field, as KiCad writes one.
+ * At 0° the stub points up.
+ */
+export function addDirective(root: List, at: Point, netclass: string, angle = 0): string {
+  const id = newUuid();
+  const p = { x: snapIU(at.x), y: snapIU(at.y) };
+  // The field sits past the stub's end, reading away from the wire.
+  const up = angle === 0 ? -1 : angle === 180 ? 1 : 0;
+  const side = angle === 90 ? -1 : angle === 270 ? 1 : 0;
+  const fieldAt = up ? { x: snapIU(p.x - 0.6985 * -up), y: snapIU(p.y + 2.54 * up) } : { x: snapIU(p.x + 2.54 * side), y: snapIU(p.y - 0.6985) };
+  const justify = angle === 0 || angle === 90 ? "right" : "left";
+  const node = list(
+    "netclass_flag",
+    str(""),
+    list("length", 2.54),
+    list("shape", "round"),
+    list("at", p.x, p.y, angle),
+    list("fields_autoplaced", "yes"),
+    list("effects", list("font", list("size", 1.27, 1.27)), list("justify", angle === 180 || angle === 270 ? "right" : "left", "bottom")),
+    list("uuid", str(id)),
+    list("property", str("Netclass"), str(netclass), list("at", fieldAt.x, fieldAt.y, up ? 0 : 90), list("effects", list("font", list("size", 1.27, 1.27), list("italic", "yes")), list("justify", justify))),
+  );
+  insertTopLevel(root, node);
+  return id;
+}
+
+/** A rule area: a closed outline (its directives go on the outline, with addDirective). */
+export function addRuleArea(root: List, points: Point[]): string {
+  const id = newUuid();
+  const node = list(
+    "rule_area",
+    list("polyline", list("pts", ...points.map((p) => xy(p))), list("stroke", list("width", 0), list("type", "dash")), list("fill", list("type", "none")), list("uuid", str(id))),
+  );
+  insertTopLevel(root, node);
+  return id;
+}
+
 /** Change the shape (signal direction) of a global or hierarchical label, or of a sheet pin. */
 export function setLabelShape(node: List, shape: LabelShape): void {
   const s = findChild(node, "shape");
@@ -515,7 +558,8 @@ function cloneNode(node: List): List {
 /** Give a copied item new UUIDs (its own and its pins'). */
 function renewUuids(node: List): string {
   const id = newUuid();
-  const own = findChild(node, "uuid");
+  // A rule area keeps its UUID in its polyline.
+  const own = findChild(node, "uuid") ?? (headOf(node) === "rule_area" ? findChild(findChild(node, "polyline") ?? node, "uuid") : undefined);
   if (own) setArg(own, 0, str(id));
   for (const pin of findChildren(node, "pin")) {
     const u = findChild(pin, "uuid");
