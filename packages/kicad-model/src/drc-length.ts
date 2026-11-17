@@ -246,6 +246,8 @@ export function checkLengthRules(board: Board, rules: DesignRules, custom: DruRu
   const out: LengthViolation[] = [];
   const byRule = new Map<string, Array<{ g: { rule: string; net: string; tracks: Track[]; vias: Via[]; pads: Pad[] }; total: number }>>();
   for (const [key, g] of groups) {
+    // Only routed nets are measured: KiCad's matched-length check collects tracks, and a net of pads alone has none.
+    if (!g.tracks.length) continue;
     const type = key.split("\0")[0] as "length" | "skew";
     const total = lengthOf(g);
     if (type === "skew") (byRule.get(g.rule) ?? byRule.set(g.rule, []).get(g.rule)!).push({ g, total });
