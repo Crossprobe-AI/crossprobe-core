@@ -263,7 +263,7 @@ export interface Board {
   drawings: Graphic[];
   texts: BoardText[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
-  setup: { maskMargin: number; pasteMargin: number; pasteRatio: number; tentFront: boolean; tentBack: boolean; allowMaskBridgesInFootprints?: boolean; /** Drill/place origin (fab outputs' 0,0 when used). */ auxOrigin?: Point };
+  setup: { maskMargin: number; pasteMargin: number; pasteRatio: number; tentFront: boolean; tentBack: boolean; allowMaskBridgesInFootprints?: boolean; /** Drill/place origin (fab outputs' 0,0 when used). */ auxOrigin?: Point; /** Grid origin (Position Relative's reference). */ gridOrigin?: Point };
   warnings: string[];
 }
 
@@ -801,6 +801,10 @@ export function parseBoard(source: string): Board {
       allowMaskBridgesInFootprints: arg(findChild(setup, "allow_soldermask_bridges_in_footprints") ?? setup, 0) === "yes",
       auxOrigin: (() => {
         const o = findChild(setup, "aux_axis_origin");
+        return o ? { x: Number(arg(o, 0)), y: Number(arg(o, 1)) } : undefined;
+      })(),
+      gridOrigin: (() => {
+        const o = findChild(setup, "grid_origin");
         return o ? { x: Number(arg(o, 0)), y: Number(arg(o, 1)) } : undefined;
       })(),
     };
