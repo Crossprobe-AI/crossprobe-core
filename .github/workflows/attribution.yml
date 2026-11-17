@@ -1,0 +1,37 @@
+# Pull requests carry the change only: no assistant attribution in their
+# commit messages or description (see CLAUDE.md).
+name: Attribution
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: No assistant attribution in commits or the description
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          pattern='Co-Authored-By: *Claude|Claude-Session:|claude\.ai/code|Generated with \[?Claude Code'
+          status=0
+          if git log --format='%H%n%B' "$BASE..$HEAD" | grep -inE "$pattern"; then
+            echo "::error::Commit messages carry assistant attribution; reword them without it."
+            status=1
+          fi
+          if printf '%s' "$BODY" | grep -inE "$pattern"; then
+            echo "::error::The pull request description carries assistant attribution; edit it out."
+            status=1
+          fi
+          exit $status
