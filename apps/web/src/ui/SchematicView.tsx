@@ -89,6 +89,8 @@ export interface EditContext {
   nextPage: number;
   /** The project's net classes, to offer when placing a directive. */
   netClasses?: string[];
+  /** The project's folder ("" or "name/"), for files saved next to it (design blocks). */
+  projectDir?: string;
   /** Names of the hierarchical labels inside a sheet instance. */
   hierLabelsOf: (sheetPath: string) => string[];
   /** Is a project-relative file name taken? */
@@ -899,7 +901,7 @@ export function SchematicView({
             (picked.size
               ? [...picked].every((id) => id.includes("#"))
                 ? "Field selected · drag to move · R turns it · double-click to edit"
-                : `${picked.size} selected · drag to move · R rotate · X/Y mirror · Del delete · ⌘C/⌘V copy · ⌘D duplicate`
+                : `${picked.size} selected · drag to move · R rotate · X/Y mirror · Del delete · ⌘C/⌘V copy · ⌘D duplicate · `
               : "Click to select · shift-click or shift-drag to add · drag to move")}
           {tool === "wire" && (wire.length ? "Click to add corners · end on a pin or double-click · Esc cancels" : "Click to start a wire")}
           {tool === "bus" && (wire.length ? "Click to add corners · end on a bus or double-click · Esc cancels" : "Click to start a bus (name it with a label like D[0..7])")}
@@ -964,6 +966,24 @@ export function SchematicView({
                   </button>
                 </>
               )}
+            </span>
+          )}
+          {tool === "select" && nodesOf([...picked]).length > 0 && ctx && (
+            <span className="hint-option">
+              <button
+                className="link"
+                title="Save the selected items as a design block in this project's block library (KiCad's Save Selection as Design Block)"
+                onClick={() => {
+                  const raw = window.prompt("Design block name");
+                  const name = raw?.trim().replace(/[\\/:*?"<>|]+/g, "_");
+                  if (!name) return;
+                  const description = window.prompt("Description (optional)", "") ?? "";
+                  const lib = (ctx.projectName || "project").replace(/[\\/:*?"<>|]+/g, "_");
+                  onEdit?.([{ op: "saveBlock", file: sheet.file, uuids: nodesOf([...picked]), dir: ctx.projectDir ?? "", lib, name, description, keywords: [], projectName: ctx.projectName }]);
+                }}
+              >
+                Save as block
+              </button>
             </span>
           )}
           {tool === "select" && pickedLabel && (

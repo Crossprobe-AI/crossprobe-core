@@ -141,6 +141,8 @@ export interface ProjectView {
   /** Where that sidecar lives (it may not exist yet). */
   requirementsFile: string;
   rootSheet?: string;
+  /** Design blocks saved in the project's own block libraries: their file, library, name, metadata and schematic. */
+  projectBlocks: Array<{ id: string; lib: string; name: string; description: string; keywords: string[]; text: string }>;
   /** How global labels list the pages they are on (the project file's schematic formatting). */
   intersheetRefs?: import("@crossprobe/kicad-model").IntersheetRefSettings;
   sheets: SheetView[];
