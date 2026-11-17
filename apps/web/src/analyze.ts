@@ -90,6 +90,19 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
   // Custom constraints this DRC doesn't check yet (it applies clearance rules).
   const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width", "track_width", "via_diameter", "length", "skew", "diff_pair_gap", "diff_pair_uncoupled"].includes(t)))];
   let rootSheet: string | undefined;
+  // Design blocks saved in the project's own block libraries (<lib>.kicad_blocks/<name>.kicad_block/).
+  const projectBlocks: ProjectView["projectBlocks"] = [];
+  for (const [path, text] of Object.entries(files)) {
+    const m = /(?:^|\/)([^/]+)\.kicad_blocks\/([^/]+)\.kicad_block\/([^/]+)\.kicad_sch$/.exec(path);
+    if (!m || m[2] !== m[3]) continue;
+    let meta: { description?: string; keywords?: string } = {};
+    try {
+      meta = JSON.parse(files[path.replace(/\.kicad_sch$/, ".json")] ?? "{}");
+    } catch {
+      // No metadata: the name is enough.
+    }
+    projectBlocks.push({ id: path, lib: m[1]!, name: m[2]!, description: meta.description ?? "", keywords: (meta.keywords ?? "").split(/\s+/).filter(Boolean), text });
+  }
   let intersheetRefs: ProjectView["intersheetRefs"];
 
   const schFile = `${name}.kicad_sch`;
@@ -275,6 +288,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     requirementsFile: requirementsFileName(base),
     rootSheet,
     intersheetRefs,
+    projectBlocks,
     sheets,
     components,
     nets,

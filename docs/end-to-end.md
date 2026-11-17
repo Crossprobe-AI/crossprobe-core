@@ -533,6 +533,14 @@ reports it. Exclude (with a reason) moves it to Excluded and saves it in the pro
 KiCad's ERC of the saved project reports it excluded too; Include brings it back.
 `test/erc-exclusions.test.ts` checks the entries both ways.
 
+## Saving a design block
+
+`scripts/e2e-save-block.mjs` box-selects the input supply of KiCad's pic_programmer demo and
+saves it with "Save as block": the block's schematic and description go in
+`pic_programmer.kicad_blocks/`, and `design-block-lib-table` lists that library. The Add block
+tool lists it first, inserting it adds a renumbered copy, and KiCad reads the saved block.
+`test/save-block.test.ts` checks that KiCad's netlist of a saved block equals ours.
+
 ## Drawing sheets
 
 `test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's

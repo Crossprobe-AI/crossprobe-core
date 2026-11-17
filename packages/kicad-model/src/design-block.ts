@@ -632,3 +632,24 @@ export function findFreeSpot(sheet: List, margin = 12.7): Point {
   if (maxY === -Infinity) return { x: 25.4, y: 25.4 };
   return { x: Math.round(minX / GRID) * GRID, y: Math.round((maxY + room + margin) / GRID) * GRID };
 }
+
+/**
+ * Save a selection as a design block (KiCad's "Save Selection as Design Block"): the selected
+ * items of a sheet, where they are and with their references, in a sheet of their own with the
+ * library symbols they use. Returns the block's .kicad_sch text.
+ */
+export function blockFromSelection(source: List, uuids: string[], projectName = ""): string {
+  const id = newUuid();
+  const doc = parse(newSheetFile(id));
+  const target = sheetRoot(doc);
+  // A sheet symbol names a sub-sheet file the block wouldn't carry: KiCad would find it missing.
+  if (uuids.some((u) => { const n = findItem(source, u); return !!n && headOf(n) === "sheet"; }))
+    throw new Error("A design block can't hold sheet symbols: leave them out of the selection");
+  duplicateItems(source, target, uuids, 0, 0, {}, [`/${id}`], projectName);
+  return serialize(doc);
+}
+
+/** A block's .json, as KiCad writes it: its description and space-separated keywords. */
+export function blockMetadataJson(description: string, keywords: string[] = []): string {
+  return JSON.stringify({ description, keywords: keywords.join(" "), fields: {} }, null, 2) + "\n";
+}

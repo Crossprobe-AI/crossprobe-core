@@ -63,6 +63,8 @@ import {
   moveField,
   rotateField,
   setSheetName,
+  blockFromSelection,
+  blockMetadataJson,
   addImage,
   setImageScale,
   setSheetPinName,
@@ -362,6 +364,11 @@ export type EditOp =
   | { op: "setCopperLayers"; file: string; count: number }
   /** Write a footprint file (new, or a library footprint copied in to edit) and list its library in fp-lib-table. */
   | { op: "fpWrite"; file: string; text: string; libTable: string; lib: string; libDir: string }
+  /**
+   * Save items of the sheet `file` as a design block in the project's block library: `dir` is the
+   * project folder ("" or "name/"), the block goes in `<lib>.kicad_blocks/<name>.kicad_block/`.
+   */
+  | { op: "saveBlock"; file: string; uuids: string[]; dir: string; lib: string; name: string; description: string; keywords: string[]; projectName: string }
   /** One footprint editor action on a .kicad_mod file (see footprint-edit.ts). */
   | { op: "footprint"; file: string; edit: FootprintEdit }
   /** Write a symbol library (a new symbol, or one copied in to edit) and list it in sym-lib-table. */
@@ -531,6 +538,7 @@ export function describeOp(op: EditOp): string {
     case "symbol": return { addPin: "Add pin", setPin: "Pin properties", units: "Units", deMorgan: "De Morgan body style", bodyStyles: "Body styles", jumpers: "Jumper pins", unitName: "Unit name", unitsLocked: "Unit lock", pinUnit: "Pin unit", power: "Power symbol", movePins: "Move pins", deletePins: "Delete pins", addGraphic: "Add graphic", moveGraphics: "Move", deleteGraphics: "Delete", setFields: "Symbol properties", layout: "Lay out pins" }[op.edit.kind];
     case "updateSchematicSymbols": return `Update ${op.name} on the schematic`;
     case "fpWrite": return `Footprint ${op.file.split("/").pop()?.replace(/\.kicad_mod$/, "")}`;
+    case "saveBlock": return `Save block ${op.name}`;
     case "footprint": return { addPad: "Add pad", addPadArray: "Add pads", pasteWindows: "Paste windows", rotate: "Rotate", setPad: "Pad properties", move: "Move", delete: "Delete", addGraphic: "Add graphic", setProps: "Footprint properties", courtyard: "Courtyard", setField: "Footprint field", mirror: "Mirror", renumber: "Renumber pads", addCustomPad: "Add custom pad", model: "3D model" }[op.edit.kind];
     case "setStackup": return `Stackup ${op.name}`;
     case "stitchPours": return "Stitch to pours";
@@ -706,6 +714,17 @@ export class Editor {
         const out = serialize(c.doc);
         this.docs.set(op.file, { text: out, doc: c.doc });
         changed[op.file] = out;
+        continue;
+      }
+      if (op.op === "saveBlock") {
+        const source = sheetRoot(load(op.file).doc);
+        const base = `${op.dir}${op.lib}.kicad_blocks/${op.name}.kicad_block/${op.name}`;
+        changed[`${base}.kicad_sch`] = blockFromSelection(source, op.uuids, op.projectName);
+        changed[`${base}.json`] = blockMetadataJson(op.description, op.keywords);
+        const tableFile = `${op.dir}design-block-lib-table`;
+        const table = changed[tableFile] ?? files[tableFile];
+        const next = withLibTableEntry(table, "design_block", op.lib, `\${KIPRJMOD}/${op.lib}.kicad_blocks`);
+        if (next !== table) changed[tableFile] = next;
         continue;
       }
       if (op.op === "fpWrite") {

@@ -10,7 +10,7 @@ import { fromStored, syncedFromStored, type PersistMeta, type StoredFolder, type
 import type { ProjectLinks } from "./extensions/api";
 
 /** The files a project is read from (shared with extensions that load projects from elsewhere). */
-export const KICAD_FILE = /(\.kicad_(sch|pcb|pro|sym|dru|mod|wks)|sym-lib-table|fp-lib-table|\.crossprobe-(evidence|requirements)\.json)$/;
+export const KICAD_FILE = /(\.kicad_(sch|pcb|pro|sym|dru|mod|wks)|sym-lib-table|fp-lib-table|design-block-lib-table|\.kicad_block\/[^/]+\.json|\.crossprobe-(evidence|requirements)\.json)$/;
 export const MODEL_FILE = /\.(step|stp|wrl)$/i;
 
 export interface ModelData {
