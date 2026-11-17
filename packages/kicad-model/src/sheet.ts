@@ -44,6 +44,9 @@ export interface LibPin {
   bodyStyle: number;
   /** Alternate functions a placed symbol can pick for this pin: name → electrical type. */
   alternates?: Record<string, PinType>;
+  /** The pin's graphic shape (line, inverted, clock…), and each alternate's. */
+  shape: string;
+  alternateShapes?: Record<string, string>;
 }
 
 export type PowerKind = "global" | "local";
@@ -91,6 +94,10 @@ export interface PlacedSymbol {
   pinAlternates?: Record<string, string>;
   /** Fields not shown on the sheet. */
   hiddenFields: string[];
+  /** Where each field is on the sheet. */
+  fieldAt: Record<string, Point>;
+  /** Each pin's UUID in this placement, by pin number. */
+  pinUuids: Record<string, string>;
 }
 
 export interface Segment {
@@ -106,6 +113,7 @@ export interface Label {
   at: Point;
   /** For global/hierarchical labels: input, output, bidirectional, tri_state, passive. */
   shape?: string;
+  uuid?: string;
 }
 
 export interface SheetPin {
@@ -215,6 +223,8 @@ function parseLibSymbol(node: List): LibSymbol {
       const alternates = findChildren(pin, "alternate");
       pins.push({
         alternates: alternates.length ? Object.fromEntries(alternates.map((a) => [text(a, 0), text(a, 1) as PinType])) : undefined,
+        alternateShapes: alternates.length ? Object.fromEntries(alternates.map((a) => [text(a, 0), text(a, 2) || "line"])) : undefined,
+        shape: text(pin, 1) || "line",
         number: text(findChild(pin, "number")),
         name: text(findChild(pin, "name")),
         type,
@@ -256,7 +266,10 @@ function parsePlacedSymbol(node: List): PlacedSymbol {
     }
   }
   let pinAlternates: Record<string, string> | undefined;
+  const pinUuids: Record<string, string> = {};
   for (const pin of findChildren(node, "pin")) {
+    const id = text(findChild(pin, "uuid"));
+    if (id) pinUuids[text(pin)] = id;
     const alternate = findChild(pin, "alternate");
     if (alternate) (pinAlternates ??= {})[text(pin)] = text(alternate);
   }
@@ -266,9 +279,16 @@ function parsePlacedSymbol(node: List): PlacedSymbol {
       return !!e && (e.children.some((c) => isAtom(c) && c.raw === "hide") || arg(findChild(e, "hide"), 0) === "yes") || arg(findChild(p, "hide"), 0) === "yes";
     })
     .map((p) => text(p, 0));
+  const fieldAt: Record<string, Point> = {};
+  for (const p of findChildren(node, "property")) {
+    const at = findChild(p, "at");
+    if (at) fieldAt[text(p, 0)] = point(at);
+  }
   return {
     pinAlternates,
     hiddenFields,
+    fieldAt,
+    pinUuids,
     uuid: text(findChild(node, "uuid")),
     // `lib_name` overrides which embedded library symbol is used.
     libId: text(findChild(node, "lib_name")) || text(findChild(node, "lib_id")),
@@ -367,6 +387,7 @@ export function parseSheetFile(source: string): SheetFile {
           text: atomText(node.children[1] as never),
           at: point(findChild(node, "at")),
           shape: findChild(node, "shape") ? text(findChild(node, "shape")) : undefined,
+          uuid: text(findChild(node, "uuid")) || undefined,
         });
         break;
       }

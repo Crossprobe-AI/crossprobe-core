@@ -56,6 +56,10 @@ import {
   moveField,
   rotateField,
   setSheetName,
+  setSheetPinName,
+  planReplace,
+  type FindOptions,
+  type FindTarget,
   setSheetPage,
   syncSheetPins,
   type LabelShape,
@@ -254,8 +258,12 @@ export type EditOp =
   | { op: "addSheetPin"; file: string; sheetUuid: string; childFile: string; name: string; shape: string; at: Point }
   /** A sheet symbol's name, and the page number of the instance drawn on the sheet at `path`. */
   | { op: "setSheetProps"; file: string; uuid: string; name?: string; page?: { path: string; number: string } }
+  /** Rename one pin of a sheet symbol. */
+  | { op: "setSheetPinName"; file: string; uuid: string; pin: string; name: string }
   /** Pins for the child sheet's hierarchical labels that have none, and labels in it for the pins that have none. */
   | { op: "syncSheetPins"; file: string; sheetUuid: string; childFile: string }
+  /** Replace every match of `find` in these sheet files (expanded into setText, setField and setSheetProps ops). */
+  | { op: "replaceAll"; file: string; files: string[]; find: string; replace: string; options: FindOptions }
   /** Renumber references across the design (expanded into setField ops). */
   | { op: "annotate"; file: string; mode: "all" | "unannotated" | "clear"; order?: "x" | "y"; sheetPath?: string; startAfter?: number; sheetMultiplier?: 100 | 1000 }
   // Board (.kicad_pcb) operations; items are named by UUID.
@@ -312,6 +320,8 @@ export type EditOp =
       /** Delete a net class (and its patterns); its nets fall back to the others or Default. */
       removeClass?: string;
     }
+  /** The project file's schematic formatting (schematic.drawing), KiCad's key names. */
+  | { op: "setSchematicDrawing"; file: string; drawing: Record<string, boolean | string | number> }
   | { op: "addBoardText"; file: string; text: NewBoardText }
   | { op: "setBoardText"; file: string; uuids: string[]; text?: string; size?: number; layer?: string }
   /** A copper zone outline; follow with refillZones to compute its copper. */
@@ -360,6 +370,14 @@ export function zonesStaleAfter(ops: EditOp[], stale: boolean): boolean {
   return stale || ops.some((o) => o.file.endsWith(".kicad_pcb") && !copperNeutral(o));
 }
 
+/** The edit that gives a found item new text. */
+export function replaceOp(t: FindTarget, to: string): EditOp {
+  if (t.kind === "field") return { op: "setField", file: t.file, uuid: t.uuid, name: t.field, value: to, sheetPath: t.sheetPath };
+  if (t.kind === "sheet") return { op: "setSheetProps", file: t.file, uuid: t.uuid, name: to };
+  if (t.kind === "sheetpin") return { op: "setSheetPinName", file: t.file, uuid: t.uuid, pin: t.pin, name: to };
+  return { op: "setText", file: t.file, uuid: t.uuid, text: to };
+}
+
 /** Human-readable name for the undo history. */
 export function describeOp(op: EditOp): string {
   switch (op.op) {
@@ -394,11 +412,13 @@ export function describeOp(op: EditOp): string {
     case "duplicate": return `Paste ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "placeSymbol": return `Place ${op.reference}${op.unit && op.unit > 1 ? ` unit ${String.fromCharCode(64 + op.unit)}` : ""}`;
     case "insertBlock": return "Insert design block";
+    case "replaceAll": return `Replace "${op.find}" with "${op.replace}"`;
     case "annotate": return op.mode === "all" ? "Annotate all" : op.mode === "clear" ? "Clear annotation" : "Annotate new parts";
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
     case "setSheetProps": return op.name !== undefined ? `Rename sheet to ${op.name}` : "Sheet page number";
     case "syncSheetPins": return "Synchronize sheet pins";
+    case "setSheetPinName": return `Sheet pin: ${op.name}`;
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "boardArrange": return op.label;
     case "moveFootprintText": return "Move footprint text";
@@ -413,6 +433,7 @@ export function describeOp(op: EditOp): string {
     case "setZoneOutline": return op.label ?? "Edit zone outline";
     case "autoroute": return op.connections.length === 1 ? `Autoroute ${op.connections[0]!.net}` : `Autoroute ${op.connections.length} connections`;
     case "setProjectRules": return op.exclude ? "Exclude DRC finding" : op.include ? "Include DRC finding" : op.removeClass ? `Remove net class ${op.removeClass}` : op.classPatterns ? `Nets of ${op.classPatterns.name}` : "Board setup";
+    case "setSchematicDrawing": return "Schematic formatting";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
     case "teardrops": return op.remove ? "Remove teardrops" : "Teardrops";
     case "addDimension": return "Add dimension";
@@ -465,6 +486,14 @@ export class Editor {
   /** Turn design-wide operations into per-file ones. */
   private expand(files: Record<string, string>, ops: EditOp[], root?: string): EditOp[] {
     return ops.flatMap((op): EditOp[] => {
+      if (op.op === "replaceAll") {
+        const sheets = op.files.map((file) => {
+          const text = files[file];
+          if (text === undefined) throw new Error(`missing ${file}`);
+          return { file, root: sheetRoot(parse(text)) };
+        });
+        return planReplace(sheets, op.find, op.replace, op.options).map((t): EditOp => replaceOp(t, t.to));
+      }
       if (op.op !== "annotate") return [op];
       if (!root) throw new Error("Annotation needs the root schematic");
       const schematic = loadSchematic(root, (f) => {
@@ -503,6 +532,15 @@ export class Editor {
       }
       if (op.op === "setRequirements") {
         changed[op.file] = serializeRequirements(op.requirements);
+        continue;
+      }
+      if (op.op === "setSchematicDrawing") {
+        const text = changed[op.file] ?? files[op.file];
+        if (text === undefined) throw new Error(`No such file: ${op.file}`);
+        const pro = JSON.parse(text) as { schematic?: { drawing?: Record<string, unknown> } };
+        pro.schematic ??= {};
+        pro.schematic.drawing = { ...(pro.schematic.drawing ?? {}), ...op.drawing };
+        changed[op.file] = JSON.stringify(pro, null, 2) + "\n";
         continue;
       }
       if (op.op === "setProjectRules") {
@@ -674,6 +712,7 @@ export class Editor {
             if (op.page) setSheetPage(n, op.page.path, op.page.number);
           });
           break;
+        case "setSheetPinName": each([op.uuid], (n) => setSheetPinName(n, op.pin, op.name)); break;
         case "syncSheetPins": {
           const sheet = findItem(root, op.sheetUuid);
           if (!sheet) throw new Error("Sheet not found");

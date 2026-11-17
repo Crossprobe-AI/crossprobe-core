@@ -392,7 +392,7 @@ bus findings.
 
 `scripts/e2e-sch-graphics.mjs` draws notes in a new project:
 - a text (T) and a text box;
-- lines, a rectangle and a circle;
+- lines, a rectangle, a circle and an arc (start, end, a point it passes through);
 - then a double-click on the text renames it.
 
 KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both texts.
@@ -458,3 +458,23 @@ does the same. A drag moves J2 and snaps it to the grid.
 `scripts/e2e-zone-undo.mjs` deletes a track on pic_programmer's board, refills the zones and
 undoes both. The fill from before the refill comes back, in the model and on the canvas, and
 the "zones are out of date" notice follows undo and redo.
+
+## Find and replace
+
+`scripts/e2e-find.mjs` searches KiCad's pic_programmer demo for "RB7" (Ctrl+F):
+- labels on both sheets and the sheet pin between them are found, and Enter goes from one to
+  the next, opening the sheet each is on;
+- while editing, Replace all makes them "SDATA" in one step: undo brings them all back, redo
+  renames them again.
+
+KiCad's netlist of the saved project has the same connections, with the net named SDATA.
+`test/find-replace.test.ts` checks the matching rules and Replace all the same way.
+
+## Intersheet references
+
+`scripts/e2e-intersheet-refs.mjs` places a global label on the root of KiCad's complex_hierarchy
+demo and one in its reused sheet, then switches on "Show the pages of global labels" in Page
+settings, with brackets. The root's label lists [2,3], the two instances of the reused sheet
+[1,3] and [1,2]; the setting is saved in the project file, and KiCad's plot of the saved project
+shows the same lists. `test/intersheet-refs.test.ts` checks four variants of the setting
+against KiCad's plots.
