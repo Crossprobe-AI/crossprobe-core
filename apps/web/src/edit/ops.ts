@@ -49,6 +49,7 @@ import {
   addSheetPin,
   newSheetFile,
   planAnnotation,
+  netclassAssignments,
   loadSchematic,
   mirrorSymbol,
   moveItem,
@@ -63,6 +64,8 @@ import {
   rotateField,
   setSheetName,
   setSheetPinName,
+  addDirective,
+  addRuleArea,
   planReplace,
   type FindOptions,
   type FindTarget,
@@ -247,6 +250,10 @@ export type EditOp =
   | { op: "setText"; file: string; uuid: string; text: string }
   | { op: "addLabel"; file: string; kind: NewLabelKind; text: string; at: Point; angle?: number; shape?: LabelShape }
   | { op: "addJunction"; file: string; at: Point }
+  /** A net class directive on a wire (or a rule area's outline). */
+  | { op: "addDirective"; file: string; at: Point; netclass: string; angle?: number }
+  /** A rule area (closed outline), with a directive for `netclass` on its first corner when given. */
+  | { op: "addRuleArea"; file: string; points: Point[]; netclass?: string }
   | { op: "addNoConnect"; file: string; at: Point }
   | { op: "moveWirePoint"; file: string; uuid: string; index: 0 | 1; to: Point }
   /** Copy items from `source` into `file`, offset, with new references for symbols. */
@@ -381,6 +388,46 @@ export function zonesStaleAfter(ops: EditOp[], stale: boolean): boolean {
   return stale || ops.some((o) => o.file.endsWith(".kicad_pcb") && !copperNeutral(o));
 }
 
+/**
+ * The project file keeps the net classes the schematic gives each net (KiCad writes them on
+ * save, and the board's rules read them): bring them in line after a schematic edit. Only for
+ * projects that use net class directives, Netclass fields or rule areas, or have such entries.
+ */
+function syncNetclassAssignments(rootFile: string, changed: Record<string, string>, files: Record<string, string>) {
+  const proFile = rootFile.replace(/\.kicad_sch$/, ".kicad_pro");
+  const proText = changed[proFile] ?? files[proFile];
+  if (proText === undefined) return;
+  const read = (f: string) => {
+    const t = changed[f] ?? files[f];
+    if (t === undefined) throw new Error(`missing ${f}`);
+    return t;
+  };
+  let pro: { net_settings?: { netclass_assignments?: Record<string, string[]> | null } };
+  try {
+    pro = JSON.parse(proText);
+  } catch {
+    return;
+  }
+  const had = pro.net_settings?.netclass_assignments ?? {};
+  const sheets = Object.keys({ ...files, ...changed }).filter((f) => f.endsWith(".kicad_sch"));
+  const uses = sheets.some((f) => /\((netclass_flag|directive_label|rule_area)\b|\(property "Netclass"/.test(read(f)));
+  if (!uses && !Object.keys(had).length) return;
+  let next: Record<string, string[]>;
+  try {
+    const netlist = buildNetlist(loadSchematic(rootFile, read));
+    // Entries for names that aren't nets here (buses, nets that went away) are left as they are.
+    const known = new Set(netlist.nets.map((n) => n.name));
+    const all: Record<string, string[]> = { ...Object.fromEntries(Object.entries(had).filter(([n]) => !known.has(n))), ...netclassAssignments(netlist) };
+    next = Object.fromEntries(Object.keys(all).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((k) => [k, all[k]!]));
+  } catch {
+    return;
+  }
+  if (JSON.stringify(next) === JSON.stringify(had)) return;
+  pro.net_settings ??= {};
+  pro.net_settings.netclass_assignments = next;
+  changed[proFile] = JSON.stringify(pro, null, 2) + "\n";
+}
+
 /** The edit that gives a found item new text. */
 export function replaceOp(t: FindTarget, to: string): EditOp {
   if (t.kind === "field") return { op: "setField", file: t.file, uuid: t.uuid, name: t.field, value: to, sheetPath: t.sheetPath };
@@ -417,6 +464,8 @@ export function describeOp(op: EditOp): string {
     case "addSchGraphic": return `Add ${op.graphic.kind === "polyline" ? "lines" : op.graphic.kind}`;
     case "setText": return `Text: ${op.text}`;
     case "addLabel": return `Add label ${op.text}`;
+    case "addDirective": return `Net class ${op.netclass}`;
+    case "addRuleArea": return op.netclass ? `Rule area for ${op.netclass}` : "Rule area";
     case "addJunction": return "Add junction";
     case "addNoConnect": return "Add no-connect";
     case "moveWirePoint": return "Drag wire";
@@ -690,6 +739,11 @@ export class Editor {
         case "setText": each([op.uuid], (n) => setItemText(n, op.text)); break;
         case "addLabel": addLabel(root, op.kind, op.text, op.at, op.angle ?? 0, op.shape); break;
         case "addJunction": addJunction(root, op.at); break;
+        case "addDirective": addDirective(root, op.at, op.netclass, op.angle ?? 0); break;
+        case "addRuleArea":
+          addRuleArea(root, op.points);
+          if (op.netclass) addDirective(root, op.points[0]!, op.netclass, 0);
+          break;
         case "addNoConnect": addNoConnect(root, op.at); break;
         case "moveWirePoint": moveWirePoint(root, op.uuid, op.index, op.to); break;
         case "duplicate": {
@@ -814,6 +868,7 @@ export class Editor {
       this.docs.set(op.file, { text: out, doc: cached.doc });
       changed[op.file] = out;
     }
+    if (rootFile && ops.some((op) => op.file.endsWith(".kicad_sch"))) syncNetclassAssignments(rootFile, changed, files);
     return changed;
   }
 }

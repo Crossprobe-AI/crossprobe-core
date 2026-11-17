@@ -143,3 +143,13 @@ export function exportNetlist(schematic: Schematic, netlist: Netlist, options: N
   const doc: Document = { type: "document", children: [root], trivia: [""], trailing: "\n", diagnostics: [] };
   return serialize(doc);
 }
+
+/**
+ * The classes the schematic gives each net (directives, labels' Netclass fields, rule areas), as
+ * KiCad keeps them in the project file's net_settings.netclass_assignments: by net name, sorted.
+ */
+export function netclassAssignments(netlist: Netlist): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const n of [...netlist.nets].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) if (n.netclasses?.length) out[n.name] = n.netclasses;
+  return out;
+}

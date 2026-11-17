@@ -60,9 +60,9 @@ function PrimEl({ p }: { p: Prim }) {
 
 const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output", "Output"], ["bidirectional", "Bidirectional"], ["tri_state", "Tri-state"], ["passive", "Passive"]];
 
-const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label"]);
+const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label", "directive", "ruleArea"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "netclass" | "rulearea" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -87,6 +87,8 @@ export interface EditContext {
   /** File of a sheet instance (for sheet pins), and the next free page number. */
   sheetFileOf: (sheetPath: string) => string | undefined;
   nextPage: number;
+  /** The project's net classes, to offer when placing a directive. */
+  netClasses?: string[];
   /** Names of the hierarchical labels inside a sheet instance. */
   hierLabelsOf: (sheetPath: string) => string[];
   /** Is a project-relative file name taken? */
@@ -113,7 +115,7 @@ const GRID = 1.27;
 const snap = (v: number) => Math.round(Math.round(v / GRID) * GRID * 1e4) / 1e4;
 const snapPt = (p: { x: number; y: number }) => ({ x: snap(p.x), y: snap(p.y) });
 /** Item kinds that can be selected and moved. */
-const MOVABLE = new Set<SchItem["kind"]>(["symbol", "field", "pin", "wire", "bus", "label", "junction", "noconnect", "text", "sheet", "graphic"]);
+const MOVABLE = new Set<SchItem["kind"]>(["symbol", "field", "pin", "wire", "bus", "label", "directive", "ruleArea", "junction", "noconnect", "text", "sheet", "graphic"]);
 
 const Item = memo(function Item({
   item,
@@ -273,6 +275,17 @@ export function SchematicView({
   /** Drawing tools: the points clicked so far (a text box's or rectangle's first corner, a circle's centre, a line's corners). */
   const [draw, setDraw] = useState<Array<{ x: number; y: number }>>([]);
   useEffect(() => setDraw([]), [tool]);
+  /** Ask for a net class by name, listing the project's. */
+  const askNetClass = (title: string) => {
+    const known = (ctx?.netClasses ?? []).filter((c) => c !== "Default");
+    const name = window.prompt(`${title}${known.length ? ` (${known.join(", ")})` : ""}`, known[0] ?? "");
+    return name?.trim() || undefined;
+  };
+  const finishRuleArea = (pts = draw) => {
+    setDraw([]);
+    if (pts.length < 3) return;
+    onEdit?.([{ op: "addRuleArea", file: sheet.file, points: pts, netclass: askNetClass("Net class for everything inside (empty: none)") }]);
+  };
   const finishLine = (pts = draw) => {
     if (pts.length >= 2) onEdit?.([{ op: "addSchGraphic", file: sheet.file, graphic: { kind: "polyline", points: pts } }]);
     setDraw([]);
@@ -370,6 +383,7 @@ export function SchematicView({
         else setPicked(new Set());
       } else if (k === "enter" && wire.length) finishWire();
       else if (k === "enter" && draw.length && tool === "line") finishLine();
+      else if (k === "enter" && draw.length && tool === "rulearea") finishRuleArea();
       else if (k === "t" && !e.shiftKey) onTool?.("text");
       else if (k === "w") onTool?.("wire");
       else if (k === "b" && !e.shiftKey) onTool?.("bus");
@@ -447,6 +461,16 @@ export function SchematicView({
       if (tool === "text") {
         const text = window.prompt("Text");
         if (text) onEdit?.([{ op: "addSchText", file: sheet.file, text, at: p0 }]);
+        return;
+      }
+      if (tool === "netclass") {
+        const name = askNetClass("Net class for this wire's net");
+        if (name) onEdit?.([{ op: "addDirective", file: sheet.file, at: p, netclass: name }]);
+        return;
+      }
+      if (tool === "rulearea") {
+        if (e.detail >= 2) return finishRuleArea();
+        setDraw([...draw, p0]);
         return;
       }
       if (tool === "line") {
@@ -547,6 +571,13 @@ export function SchematicView({
       const it = itemAt(under);
       const id = it?.dataset.uuid;
       // Double-click a label or text to change what it says.
+      // Double-click a net class directive to change its class.
+      if (e.detail >= 2 && id && it?.classList.contains("i-directive")) {
+        const now = sheet.items.find((i) => i.uuid === id)?.text ?? "";
+        const name = window.prompt("Net class", now);
+        if (name !== null && name !== now) onEdit?.([{ op: "setField", file: sheet.file, uuid: id, name: "Netclass", value: name.trim() }]);
+        return;
+      }
       // Double-click a field to change its value.
       if (e.detail >= 2 && id && it?.classList.contains("i-field")) {
         const f = sheet.items.find((i) => i.uuid === id);
@@ -785,6 +816,8 @@ export function SchematicView({
     draw.length && cursor
       ? tool === "line"
         ? [...draw, cursor]
+        : tool === "rulearea"
+          ? [...draw, cursor, draw[0]!]
         : tool === "rect" || tool === "textbox"
           ? [draw[0]!, { x: cursor.x, y: draw[0]!.y }, cursor, { x: draw[0]!.x, y: cursor.y }, draw[0]!]
           : tool === "circle"
@@ -873,6 +906,8 @@ export function SchematicView({
           {tool === "text" && "Click to place text"}
           {tool === "textbox" && (draw.length ? "Click the opposite corner of the text box" : "Click a corner of the text box")}
           {tool === "line" && (draw.length ? "Click the next corner · double-click or Enter to finish · Esc cancels" : "Click to start lines")}
+          {tool === "netclass" && "Click a wire to give its net a net class"}
+          {tool === "rulearea" && (draw.length ? "Click the next corner · double-click or Enter to close it · Esc cancels" : "Click the first corner of a rule area (its net class applies to everything inside)")}
           {tool === "rect" && (draw.length ? "Click the opposite corner" : "Click a corner of the rectangle")}
           {tool === "circle" && (draw.length ? "Click a point on the circle" : "Click the circle's centre")}
           {tool === "arc" && (["Click where the arc starts", "Click where it ends", "Click a point it passes through · Esc cancels"][draw.length] ?? "")}
