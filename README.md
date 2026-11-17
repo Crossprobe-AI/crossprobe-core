@@ -174,7 +174,8 @@ completes a feature.
 | Graphics on other layers | View only | Movable; no drawing tools beyond the outline |
 | Text | Partly | Silkscreen text can be placed and edited; knockout and TrueType text are view only |
 | Dimensions | Partly | Aligned and orthogonal can be placed; radial, leader and centre are view only |
-| Text boxes, images, tables, groups | No | |
+| Groups | Works | Group (Ctrl+G) and Ungroup (Ctrl+Shift+G), nested groups; a click selects a part's whole group, which moves, locks (L) and deletes together; deleted items leave their groups and empty groups go. KiCad reads the groups back as made. Copies (duplicate, paste, array) are not grouped; no entering a group to edit one part |
+| Text boxes, images, tables | No | |
 | DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
 | DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
 | Net inspector | Works | Lengths per layer, vias, CSV. Lengths follow KiCad 10.0; KiCad 10.0.5 measures a few nets up to 0.2 mm shorter |
