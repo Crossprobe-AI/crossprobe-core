@@ -11,6 +11,7 @@ export * from "./schematic-edit.js";
 export * from "./netlist-export.js";
 export * from "./find-replace.js";
 export * from "./drawing-sheet.js";
+export * from "./bitmap.js";
 export * from "./annotate.js";
 export * from "./library.js";
 export * from "./board-edit.js";

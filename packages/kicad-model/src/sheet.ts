@@ -103,6 +103,7 @@ export interface PlacedSymbol {
 export interface Segment {
   a: Point;
   b: Point;
+  uuid?: string;
 }
 
 export type LabelKind = "local" | "global" | "hierarchical";
@@ -153,6 +154,7 @@ export interface SheetRef {
 export interface BusEntry {
   a: Point;
   b: Point;
+  uuid?: string;
 }
 
 export interface SheetFile {
@@ -326,7 +328,8 @@ function parsePlacedSymbol(node: List): PlacedSymbol {
 
 function segment(node: List): Segment {
   const xy = findChildren(findChild(node, "pts")!, "xy");
-  return { a: point(xy[0]), b: point(xy[1]) };
+  const uuid = text(findChild(node, "uuid"));
+  return { a: point(xy[0]), b: point(xy[1]), ...(uuid && { uuid }) };
 }
 
 export function parseSheetFile(source: string): SheetFile {
@@ -385,7 +388,8 @@ export function parseSheetFile(source: string): SheetFile {
       case "bus_entry": {
         const a = point(findChild(node, "at"));
         const size = point(findChild(node, "size"));
-        sheet.busEntries.push({ a, b: { x: a.x + size.x, y: a.y + size.y } });
+        const uuid = text(findChild(node, "uuid"));
+        sheet.busEntries.push({ a, b: { x: a.x + size.x, y: a.y + size.y }, ...(uuid && { uuid }) });
         break;
       }
       case "junction":
