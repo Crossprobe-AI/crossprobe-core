@@ -124,6 +124,8 @@ export interface Graphic {
   fill: boolean;
   /** Copper shapes can carry a net (KiCad 7+). */
   net?: string;
+  /** One of a dimension's lines. */
+  dimension?: boolean;
   /** Its UUID: board drawings have one; footprint graphics when the file gives them one (the footprint editor does). */
   uuid?: string;
 }
@@ -652,7 +654,7 @@ function parseFootprint(node: List, outline: OutlineShape[]): Footprint {
     } else if (head === "dimension") {
       // Footprint dimensions are stored in board coordinates.
       const d = dimensionOf(c);
-      graphics.push(...d.graphics);
+      graphics.push(...d.graphics.map((g) => ({ ...g, dimension: true })));
       if (d.text) texts.push(d.text);
     } else if ((head === "property" || head === "fp_text") && !isHidden(c) && findChild(c, "layer")) {
       const text = head === "property" ? str(c, 1) : str(c, 1);

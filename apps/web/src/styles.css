@@ -2633,6 +2633,22 @@ button.sb-checks:hover {
   opacity: 0.6;
   font-size: 0.85em;
 }
+/* A submenu: opens beside its entry on hover. */
+.context-sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.context-sub > .context-menu {
+  display: none;
+  left: 100%;
+  top: -4px;
+  white-space: nowrap;
+}
+.context-sub:hover > .context-menu,
+.context-sub:focus-within > .context-menu {
+  display: flex;
+}
 .context-menu hr {
   border: 0;
   border-top: 1px solid var(--border, #2a3142);
