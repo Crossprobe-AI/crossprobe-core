@@ -75,7 +75,8 @@ function blocks(): Plugin {
   };
 }
 
-const KICAD_FILE = /(\.kicad_(sch|pcb|pro|sym|dru)|sym-lib-table)$/;
+// Project files, and project libraries (footprints with their table) for the library checks.
+const KICAD_FILE = /(\.kicad_(sch|pcb|pro|sym|dru|mod)|sym-lib-table|fp-lib-table)$/;
 
 /** KiCad's symbol libraries, for the part picker in dev. */
 const SYMBOLS =
