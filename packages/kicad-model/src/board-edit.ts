@@ -762,6 +762,11 @@ export interface ZoneProps {
   /** 0: always remove islands, 1: never, 2: below `islandAreaMin`. */
   islandMode?: 0 | 1 | 2;
   islandAreaMin?: number;
+  /** Solid or hatched fill; the hatch's line thickness, gap and angle (°). */
+  fillMode?: "solid" | "hatch";
+  hatchThickness?: number;
+  hatchGap?: number;
+  hatchOrientation?: number;
 }
 
 /** Set `(head value)` in `parent`, inserting it before the first of `before` present (else at the end). */
@@ -795,14 +800,15 @@ export function setZoneProps(root: List, zone: List, p: ZoneProps): void {
     } else setOrInsert(cp, "clearance", r6(p.clearance), []);
   }
   if (p.minThickness !== undefined) setOrInsert(zone, "min_thickness", r6(p.minThickness), ["filled_areas_thickness", "keepout", "placement", "fill", "polygon", "filled_polygon"]);
-  if (p.thermalGap !== undefined || p.thermalWidth !== undefined || p.islandMode !== undefined || p.islandAreaMin !== undefined) {
+  const hatchProps = p.fillMode !== undefined || p.hatchThickness !== undefined || p.hatchGap !== undefined || p.hatchOrientation !== undefined;
+  if (p.thermalGap !== undefined || p.thermalWidth !== undefined || p.islandMode !== undefined || p.islandAreaMin !== undefined || hatchProps) {
     let fill = findChild(zone, "fill");
     if (!fill) {
       fill = list("fill");
       const at = zone.children.findIndex((c) => ["polygon", "filled_polygon"].includes(headOf(c) ?? ""));
       insertAt(zone, at < 0 ? zone.children.length : at, fill);
     }
-    const order = ["mode", "thermal_gap", "thermal_bridge_width", "smoothing", "radius", "island_removal_mode", "island_area_min", "hatch_thickness", "hatch_gap", "hatch_orientation"];
+    const order = ["mode", "thermal_gap", "thermal_bridge_width", "smoothing", "radius", "island_removal_mode", "island_area_min", "hatch_thickness", "hatch_gap", "hatch_orientation", "hatch_smoothing_level", "hatch_smoothing_value", "hatch_border_algorithm", "hatch_min_hole_area"];
     const after = (h: string) => order.slice(order.indexOf(h) + 1);
     if (p.thermalGap !== undefined) setOrInsert(fill, "thermal_gap", r6(p.thermalGap), after("thermal_gap"));
     if (p.thermalWidth !== undefined) setOrInsert(fill, "thermal_bridge_width", r6(p.thermalWidth), after("thermal_bridge_width"));
@@ -811,6 +817,22 @@ export function setZoneProps(root: List, zone: List, p: ZoneProps): void {
       // The minimum area goes with "below an area" only.
       const min = findChild(fill, "island_area_min");
       if (p.islandMode !== 2 && min) removeChild(fill, min);
+    }
+    if (p.fillMode === "solid") {
+      // KiCad writes the mode and the hatch's settings for hatched zones only.
+      for (const h of order.filter((h) => h === "mode" || h.startsWith("hatch_"))) {
+        const n = findChild(fill, h);
+        if (n) removeChild(fill, n);
+      }
+    } else if (p.fillMode === "hatch" || (hatchProps && String(arg(findChild(fill, "mode"), 0)) === "hatch")) {
+      if (!findChild(fill, "mode")) insertAt(fill, fill.children.findIndex((c) => isList(c)) < 0 ? fill.children.length : fill.children.findIndex((c) => isList(c)), list("mode", sym("hatch")));
+      // KiCad's defaults for a newly hatched zone.
+      const set = (h: string, v: number | undefined, d: number) => (v !== undefined || !findChild(fill!, h)) && setOrInsert(fill!, h, r6(v ?? d), after(h));
+      set("hatch_thickness", p.hatchThickness, 1);
+      set("hatch_gap", p.hatchGap, 1.5);
+      set("hatch_orientation", p.hatchOrientation, 0);
+      if (!findChild(fill, "hatch_border_algorithm")) setOrInsert(fill, "hatch_border_algorithm", sym("hatch_thickness"), after("hatch_border_algorithm"));
+      if (!findChild(fill, "hatch_min_hole_area")) setOrInsert(fill, "hatch_min_hole_area", 0.3, after("hatch_min_hole_area"));
     }
     const mode = Number(arg(findChild(fill, "island_removal_mode"), 0) ?? 0);
     if (mode === 2 && (p.islandAreaMin !== undefined || !findChild(fill, "island_area_min"))) setOrInsert(fill, "island_area_min", r6(p.islandAreaMin ?? 10), after("island_area_min"));

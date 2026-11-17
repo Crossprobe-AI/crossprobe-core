@@ -361,8 +361,15 @@ KiCad's pcbnew reads the saved board's outline as exactly those corners. Four un
 `scripts/e2e-zone-props.mjs` selects pic_programmer's copper zone. In its properties panel it sets a
 name, priority 2, clearance 0.3, minimum width 0.2, thermal gap 0.6, spoke width 0.4, and removing
 islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads every property back
-from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
-of properties into the zones of three demo boards, and pcbnew reads each one back.
+from the saved board as set. It then makes the zone hatched (gap 2 mm, 30°): the refilled copper
+shrinks, pcbnew reads the hatch settings back, and eleven undos restore everything.
+`test/zone-props.test.ts` writes two sets of properties (one hatched) into the zones of three demo
+boards, and pcbnew reads each one back.
+
+`test/zone-hatch.test.ts` makes pic_programmer's GND zone hatched four ways (straight, 30° with
+thin lines, chamfered holes, rounded holes at 45°). KiCad's pcbnew refills each one
+(`test/pcbnew-refill.py`), and so do we. The copper differs on 2.7–3.9% of KiCad's area, against
+1.8% for the same zone filled solid.
 
 ## Groups
 

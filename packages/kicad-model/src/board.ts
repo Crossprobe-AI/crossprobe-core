@@ -257,6 +257,8 @@ export interface Zone {
   teardrop: boolean;
   /** Hatched (grid) fill instead of solid. */
   hatched: boolean;
+  /** The hatch pattern: line thickness, gap, angle (°), corner smoothing (0 none, 1 chamfer, 2–3 fillet) and its size (0–1), and the smallest hole kept (fraction of a whole one). */
+  hatch?: { thickness: number; gap: number; orientation: number; smoothingLevel: number; smoothingValue: number; holeMinArea: number };
 }
 
 export type ZoneConnection = "thermal" | "solid" | "none" | "tht";
@@ -941,6 +943,17 @@ export function parseBoard(source: string): Board {
           noVias: !!keep && str(findChild(keep, "vias")) === "not_allowed",
           teardrop: !!findChild(findChild(node, "attr") ?? node, "teardrop"),
           hatched: !!fill && str(findChild(fill, "mode")) === "hatch",
+          hatch:
+            fill && str(findChild(fill, "mode")) === "hatch"
+              ? {
+                  thickness: numOf(fill, "hatch_thickness") ?? 1,
+                  gap: numOf(fill, "hatch_gap") ?? 1.5,
+                  orientation: numOf(fill, "hatch_orientation") ?? 0,
+                  smoothingLevel: numOf(fill, "hatch_smoothing_level") ?? 0,
+                  smoothingValue: numOf(fill, "hatch_smoothing_value") ?? 0.1,
+                  holeMinArea: numOf(fill, "hatch_min_hole_area") ?? 0.3,
+                }
+              : undefined,
           uuid: itemUuid(node),
           net: str(findChild(node, "net_name")) || netOf(node),
           name: str(findChild(node, "name")),
