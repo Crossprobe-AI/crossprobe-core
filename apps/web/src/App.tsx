@@ -43,6 +43,7 @@ import { UpdateSchematic } from "./ui/UpdateSchematic";
 import { PageSettingsDialog } from "./ui/PageSettings";
 import { CleanupTracks } from "./ui/CleanupTracks";
 import { Annotate } from "./ui/Annotate";
+import { netlistFile } from "./netlist-file";
 import { BoardReannotate } from "./ui/BoardReannotate";
 import { BoardStats } from "./ui/BoardStats";
 import { FootprintEditor } from "./ui/FootprintEditor";
@@ -1161,6 +1162,12 @@ export function App() {
                       {missingFootprints > 0 && <span className="count">{missingFootprints}</span>}
                     </button>
                   )}
+                  <button
+                    onClick={async () => session.current && downloadFile(`${project.name}.net`, netlistFile(await session.current.files(), project.projectFile))}
+                    title="Export the netlist in KiCad's format (.net), for Pcbnew and other tools"
+                  >
+                    <Icon name="download" /> <span className="tl">Netlist</span>
+                  </button>
                   {editing && (
                     <>
                     <button onClick={() => openPanel("fields")} title="Symbol fields table: every part's fields, edited in one place">

@@ -32,6 +32,8 @@ export interface Net {
   sheets: string[];
   /** Every name attached to the net (labels, power symbols, sheet pins), strongest first. */
   aliases: string[];
+  /** A no-connect flag sits on the net, and no power symbol does. */
+  noConnect?: boolean;
 }
 
 export interface Netlist {
@@ -244,6 +246,8 @@ export function buildNetlist(schematic: Schematic, options: { detail?: boolean }
       aliases,
       name,
       nodes,
+      // (A power symbol's pin is a second pin on the net: the flag then marks nothing.)
+      ...(group.some((g) => g.hasNoConnect) && !group.some((g) => g.drivers.some((d) => d.priority === Priority.LocalPower || d.priority === Priority.GlobalPower)) && { noConnect: true }),
       sheets: [...new Set(group.map((g) => g.sheet.namePath))],
     });
   }
@@ -292,6 +296,8 @@ interface NamingHint {
 const namingHints = new WeakMap<NetNode, NamingHint>();
 /** Pads of a stacked pin after the first; the net is named after the first only. */
 const stackedExtras = new WeakSet<NetNode>();
+/** Is this node one of the further pads of a stacked pin ("[1-4]"), after its first? */
+export const isStackedExtra = (node: NetNode): boolean => stackedExtras.has(node);
 
 /**
  * Pads of a stacked pin number: "[1-3,7]" is pads 1, 2, 3 and 7. A range
