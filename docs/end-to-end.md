@@ -428,6 +428,7 @@ bus findings.
 `scripts/e2e-sch-graphics.mjs` draws notes in a new project:
 - a text (T) and a text box;
 - lines, a rectangle, a circle and an arc (start, end, a point it passes through);
+- an image, picked with the Image tool and then shown at half size;
 - then a double-click on the text renames it.
 
 KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both texts.
@@ -539,3 +540,9 @@ saves it with "Save as block": the block's schematic and description go in
 `pic_programmer.kicad_blocks/`, and `design-block-lib-table` lists that library. The Add block
 tool lists it first, inserting it adds a renumbered copy, and KiCad reads the saved block.
 `test/save-block.test.ts` checks that KiCad's netlist of a saved block equals ours.
+
+## Drawing sheets
+
+`test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's
+ISO, GOST and default templates on demo schematics: every frame text is in KiCad's SVG of the
+page, with the same text at the same place. In the app, vme-wren opens with its CERN title block.

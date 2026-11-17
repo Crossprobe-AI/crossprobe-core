@@ -1,5 +1,5 @@
 // End-to-end, schematic text and graphics: in a new project a text (T), a text box, lines, a
-// rectangle, a circle and an arc are drawn with the schematic tools, then the text is double-clicked and
+// rectangle, a circle, an image (then halved) and an arc are drawn with the schematic tools, then the text is double-clicked and
 // renamed. KiCad reads the saved schematic and writes the same items back (`sch upgrade`), and its SVG
 // plot shows both texts.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-sch-graphics.mjs <out-dir>
@@ -7,6 +7,7 @@ import puppeteer from "puppeteer-core";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { crc32, deflateSync } from "node:zlib";
 const OUT = resolve(process.argv[2] ?? "scripts/e2e-out/sch-graphics");
 const URL = process.env.APP_URL ?? "http://localhost:5173/";
 rmSync(OUT, { recursive: true, force: true });
@@ -64,6 +65,45 @@ await tool("Circle");
 await clickSch({ x: 165.1, y: 120.65 });
 await clickSch({ x: 172.72, y: 120.65 });
 await idle();
+console.log("-- an image, then half its size");
+{
+  // A small PNG to place.
+  const chunk = (type, data) => {
+    const t = Buffer.from(type, "latin1");
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([t, data])) >>> 0);
+    return Buffer.concat([len, t, data, crc]);
+  };
+  const [w, h] = [300, 150];
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  const rows = Buffer.concat(Array.from({ length: h }, (_, y) => Buffer.concat([Buffer.from([0]), ...Array.from({ length: w }, (_, x) => Buffer.from(((x >> 4) + (y >> 4)) % 2 ? [220, 30, 30] : [30, 60, 220]))])));
+  writeFileSync(`${OUT}/picture.png`, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]));
+}
+await tool("Image");
+{
+  const c = await sch({ x: 228.6, y: 76.2 });
+  const [chooser] = await Promise.all([page.waitForFileChooser(), page.mouse.click(c.x, c.y)]);
+  await chooser.accept([`${OUT}/picture.png`]);
+}
+await idle();
+await wait(500);
+await page.keyboard.press("Escape");
+{
+  const box = await page.evaluate(() => {
+    const r = document.querySelector(".viewport.schematic image").getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.click(box.x, box.y);
+  await wait(300);
+  await page.select(".edit-hint select", "0.5");
+  await idle();
+  await wait(300);
+}
 await tool("Arc");
 await clickSch({ x: 190.5, y: 101.6 });
 await clickSch({ x: 215.9, y: 101.6 });
@@ -92,6 +132,7 @@ expect(count(/\(text "Power input"/g) === 1 && !ours.includes("Power stage"), "t
 expect(count(/\(text_box "Keep C1 close to U1"/g) === 1, "a text box");
 expect(count(/\(polyline/g) === 1 && count(/\(rectangle/g) === 1 && count(/\(circle/g) === 1 && count(/\(arc/g) === 1, `lines, rectangle, circle and arc (polyline ${count(/\(polyline/g)}, rectangle ${count(/\(rectangle/g)}, circle ${count(/\(circle/g)}, arc ${count(/\(arc/g)})`);
 const k = await kinds();
+expect(count(/\(image\b/g) === 1 && /\(scale 0\.5\)/.test(ours), "an image, at half size");
 expect(k.text >= 2 && k.graphic >= 4, `drawn items: ${JSON.stringify(k)}`);
 
 // KiCad reads the file and writes it back the same.
