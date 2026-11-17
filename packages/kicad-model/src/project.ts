@@ -47,10 +47,23 @@ export interface Schematic {
   /** Real components (power symbols and other `#`-references excluded). */
   components: Component[];
   /** Every placed symbol unit per sheet instance, power symbols included. */
+  /** How global labels list the pages they are on (the project's Schematic Setup › Formatting). */
+  intersheetRefs?: IntersheetRefSettings;
   /** Text variables of the project (from the .kicad_pro next to the root sheet). */
   textVariables?: Record<string, string>;
   placements: Array<{ sheet: SheetInstance; symbol: PlacedSymbol; reference: string; unit: number; lib?: LibSymbol; /** The value, where the file keeps it per instance (KiCad 6). */ value?: string }>;
   warnings: string[];
+}
+
+export interface IntersheetRefSettings {
+  /** Shown next to each global label. */
+  show: boolean;
+  /** The page the label is on is listed too. */
+  ownPage: boolean;
+  /** "2..5" for more than two pages. */
+  short: boolean;
+  prefix: string;
+  suffix: string;
 }
 
 export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
@@ -109,7 +122,7 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
   };
   visit(root, 0);
 
-  let project: { text_variables?: Record<string, string>; schematic?: { bus_aliases?: Record<string, string[]> } } | undefined;
+  let project: { text_variables?: Record<string, string>; schematic?: { bus_aliases?: Record<string, string[]>; drawing?: Record<string, unknown> } } | undefined;
   try {
     project = JSON.parse(read(rootFile.replace(/\.kicad_sch$/, ".kicad_pro")));
   } catch {
@@ -167,7 +180,15 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
   const components = [...byRef.values()].sort((a, b) => compareRefs(a.reference, b.reference));
   const vars = project?.text_variables;
   const textVariables = vars && typeof vars === "object" ? vars : undefined;
-  return { root, sheets, components, placements, warnings, textVariables };
+  const drawing = project?.schematic?.drawing ?? {};
+  const intersheetRefs: IntersheetRefSettings = {
+    show: drawing["intersheets_ref_show"] === true,
+    ownPage: drawing["intersheets_ref_own_page"] === true,
+    short: drawing["intersheets_ref_short"] === true,
+    prefix: typeof drawing["intersheets_ref_prefix"] === "string" ? drawing["intersheets_ref_prefix"] : "",
+    suffix: typeof drawing["intersheets_ref_suffix"] === "string" ? drawing["intersheets_ref_suffix"] : "",
+  };
+  return { root, sheets, components, placements, warnings, textVariables, intersheetRefs };
 }
 
 /** Pins of a library symbol that belong to a given unit and body style. */

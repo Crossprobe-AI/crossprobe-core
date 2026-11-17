@@ -3373,3 +3373,13 @@ button.sb-checks:hover {
 .find-list button.on {
   background: var(--panel-2);
 }
+.page-refs {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin: 8px 0;
+  padding: 6px 10px;
+}
+.page-refs legend {
+  font-size: 12px;
+  padding: 0 4px;
+}
