@@ -68,6 +68,8 @@ import {
   addImage,
   addTable,
   setHyperlink,
+  sheetFeatureCounts,
+  requireSheetFeatures,
   setImageScale,
   setSheetPinName,
   addDirective,
@@ -766,6 +768,8 @@ export class Editor {
           if (n) f(n);
         }
       };
+      // Items a sheet's file version can't hold are refused, however they arrive.
+      const features = sheetFeatureCounts(root);
       switch (op.op) {
         case "move": each(op.uuids, (n) => moveItem(n, op.dx, op.dy)); break;
         case "rotate": each(op.uuids, (n) => rotateItem(n)); break;
@@ -917,6 +921,7 @@ export class Editor {
           break;
         }
       }
+      requireSheetFeatures(root, features);
       const out = serialize(cached.doc);
       this.docs.set(op.file, { text: out, doc: cached.doc });
       changed[op.file] = out;

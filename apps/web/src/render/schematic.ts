@@ -19,7 +19,7 @@ import {
   drawingSheetPrims,
   sheetsByPage,
   type DrawingSheet,
-  type DrawingSheetPrim, base64Bytes, bitmapInfo, bitmapSizeMm, type BitmapInfo } from "@crossprobe/kicad-model";
+  type DrawingSheetPrim, base64Bytes, bitmapInfo, TABLE_BY_CELL, bitmapSizeMm, type BitmapInfo } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -741,14 +741,18 @@ export function renderSheet(
       }
       case "table": {
         // The table's lines are one item (selected and moved as a whole); each cell is its own, to edit.
-        items.push({ kind: "graphic", prims: tablePrims(node, (t) => shown(t)).filter((p) => p.t !== "text") });
-        for (const c of findChildren(findChild(node, "cells") ?? node, "table_cell")) {
+        // A KiCad 9 table has no UUID: it goes by its first cell's.
+        const cellList = findChildren(findChild(node, "cells") ?? node, "table_cell");
+        const tableId = str(findChild(node, "uuid")) || (cellList[0] ? `${TABLE_BY_CELL}${str(findChild(cellList[0], "uuid"))}` : "");
+        const lines = tablePrims(node, (t) => shown(t)).filter((p) => p.t !== "text");
+        items.push({ kind: "graphic", prims: lines, uuid: tableId || undefined, bbox: lines.length ? bboxOf(lines) : undefined });
+        for (const c of cellList) {
           if (Number(arg(findChild(c, "span"), 0) ?? 1) <= 0) continue;
           const p = pt(findChild(c, "at"));
           const s = findChild(c, "size");
           const [w, h] = [Number(arg(s, 0) ?? 0), Number(arg(s, 1) ?? 0)];
           const hit: Prim = { t: "path", d: polyPath([p, { x: p.x + w, y: p.y }, { x: p.x + w, y: p.y + h }, { x: p.x, y: p.y + h }], true), role: "cellHit", fill: true };
-          items.push({ kind: "cell", prims: [hit, ...textBoxPrims(c, shown(str(c, 0)), false).filter((q) => q.t === "text")], uuid: str(findChild(c, "uuid")), owner: str(findChild(node, "uuid")) || undefined, text: str(c, 0) });
+          items.push({ kind: "cell", prims: [hit, ...textBoxPrims(c, shown(str(c, 0)), false).filter((q) => q.t === "text")], uuid: str(findChild(c, "uuid")), owner: tableId || undefined, text: str(c, 0) });
         }
         break;
       }

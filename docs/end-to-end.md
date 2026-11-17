@@ -571,3 +571,11 @@ pic_programmer's board names none and gets the default frame.
 `scripts/e2e-hyperlink.mjs` gives a text on KiCad's pic_programmer demo the link "#2": out of
 editing, clicking it opens page 2. With a web address instead, the click opens that address, and
 the file has KiCad's `(href …)`. `test/sch-hyperlink.test.ts` checks that KiCad keeps the links.
+
+## A KiCad 9 table
+
+`scripts/e2e-sch-table.mjs` opens jetson-agx-thor-baseboard's power sheet, a KiCad 9 file whose
+table has no UUID of its own (KiCad 9 has none; the app names it by its first cell). Clicking a
+cell selects the table, dragging a cell moves every cell, a box selection takes the table and not
+its cells (and moving it keeps the grid), and Delete removes it from the file. The file keeps the
+table without a UUID, which KiCad 9's reader would refuse.

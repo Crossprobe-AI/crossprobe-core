@@ -142,7 +142,7 @@ completes a feature.
 | Images | Works | Placed with the Image tool (other formats become PNG, as KiCad stores them), moved, and sized; KiCad reads them back unchanged |
 | Intersheet references | Works | The pages a global label is on, as KiCad lists them (own page, short form, prefix and suffix), switched on in Page settings; drawn where KiCad places them, not movable |
 | Net class directives, rule areas | Works | Placed on wires and buses, or on a rule area's outline for everything inside; a label's Netclass field counts too. Nets get KiCad's classes, combined ones included ("A,Default"), and the project file keeps them as KiCad does. Only the Netclass field: no component classes |
-| Tables | Works | Drawn as KiCad draws them (border, header line, separators, spans, text justified in each cell); placed with the Table tool, cells filled in by double-click, moved as a whole. Rows, columns and spans can't be changed here |
+| Tables | Works | Drawn as KiCad draws them (border, header line, separators, spans, text justified in each cell); placed with the Table tool (on sheets from KiCad 9 on), cells filled in by double-click, moved and box-selected as a whole, KiCad 9's tables (no UUID) too. Rows, columns and spans can't be changed here |
 | Hyperlinks | Works | On texts and labels: a web address or a page (`#2`), opened with a click when not editing; set with Link… on a selected text. Not on fields or in plots |
 | Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
