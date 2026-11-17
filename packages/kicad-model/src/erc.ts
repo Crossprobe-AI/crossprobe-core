@@ -636,14 +636,15 @@ export function isErcExcluded(v: ErcViolation, entries: string[]): boolean {
 
 /**
  * Two checks on the nets of a part's pins. A part with a supply pin on a ground net whose other
- * supply pin is named like ground (GND, AGND, VSS, EARTH…) but isn't on one (ground_pin_not_ground);
+ * supply pin is named like ground (GND, AGND, PGND…) but isn't on one (ground_pin_not_ground);
  * the same pin of a multi-unit part (a supply pin shared by all units) on different nets in
  * different units (different_unit_net).
  */
 function checkPinNets(schematic: Schematic, netlist: Netlist, report: Report) {
   const isGround = (t: string) => {
     const u = t.toUpperCase();
-    return u.includes("GND") || u === "EARTH" || u.startsWith("EARTH_") || u === "VSS" || u === "VSSA";
+    // Only names with GND, as KiCad: VSS is the negative rail on dual-supply parts, which have a GND pin of their own.
+    return u.includes("GND");
   };
   // Every pin with its net, sheet and symbol.
   type At = { pin: SchematicPin; net: string; sheet: SheetInstance };
@@ -673,10 +674,10 @@ function checkPinNets(schematic: Schematic, netlist: Netlist, report: Report) {
   }
 }
 
-/** "Horizontal Wire, length 50.8 mm", as KiCad describes a wire or bus segment. */
 /** A subgraph driver's priority from a global power symbol up (connectivity's Priority.GlobalPower). */
 const GLOBAL_POWER_PRIORITY = 6;
 
+/** "Horizontal Wire, length 50.8 mm", as KiCad describes a wire or bus segment. */
 function wireDesc(w: { a: Point; b: Point }, kind = "Wire"): string {
   const len = Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y);
   const dir = Math.abs(w.a.x - w.b.x) < 1e-6 ? "Vertical" : Math.abs(w.a.y - w.b.y) < 1e-6 ? "Horizontal" : "";
