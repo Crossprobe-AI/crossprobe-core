@@ -8,6 +8,10 @@ import { serializeRequirements } from "../requirements/requirements";
 import { arg, findChild, findChildren, format, headOf, insertAt, isList, parse, removeChild, serialize, type Document, type List } from "@crossprobe/kicad-sexpr";
 import {
   createBoardArray,
+  addGroup,
+  removeGroup,
+  pruneGroups,
+  setGroupLocked,
   type ArrayOptions,
   type ZoneProps,
   addJunction,
@@ -276,6 +280,10 @@ export type EditOp =
   /** Flip footprints to the other side, mirrored around `centerX` (default: in place). */
   | { op: "boardFlip"; file: string; uuids: string[]; centerX?: number }
   | { op: "boardDelete"; file: string; uuids: string[] }
+  /** KiCad's Group (Ctrl+G): a new group of these top-level items or groups. */
+  | { op: "boardGroup"; file: string; members: string[]; name?: string; uuid?: string }
+  /** KiCad's Ungroup (Ctrl+Shift+G). */
+  | { op: "boardUngroup"; file: string; groups: string[] }
   | { op: "addTrack"; file: string; points: Point[]; width: number; layer: string; net: string }
   | { op: "addVia"; file: string; at: Point; size: number; drill: number; layers: [string, string]; net: string; type?: "blind" | "buried" | "micro" }
   /** A board graphic: the Edge.Cuts outline, silkscreen or drawing shapes. */
@@ -425,6 +433,8 @@ export function describeOp(op: EditOp): string {
     case "boardRotate": return "Rotate";
     case "boardFlip": return "Flip";
     case "boardDelete": return `Delete ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
+    case "boardGroup": return "Group";
+    case "boardUngroup": return "Ungroup";
     case "addTrack": return "Route track";
     case "addVia": return op.type ? `Add ${op.type} via` : "Add via";
     case "addBoardShape": return op.shape.layer === "Edge.Cuts" ? "Draw board outline" : `Draw ${op.shape.kind} on ${op.shape.layer}`;
@@ -841,6 +851,14 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       break;
     case "boardDelete":
       for (const u of op.uuids) deleteBoardItem(root, u);
+      // Deleted items leave their groups; groups left empty go (KiCad's commit).
+      pruneGroups(root, op.uuids);
+      break;
+    case "boardGroup":
+      addGroup(root, op.members, op.name ?? "", op.uuid);
+      break;
+    case "boardUngroup":
+      for (const g of op.groups) removeGroup(root, g);
       break;
     case "addTrack":
       for (let i = 1; i < op.points.length; i++) {
@@ -881,7 +899,11 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       addDimension(root, op);
       break;
     case "setLocked":
-      for (const n of items(op.uuids)) setLocked(n, op.locked);
+      for (const u of op.uuids) {
+        const n = findBoardItem(root, u);
+        if (n && headOf(n) === "group") setGroupLocked(root, u, op.locked);
+        else if (n) setLocked(n, op.locked);
+      }
       break;
     case "setPadProps": {
       const fp = findBoardItem(root, op.footprint);
