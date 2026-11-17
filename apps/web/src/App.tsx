@@ -1106,6 +1106,7 @@ export function App() {
                         ["label", "Label", "L", "label"],
                         ["junction", "Junction", "J", "junction"],
                         ["noconnect", "No-connect", "Q", "noConnect"],
+                        ["glabel", "Global label", "Ctrl+L", "glabel"],
                         ["hlabel", "Hier. label", "H", "hlabel"],
                         ["text", "Text", "T", "text"],
                         ["textbox", "Text box", "", "textBox"],

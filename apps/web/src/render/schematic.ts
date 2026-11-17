@@ -245,6 +245,8 @@ function symbolGraphics(
   o: Orientation,
   origin: Point,
   isPower: boolean,
+  /** Pins switched to an alternate function: number → its name. */
+  alternates?: Record<string, string>,
 ): { body: Prim[]; pins: PinDraw[] } {
   const tf = (p: Point) => transformLibPoint(p, o, origin);
   const body: Prim[] = [];
@@ -264,7 +266,7 @@ function symbolGraphics(
       if (!isList(g)) continue;
       const head = headOf(g);
       if (head === "pin") {
-        const draw = pinGraphics(g, o, origin, nameOffset, hideNames, hideNumbers);
+        const draw = pinGraphics(g, o, origin, nameOffset, hideNames, hideNumbers, alternates);
         if (draw) pins.push(draw);
       } else if (head === "text") {
         const e = effectsOf(g);
@@ -282,7 +284,7 @@ function symbolGraphics(
   return { body: [...body.filter(isBackground), ...body.filter((p) => !isBackground(p))], pins };
 }
 
-function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: number, hideNames: boolean, hideNumbers: boolean): PinDraw | undefined {
+function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: number, hideNames: boolean, hideNumbers: boolean, alternates?: Record<string, string>): PinDraw | undefined {
   const isHidden =
     pin.children.some((c) => isAtom(c) && c.raw === "hide") || arg(findChild(pin, "hide"), 0) === "yes";
   if (isHidden) return undefined;
@@ -297,7 +299,10 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
   const b = tf(end);
   const prims: Prim[] = [{ t: "path", d: polyPath([a, b]), role: "pin" }];
 
-  const style = str(pin, 1);
+  // A pin switched to an alternate function is drawn with that function's name and shape.
+  const chosen = alternates?.[str(findChild(pin, "number"))];
+  const alternate = chosen === undefined ? undefined : findChildren(pin, "alternate").find((a) => str(a, 0) === chosen);
+  const style = alternate ? str(alternate, 2) : str(pin, 1);
   if (style === "inverted" || style === "inverted_clock") {
     const r = 0.635;
     const c = tf({ x: end.x - d.x * r, y: end.y - d.y * r });
@@ -307,7 +312,7 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
   const sa = screenAngle(angle, o); // direction from tip into the body
   const nameNode = findChild(pin, "name");
   const numberNode = findChild(pin, "number");
-  const name = str(nameNode);
+  const name = alternate ? str(alternate, 0) : str(nameNode);
   const number = str(numberNode);
   const ne = effectsOf(nameNode);
   const nume = effectsOf(numberNode);
@@ -632,7 +637,7 @@ export function renderSheet(
       case "global_label":
       case "hierarchical_label": {
         const kind = headOf(node) === "label" ? "local" : headOf(node) === "global_label" ? "global" : "hierarchical";
-        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind) });
+        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
         break;
       }
       case "text": {
@@ -690,7 +695,7 @@ export function renderSheet(
         const prims: Prim[] = [];
         let pins: PinDraw[] = [];
         if (libNode) {
-          const g = symbolGraphics(libNode, unit, sym.bodyStyle, o, sym.at, isPower);
+          const g = symbolGraphics(libNode, unit, sym.bodyStyle, o, sym.at, isPower, sym.pinAlternates);
           prims.push(...g.body);
           pins = g.pins;
         }
