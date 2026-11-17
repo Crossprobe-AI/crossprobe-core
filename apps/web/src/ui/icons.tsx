@@ -327,6 +327,7 @@ const ICONS = {
   drawLine: <path d="M4 18l6-10 5 6 5-9" />,
   drawRect: <rect x="4" y="6" width="16" height="12" />,
   drawCircle: <circle cx="12" cy="12" r="8" />,
+  drawArc: <path d="M4 18a10 10 0 0 1 16 0" />,
   table: <path d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14" />,
   chevronRight: <path d="M9 5l7 7-7 7" />,
 } satisfies Record<string, ReactNode>;

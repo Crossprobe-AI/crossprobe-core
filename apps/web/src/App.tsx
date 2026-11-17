@@ -1125,6 +1125,7 @@ export function App() {
                         ["line", "Lines", "", "drawLine"],
                         ["rect", "Rectangle", "", "drawRect"],
                         ["circle", "Circle", "", "drawCircle"],
+                        ["arc", "Arc", "", "drawArc"],
                         ["sheet", "Sheet", "Shift+S", "sheet"],
                         ["sheetpin", "Sheet pin", "", "sheetPin"],
                         ["place", "Add part", "A", "addPart"],
