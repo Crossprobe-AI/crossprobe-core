@@ -171,6 +171,27 @@ export function setPinAlternate(node: List, pin: string, alternate: string | und
   else insertAt(p, p.children.length, list("alternate", str(alternate)));
 }
 
+/** A field of a placed symbol, once it is placed by hand: KiCad no longer lays the fields out itself. */
+function ownField(node: List, name: string): List | undefined {
+  const prop = findChildren(node, "property").find((p) => arg(p, 0) === name);
+  const auto = findChild(node, "fields_autoplaced");
+  if (prop && auto) removeChild(node, auto);
+  return prop;
+}
+
+/** Move one field of a placed symbol by (dx, dy) mm. */
+export function moveField(node: List, name: string, dx: number, dy: number): void {
+  const field = ownField(node, name);
+  if (field) shiftAt(findChild(field, "at"), dx, dy);
+}
+
+/** Turn one field of a placed symbol between horizontal and vertical. */
+export function rotateField(node: List, name: string): void {
+  const field = ownField(node, name);
+  const at = field && findChild(field, "at");
+  if (at) setArg(at, 2, (Number(arg(at, 2) ?? 0) % 180 === 0 ? 90 : 0));
+}
+
 /** Show or hide a field of a placed symbol on the sheet. */
 export function setFieldVisible(node: List, name: string, visible: boolean): void {
   const prop = findChildren(node, "property").find((p) => arg(p, 0) === name);

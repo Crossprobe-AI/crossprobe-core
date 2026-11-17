@@ -702,15 +702,17 @@ export function renderSheet(
           prims.push(...g.body);
           pins = g.pins;
         }
+        const ref = isPower || reference.startsWith("#") ? undefined : reference;
+        const net = isPower ? sym.properties["Value"] : undefined;
+        items.push({ kind: "symbol", ref, reference, net, prims });
+        // Each shown field is an item of its own: it can be moved, turned and edited apart from the symbol.
         for (const prop of findChildren(node, "property")) {
           const key = str(prop, 0);
           const value = key === "Reference" ? shownRef : shown(str(prop, 1), placement);
           const role: Role = key === "Reference" ? "reference" : key === "Value" ? (isPower ? "labelPower" : "value") : "field";
           const p = fieldPrim(value, prop, o, sym.at, role);
-          if (p) prims.push(p);
+          if (p) items.push({ kind: "field", ref, net, prims: [p], field: key, owner: sym.uuid, uuid: `${sym.uuid}#${key}`, text: key === "Reference" ? reference : str(prop, 1) });
         }
-        const ref = isPower || reference.startsWith("#") ? undefined : reference;
-        items.push({ kind: "symbol", ref, reference, net: isPower ? sym.properties["Value"] : undefined, prims });
         for (const pin of pins) {
           items.push({ kind: "pin", ref, pin: pin.number, outward: pin.outward, net: ref ? pinNets.get(`${reference}\0${pin.number}`) : undefined, prims: pin.prims, points: [pin.tip] });
         }

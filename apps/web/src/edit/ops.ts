@@ -50,6 +50,8 @@ import {
   setPinAlternate,
   setFieldVisible,
   setLabelShape,
+  moveField,
+  rotateField,
   type LabelShape,
   resolveLibrarySymbol,
   sheetRoot,
@@ -208,6 +210,9 @@ export type EditOp =
   | { op: "setBodyStyle"; file: string; uuid: string; style: number }
   /** Switch a placed symbol's pin to one of its alternate functions (`null`: back to its own). */
   | { op: "setPinAlternate"; file: string; uuid: string; pin: string; alternate: string | null }
+  /** Move one field of a placed symbol, or turn it between horizontal and vertical. */
+  | { op: "moveField"; file: string; uuid: string; name: string; dx: number; dy: number }
+  | { op: "rotateField"; file: string; uuid: string; name: string }
   /** Show or hide a field of a placed symbol on the sheet. */
   | { op: "setFieldVisible"; file: string; uuid: string; name: string; visible: boolean }
   /** The shape (signal direction) of a global or hierarchical label. */
@@ -357,6 +362,8 @@ export function describeOp(op: EditOp): string {
     case "setPinAlternate": return op.alternate === null ? `Pin ${op.pin}: own function` : `Pin ${op.pin}: ${op.alternate}`;
     case "setFieldVisible": return `${op.visible ? "Show" : "Hide"} ${op.name}`;
     case "setLabelShape": return "Label shape";
+    case "moveField": return `Move ${op.name}`;
+    case "rotateField": return `Rotate ${op.name}`;
     case "addWire": return op.bus ? "Add bus" : "Add wire";
     case "addBusEntry": return "Add bus entry";
     case "addSchText": return "Add text";
@@ -598,6 +605,8 @@ export class Editor {
         case "setPinAlternate": each([op.uuid], (n) => setPinAlternate(n, op.pin, op.alternate ?? undefined)); break;
         case "setFieldVisible": each([op.uuid], (n) => setFieldVisible(n, op.name, op.visible)); break;
         case "setLabelShape": each([op.uuid], (n) => setLabelShape(n, op.shape)); break;
+        case "moveField": each([op.uuid], (n) => moveField(n, op.name, op.dx, op.dy)); break;
+        case "rotateField": each([op.uuid], (n) => rotateField(n, op.name)); break;
         case "setPageSettings": setPageSettings(root, op.settings); break;
         case "addWire": if (op.bus) addBus(root, op.points); else addWire(root, op.points); break;
         case "addBusEntry": addBusEntry(root, op.at, op.size); break;

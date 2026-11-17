@@ -132,7 +132,7 @@ completes a feature.
 | Alternate pin functions | Works | A placed symbol's pin is switched in the inspector; the sheet, ERC and netlist follow. Alternates can't be defined in the symbol editor |
 | Move, rotate, mirror, delete, box select, copy, paste, duplicate | Works | Its own clipboard: not the system's, not between projects |
 | Undo and redo | Works | |
-| Fields, and the symbol fields table | Works | Fields can be shown and hidden; no per-field position or style; no BOM presets |
+| Fields, and the symbol fields table | Works | A field on the sheet is dragged, turned (R) and edited (double-click) on its own, and shown or hidden in the inspector. No font or justification settings, no autoplace; no BOM presets |
 | DNP, exclude from BOM, exclude from board, exclude from simulation | Works | No DNP cross drawn over the part |
 | Annotation | Works | The whole schematic or one sheet; new parts only or all, by X or Y; from a start number or the sheet number × 100 or × 1000; clear annotation. No selection scope |
 | Footprint assignment | Works | Filtered by the symbol's footprint filters and pin count |
