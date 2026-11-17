@@ -32,6 +32,7 @@ import {
   type ErcViolation,
   type Board,
   type ParityFinding,
+  unitPins,
 } from "@crossprobe/kicad-model";
 import { evidenceFileName, parseEvidence } from "./datasheet/evidence";
 import { parseRequirements, requirementsFileName } from "./requirements/requirements";
@@ -150,6 +151,15 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
       dnp: c.dnp,
       inBom: c.inBom,
       onBoard: c.onBoard,
+      excludeFromSim: c.units.some((u) => u.symbol.excludeFromSim),
+      hiddenFields: c.units[0]?.symbol.hiddenFields ?? [],
+      bodyStyle: c.units[0]?.symbol.bodyStyle ?? 1,
+      bodyStyles: c.lib?.bodyStyleNames ?? (c.lib?.bodyStyles === 2 ? ["Standard", "De Morgan"] : Array.from({ length: c.lib?.bodyStyles ?? 1 }, (_, i) => `Style ${i + 1}`)),
+      pinAlternates: c.units.flatMap((u) =>
+        (c.lib ? unitPins(c.lib, u.unit, u.symbol.bodyStyle) : [])
+          .filter((p) => p.alternates)
+          .map((p) => ({ pin: p.number, name: p.name, alternates: Object.keys(p.alternates!), current: u.symbol.pinAlternates?.[p.number] })),
+      ),
       fpFilters: (c.lib?.properties["ki_fp_filters"] ?? c.properties["ki_fp_filters"] ?? "").split(/\s+/).filter(Boolean),
       pinCount: new Set((c.lib?.pins ?? []).map((p) => p.number).filter(Boolean)).size,
     }));

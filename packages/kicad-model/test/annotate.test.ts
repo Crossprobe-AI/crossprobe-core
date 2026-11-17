@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { arg, findChild, findChildren, parse, serialize, type List } from "@crossprobe/kicad-sexpr";
-import { buildNetlist, findItem, loadSchematic, planAnnotation, setSymbolField, sheetRoot } from "../src/index.js";
+import { buildNetlist, findItem, loadSchematic, planAnnotation, setSymbolField, sheetRoot, sheetsByPage } from "../src/index.js";
 
 const DEMO = `${process.env.KICAD_DEMOS}/complex_hierarchy`;
 const KICAD_CLI = process.env.KICAD_CLI!;
@@ -55,5 +55,39 @@ describe.skipIf(!existsSync(DEMO) || !hasCli)("annotation", () => {
     const root = parse(readFileSync(out, "utf8")).children[0] as List;
     const theirs = findChildren(findChild(root, "components")!, "comp").map((c) => String(arg(findChild(c, "ref"), 0))).sort();
     expect(theirs).toEqual([...refs].sort());
+  });
+
+  it("numbers by sheet, from a start number, one sheet only, and clears", () => {
+    const read = (f: string) => readFileSync(join(DEMO, f), "utf8");
+    const s = loadSchematic("complex_hierarchy.kicad_sch", read);
+    const num = (r: string) => Number(/\d+$/.exec(r)![0]);
+    const real = (a: { from: string }) => !a.from.startsWith("#");
+
+    // Sheet number × 100: every part's number is in its sheet's hundred (sheet 1: 101…, sheet 2: 201…).
+    const bySheet = planAnnotation(s, { mode: "all", sheetMultiplier: 100 });
+    expect(bySheet.length).toBeGreaterThan(0);
+    const index = new Map(sheetsByPage(s).map((x, i) => [x.path, i + 1]));
+    for (const a of bySheet) expect(Math.floor(num(a.reference) / 100), `${a.from} → ${a.reference}`).toBe(index.get(a.sheetPath));
+    const assigned = new Map(bySheet.map((a) => [`${a.sheetPath}|${a.symbolUuid}`, a.reference]));
+    const refs = s.placements.map((p) => assigned.get(`${p.sheet.path}|${p.symbol.uuid}`) ?? p.reference);
+    const parts = new Set(s.placements.map((p, i) => `${refs[i]}|${p.reference}`));
+    expect(new Set([...parts].map((x) => x.split("|")[0])).size).toBe(parts.size);
+
+    // First free number after 500.
+    const after = planAnnotation(s, { mode: "all", startAfter: 500 });
+    expect(Math.min(...after.map((a) => num(a.reference)))).toBe(501);
+
+    // One sheet only: nothing else changes, and no number another sheet uses is given out.
+    const sheet = s.sheets.find((x) => x.parent && s.placements.some((p) => p.sheet === x && !p.reference.startsWith("#")))!;
+    const one = planAnnotation(s, { mode: "all", sheetPath: sheet.path });
+    expect(one.every((a) => a.sheetPath === sheet.path)).toBe(true);
+    const elsewhere = new Set(s.placements.filter((p) => p.sheet !== sheet).map((p) => p.reference));
+    for (const a of one) expect(elsewhere.has(a.reference), a.reference).toBe(false);
+
+    // Clearing takes every number away; numbering the cleared parts again fills them all in.
+    const cleared = planAnnotation(s, { mode: "clear" });
+    expect(cleared.filter(real).length).toBe(s.placements.filter((p) => !p.reference.startsWith("#")).length);
+    expect(cleared.every((a) => a.reference.endsWith("?"))).toBe(true);
+    expect(planAnnotation(s, { mode: "clear", sheetPath: sheet.path }).every((a) => a.sheetPath === sheet.path)).toBe(true);
   });
 });

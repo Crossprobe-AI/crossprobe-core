@@ -13,6 +13,7 @@ import {
   type Point,
   type Schematic,
   type SheetInstance,
+  shownText,
 } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
@@ -245,6 +246,8 @@ function symbolGraphics(
   o: Orientation,
   origin: Point,
   isPower: boolean,
+  /** Pins switched to an alternate function: number → its name. */
+  alternates?: Record<string, string>,
 ): { body: Prim[]; pins: PinDraw[] } {
   const tf = (p: Point) => transformLibPoint(p, o, origin);
   const body: Prim[] = [];
@@ -264,7 +267,7 @@ function symbolGraphics(
       if (!isList(g)) continue;
       const head = headOf(g);
       if (head === "pin") {
-        const draw = pinGraphics(g, o, origin, nameOffset, hideNames, hideNumbers);
+        const draw = pinGraphics(g, o, origin, nameOffset, hideNames, hideNumbers, alternates);
         if (draw) pins.push(draw);
       } else if (head === "text") {
         const e = effectsOf(g);
@@ -282,7 +285,7 @@ function symbolGraphics(
   return { body: [...body.filter(isBackground), ...body.filter((p) => !isBackground(p))], pins };
 }
 
-function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: number, hideNames: boolean, hideNumbers: boolean): PinDraw | undefined {
+function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: number, hideNames: boolean, hideNumbers: boolean, alternates?: Record<string, string>): PinDraw | undefined {
   const isHidden =
     pin.children.some((c) => isAtom(c) && c.raw === "hide") || arg(findChild(pin, "hide"), 0) === "yes";
   if (isHidden) return undefined;
@@ -297,7 +300,10 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
   const b = tf(end);
   const prims: Prim[] = [{ t: "path", d: polyPath([a, b]), role: "pin" }];
 
-  const style = str(pin, 1);
+  // A pin switched to an alternate function is drawn with that function's name and shape.
+  const chosen = alternates?.[str(findChild(pin, "number"))];
+  const alternate = chosen === undefined ? undefined : findChildren(pin, "alternate").find((a) => str(a, 0) === chosen);
+  const style = alternate ? str(alternate, 2) : str(pin, 1);
   if (style === "inverted" || style === "inverted_clock") {
     const r = 0.635;
     const c = tf({ x: end.x - d.x * r, y: end.y - d.y * r });
@@ -307,7 +313,7 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
   const sa = screenAngle(angle, o); // direction from tip into the body
   const nameNode = findChild(pin, "name");
   const numberNode = findChild(pin, "number");
-  const name = str(nameNode);
+  const name = alternate ? str(alternate, 0) : str(nameNode);
   const number = str(numberNode);
   const ne = effectsOf(nameNode);
   const nume = effectsOf(numberNode);
@@ -338,12 +344,12 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
 // Labels and sheets
 // ---------------------------------------------------------------------------
 
-function labelPrims(node: List, kind: "local" | "global" | "hierarchical"): Prim[] {
+function labelPrims(node: List, kind: "local" | "global" | "hierarchical", shown: string): Prim[] {
   const e = effectsOf(node);
   const at = findChild(node, "at");
   const p = pt(at);
   const angle = Number(arg(at, 2) ?? 0);
-  const s = str(node, 0);
+  const s = shown;
   const u = dir(angle);
   const size = e.size;
   const role: Role = kind === "local" ? "labelLocal" : kind === "global" ? "labelGlobal" : "labelHier";
@@ -533,7 +539,7 @@ function imagePrim(node: List): Prim | undefined {
 }
 
 /** KiCad 7+ text box: a rectangle with word-wrapped text inside its margins. */
-function textBoxPrims(node: List): Prim[] {
+function textBoxPrims(node: List, shown: string): Prim[] {
   const out: Prim[] = [];
   const at = findChild(node, "at");
   const start = findChild(node, "start");
@@ -551,7 +557,7 @@ function textBoxPrims(node: List): Prim[] {
   const m = margins ? Number(arg(margins, 0)) : e.size * 0.6;
   const maxChars = Math.max(4, Math.floor((w - 2 * m) / (e.size * CHAR_W)));
   const lines: string[] = [];
-  for (const para of str(node, 0).split("\n")) {
+  for (const para of shown.split("\n")) {
     let line = "";
     for (const word of para.split(" ")) {
       if (line && (line + " " + word).length > maxChars) {
@@ -585,9 +591,11 @@ export function renderSheet(
   let [w, h] = paperName === "User" ? [Number(arg(paperNode, 1)), Number(arg(paperNode, 2))] : (PAPER[paperName] ?? PAPER["A4"]!);
   if (paperNode?.children.some((c) => isAtom(c) && c.raw === "portrait")) [w, h] = [h, w];
   const paper = { w, h };
+  /** A text as KiCad shows it: its variables (${REVISION}, ${REFERENCE}, ${R1:VALUE}…) replaced. */
+  const shown = (s: string, of?: (typeof placements)[number]) => (s.includes("${") ? shownText(s, sheet, schematic, of) : s);
   const title: Record<string, string> = {};
   const tb = findChild(root, "title_block");
-  for (const c of tb?.children ?? []) if (isList(c)) title[headOf(c) === "comment" ? `comment${arg(c, 0)}` : headOf(c)!] = str(c, headOf(c) === "comment" ? 1 : 0);
+  for (const c of tb?.children ?? []) if (isList(c)) title[headOf(c) === "comment" ? `comment${arg(c, 0)}` : headOf(c)!] = shown(str(c, headOf(c) === "comment" ? 1 : 0));
   items.push({ kind: "graphic", prims: frame(paper, title, sheet.namePath, sheet.file) });
 
   let wireIndex = 0;
@@ -632,14 +640,14 @@ export function renderSheet(
       case "global_label":
       case "hierarchical_label": {
         const kind = headOf(node) === "label" ? "local" : headOf(node) === "global_label" ? "global" : "hierarchical";
-        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind) });
+        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind, shown(str(node, 0))), text: str(node, 0), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
         break;
       }
       case "text": {
         const e = effectsOf(node);
         const at = findChild(node, "at");
         const p = pt(at);
-        const lines = str(node, 0).split("\n");
+        const lines = shown(str(node, 0)).split("\n");
         const angle = Number(arg(at, 2) ?? 0);
         const step = e.size * 1.6;
         // Lines stack "down" the text: along +y for horizontal text, +x for vertical.
@@ -650,7 +658,7 @@ export function renderSheet(
           const k = (first + i) * step;
           return text(r.angle === 90 ? p.x + k : p.x, r.angle === 90 ? p.y : p.y + k, line, e, angle, "note");
         });
-        items.push({ kind: "text", prims });
+        items.push({ kind: "text", prims, text: str(node, 0) });
         break;
       }
       case "image": {
@@ -659,7 +667,7 @@ export function renderSheet(
         break;
       }
       case "text_box": {
-        items.push({ kind: "text", prims: textBoxPrims(node) });
+        items.push({ kind: "text", prims: textBoxPrims(node, shown(str(node, 0))), text: str(node, 0) });
         break;
       }
       case "polyline":
@@ -690,19 +698,21 @@ export function renderSheet(
         const prims: Prim[] = [];
         let pins: PinDraw[] = [];
         if (libNode) {
-          const g = symbolGraphics(libNode, unit, sym.bodyStyle, o, sym.at, isPower);
+          const g = symbolGraphics(libNode, unit, sym.bodyStyle, o, sym.at, isPower, sym.pinAlternates);
           prims.push(...g.body);
           pins = g.pins;
         }
+        const ref = isPower || reference.startsWith("#") ? undefined : reference;
+        const net = isPower ? sym.properties["Value"] : undefined;
+        items.push({ kind: "symbol", ref, reference, net, prims });
+        // Each shown field is an item of its own: it can be moved, turned and edited apart from the symbol.
         for (const prop of findChildren(node, "property")) {
           const key = str(prop, 0);
-          const value = key === "Reference" ? shownRef : str(prop, 1);
+          const value = key === "Reference" ? shownRef : shown(str(prop, 1), placement);
           const role: Role = key === "Reference" ? "reference" : key === "Value" ? (isPower ? "labelPower" : "value") : "field";
           const p = fieldPrim(value, prop, o, sym.at, role);
-          if (p) prims.push(p);
+          if (p) items.push({ kind: "field", ref, net, prims: [p], field: key, owner: sym.uuid, uuid: `${sym.uuid}#${key}`, text: key === "Reference" ? reference : str(prop, 1) });
         }
-        const ref = isPower || reference.startsWith("#") ? undefined : reference;
-        items.push({ kind: "symbol", ref, reference, net: isPower ? sym.properties["Value"] : undefined, prims });
         for (const pin of pins) {
           items.push({ kind: "pin", ref, pin: pin.number, outward: pin.outward, net: ref ? pinNets.get(`${reference}\0${pin.number}`) : undefined, prims: pin.prims, points: [pin.tip] });
         }

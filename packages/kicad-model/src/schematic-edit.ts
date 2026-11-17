@@ -121,18 +121,95 @@ export function mirrorSymbol(node: List, axis: "x" | "y"): void {
   }
 }
 
-/** Set a placed symbol's DNP and in-BOM flags (each only when given). */
-export function setSymbolAttributes(node: List, a: { dnp?: boolean; inBom?: boolean }): void {
-  const set = (head: string, on: boolean) => {
-    const f = findChild(node, head);
-    if (f) setArg(f, 0, sym(on ? "yes" : "no"));
-    else {
-      const after = findChild(node, "on_board") ?? findChild(node, "unit");
-      insertAt(node, after ? node.children.indexOf(after) + 1 : node.children.length, list(head, sym(on ? "yes" : "no")));
-    }
-  };
-  if (a.dnp !== undefined) set("dnp", a.dnp);
+/** The flags of a placed symbol, in the order KiCad writes them. */
+const SYMBOL_FLAGS = ["unit", "body_style", "convert", "exclude_from_sim", "in_bom", "on_board", "in_pos_files", "dnp"];
+
+/** Set a child like `(dnp yes)` of a placed symbol, adding it where KiCad writes it. */
+function setSymbolChild(node: List, head: string, value: number | ReturnType<typeof sym>): void {
+  const f = findChild(node, head);
+  if (f) return void setArg(f, 0, value);
+  const before = SYMBOL_FLAGS.slice(0, SYMBOL_FLAGS.indexOf(head)).reverse().map((h) => findChild(node, h)).find(Boolean) ?? findChild(node, "at");
+  insertAt(node, before ? node.children.indexOf(before) + 1 : node.children.length, list(head, value));
+}
+
+/** Set a placed symbol's flags (each only when given): do not populate, in the BOM, on the board, left out of simulation. */
+export function setSymbolAttributes(node: List, a: { dnp?: boolean; inBom?: boolean; onBoard?: boolean; excludeFromSim?: boolean }): void {
+  const set = (head: string, on: boolean) => setSymbolChild(node, head, sym(on ? "yes" : "no"));
+  if (a.excludeFromSim !== undefined) set("exclude_from_sim", a.excludeFromSim);
   if (a.inBom !== undefined) set("in_bom", a.inBom);
+  if (a.onBoard !== undefined) set("on_board", a.onBoard);
+  if (a.dnp !== undefined) set("dnp", a.dnp);
+}
+
+/**
+ * Switch a placed symbol to another body style (1 = the first, 2 = De Morgan or the second named style).
+ * `fileVersion` is the sheet file's `(version …)`: files from before KiCad 10 call it `convert`.
+ */
+export function setSymbolBodyStyle(node: List, style: number, fileVersion = Infinity): void {
+  const old = findChild(node, "convert");
+  if (old && !findChild(node, "body_style")) {
+    if (style === 1) removeChild(node, old);
+    else setArg(old, 0, style);
+  } else if (fileVersion >= 20250827) setSymbolChild(node, "body_style", style);
+  else if (style !== 1) setSymbolChild(node, "convert", style);
+}
+
+/** Switch a placed symbol's pin to one of its alternate functions by name; `undefined` is the pin's own function. */
+export function setPinAlternate(node: List, pin: string, alternate: string | undefined): void {
+  let p = findChildren(node, "pin").find((c) => arg(c, 0) === pin);
+  if (!p) {
+    if (alternate === undefined) return;
+    p = list("pin", str(pin), list("uuid", str(newUuid())));
+    const pins = findChildren(node, "pin");
+    const after = pins[pins.length - 1] ?? findChildren(node, "property").pop();
+    insertAt(node, after ? node.children.indexOf(after) + 1 : node.children.length, p);
+  }
+  const a = findChild(p, "alternate");
+  if (alternate === undefined) {
+    if (a) removeChild(p, a);
+  } else if (a) setArg(a, 0, str(alternate));
+  else insertAt(p, p.children.length, list("alternate", str(alternate)));
+}
+
+/** A field of a placed symbol, once it is placed by hand: KiCad no longer lays the fields out itself. */
+function ownField(node: List, name: string): List | undefined {
+  const prop = findChildren(node, "property").find((p) => arg(p, 0) === name);
+  const auto = findChild(node, "fields_autoplaced");
+  if (prop && auto) removeChild(node, auto);
+  return prop;
+}
+
+/** Move one field of a placed symbol by (dx, dy) mm. */
+export function moveField(node: List, name: string, dx: number, dy: number): void {
+  const field = ownField(node, name);
+  if (field) shiftAt(findChild(field, "at"), dx, dy);
+}
+
+/** Turn one field of a placed symbol between horizontal and vertical. */
+export function rotateField(node: List, name: string): void {
+  const field = ownField(node, name);
+  const at = field && findChild(field, "at");
+  if (at) setArg(at, 2, (Number(arg(at, 2) ?? 0) % 180 === 0 ? 90 : 0));
+}
+
+/** Show or hide a field of a placed symbol on the sheet. */
+export function setFieldVisible(node: List, name: string, visible: boolean): void {
+  const prop = findChildren(node, "property").find((p) => arg(p, 0) === name);
+  if (!prop) return;
+  let effects = findChild(prop, "effects");
+  if (!effects) {
+    if (visible) return;
+    effects = list("effects", list("font", list("size", 1.27, 1.27)));
+    insertAt(prop, prop.children.length, effects);
+  }
+  // Older files write a bare `hide`; newer ones `(hide yes)`.
+  const bare = effects.children.find((c) => isAtom(c) && c.raw === "hide");
+  const hide = findChild(effects, "hide");
+  if (visible) {
+    if (bare) removeChild(effects, bare);
+    if (hide) removeChild(effects, hide);
+  } else if (hide) setArg(hide, 0, sym("yes"));
+  else if (!bare) insertAt(effects, effects.children.length, list("hide", sym("yes")));
 }
 
 /**
@@ -346,16 +423,35 @@ export function addNoConnect(root: List, at: Point): string {
   return id;
 }
 
-/** Add a net label. `angle` 0 reads left-to-right with the anchor at the left. */
-export function addLabel(root: List, kind: NewLabelKind, text: string, at: Point, angle = 0, shape = "bidirectional"): string {
+export type LabelShape = "input" | "output" | "bidirectional" | "tri_state" | "passive";
+
+/**
+ * Add a net label. `angle` 0 reads left-to-right with the anchor at the left.
+ * A global label gets the hidden field KiCad lists its other sheets in.
+ */
+export function addLabel(root: List, kind: NewLabelKind, text: string, at: Point, angle = 0, shape: LabelShape = "bidirectional"): string {
   const id = newUuid();
   const justify = angle === 180 || angle === 270 ? "right" : "left";
-  const effects = list("effects", list("font", list("size", 1.27, 1.27)), list("justify", justify, ...(kind === "label" ? ["bottom"] : [])));
+  const effects = () => list("effects", list("font", list("size", 1.27, 1.27)), list("justify", justify, ...(kind === "label" ? ["bottom"] : [])));
   const node = list(kind, str(text));
   if (kind !== "label") node.children.push(list("shape", shape));
-  node.children.push(list("at", snapIU(at.x), snapIU(at.y), angle), effects, list("uuid", str(id)));
+  node.children.push(list("at", snapIU(at.x), snapIU(at.y), angle), effects(), list("uuid", str(id)));
+  if (kind === "global_label") {
+    const e = effects();
+    e.children.push(list("hide", sym("yes")));
+    node.children.push(list("property", str("Intersheetrefs"), str("${INTERSHEET_REFS}"), list("at", snapIU(at.x), snapIU(at.y), 0), e));
+  }
   insertTopLevel(root, node);
   return id;
+}
+
+/** Change the shape (signal direction) of a global or hierarchical label, or of a sheet pin. */
+export function setLabelShape(node: List, shape: LabelShape): void {
+  const s = findChild(node, "shape");
+  // A sheet pin's shape is its second argument: (pin "name" input (at …)).
+  if (headOf(node) === "pin") setArg(node, 1, sym(shape));
+  else if (s) setArg(s, 0, sym(shape));
+  else if (headOf(node) === "global_label" || headOf(node) === "hierarchical_label") insertAt(node, 2, list("shape", sym(shape)));
 }
 
 /** Text value of a top-level item's name argument (labels), for convenience. */
