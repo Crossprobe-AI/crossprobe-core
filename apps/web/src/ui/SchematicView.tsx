@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Prim, SchItem, SheetView } from "../render/types";
 import type { EditOp, SymbolSource } from "../edit/ops";
-import type { LabelShape } from "@crossprobe/kicad-model";
+import { arcThrough, type LabelShape } from "@crossprobe/kicad-model";
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { fromOverlay, useViewport } from "./viewport";
@@ -62,7 +62,7 @@ const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output"
 
 const HIT_KINDS = new Set<SchItem["kind"]>(["wire", "bus", "pin", "label"]);
 
-export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
+export type Tool = "select" | "wire" | "bus" | "busentry" | "text" | "textbox" | "line" | "rect" | "circle" | "arc" | "label" | "glabel" | "hlabel" | "junction" | "noconnect" | "place" | "power" | "block" | "sheet" | "sheetpin";
 
 /** What the editor needs to know about the project beyond the current sheet. */
 export interface EditContext {
@@ -183,7 +183,7 @@ export function SchematicView({
   /** Changes when the selection should be brought into view (e.g. picked in the inspector). */
   focusToken?: number;
   /** Frame these parts when `token` changes (e.g. a design block was just inserted below the page). */
-  reveal?: { token: number; refs: string[] };
+  reveal?: { token: number; refs: string[]; /** Items by UUID (a field: "<symbol>#<name>"), selected when editing. */ uuids?: string[] };
   /** Issue markers to draw (all sheets; filtered here). */
   markers?: Array<{ sheet: string; at: { x: number; y: number }; severity: "error" | "warning"; label: string }>;
   editing?: boolean;
@@ -308,8 +308,10 @@ export function SchematicView({
   useEffect(() => {
     if (!reveal?.token) return;
     const wanted = new Set(reveal.refs);
-    const boxes = sheet.items.filter((i) => i.bbox && i.kind === "symbol" && i.ref && wanted.has(i.ref)).map((i) => i.bbox!);
+    const ids = new Set(reveal.uuids ?? []);
+    const boxes = sheet.items.filter((i) => i.bbox && ((i.kind === "symbol" && i.ref && wanted.has(i.ref)) || (i.uuid && ids.has(i.uuid)))).map((i) => i.bbox!);
     if (!boxes.length) return;
+    if (ids.size && editing) setPicked(new Set([...ids].filter((id) => byUuid.has(id))));
     const x0 = Math.min(...boxes.map((b) => b.x));
     const y0 = Math.min(...boxes.map((b) => b.y));
     const x1 = Math.max(...boxes.map((b) => b.x + b.w));
@@ -450,6 +452,17 @@ export function SchematicView({
       if (tool === "line") {
         if (e.detail >= 2) return finishLine();
         setDraw([...draw, p0]);
+        return;
+      }
+      if (tool === "arc") {
+        // Start, end, then a point the arc passes through.
+        if (draw.length < 2) {
+          if (draw.length === 1 && draw[0]!.x === p0.x && draw[0]!.y === p0.y) return;
+          return setDraw([...draw, p0]);
+        }
+        const [a, b] = draw as [{ x: number; y: number }, { x: number; y: number }];
+        setDraw([]);
+        onEdit?.([{ op: "addSchGraphic", file: sheet.file, graphic: { kind: "arc", points: [a, p0, b] } }]);
         return;
       }
       if (tool === "textbox" || tool === "rect" || tool === "circle") {
@@ -779,7 +792,16 @@ export function SchematicView({
                 const r = Math.hypot(cursor.x - draw[0]!.x, cursor.y - draw[0]!.y);
                 return { x: draw[0]!.x + r * Math.cos((i * Math.PI) / 24), y: draw[0]!.y + r * Math.sin((i * Math.PI) / 24) };
               })
-            : []
+            : tool === "arc"
+              ? draw.length === 1
+                ? [draw[0]!, cursor]
+                : (() => {
+                    const arc = arcThrough(draw[0]!, cursor, draw[1]!);
+                    if (!arc) return [draw[0]!, draw[1]!];
+                    const start = Math.atan2(draw[0]!.y - arc.center.y, draw[0]!.x - arc.center.x);
+                    return Array.from({ length: 41 }, (_, i) => ({ x: arc.center.x + arc.radius * Math.cos(start + (arc.sweep * i) / 40), y: arc.center.y + arc.radius * Math.sin(start + (arc.sweep * i) / 40) }));
+                  })()
+              : []
       : [];
   const preview = wire.length && cursor && (tool === "wire" || tool === "bus") ? [...wire, ...elbow(wire[wire.length - 1]!, cursor)] : [];
 
@@ -853,6 +875,7 @@ export function SchematicView({
           {tool === "line" && (draw.length ? "Click the next corner · double-click or Enter to finish · Esc cancels" : "Click to start lines")}
           {tool === "rect" && (draw.length ? "Click the opposite corner" : "Click a corner of the rectangle")}
           {tool === "circle" && (draw.length ? "Click a point on the circle" : "Click the circle's centre")}
+          {tool === "arc" && (["Click where the arc starts", "Click where it ends", "Click a point it passes through · Esc cancels"][draw.length] ?? "")}
           {tool === "busentry" && `Click on a bus to place an entry, leaning ${["↘", "↗", "↖", "↙"][entry]} · R turns it`}
           {tool === "label" && "Click a wire to place a label"}
           {tool === "junction" && "Click to place a junction"}

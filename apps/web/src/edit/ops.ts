@@ -8,6 +8,12 @@ import { serializeRequirements } from "../requirements/requirements";
 import { arg, findChild, findChildren, format, headOf, insertAt, isList, parse, removeChild, serialize, type Document, type List } from "@crossprobe/kicad-sexpr";
 import {
   createBoardArray,
+  addTextBox,
+  type NewTextBox,
+  addGroup,
+  removeGroup,
+  pruneGroups,
+  setGroupLocked,
   type ArrayOptions,
   type ZoneProps,
   addJunction,
@@ -56,6 +62,10 @@ import {
   moveField,
   rotateField,
   setSheetName,
+  setSheetPinName,
+  planReplace,
+  type FindOptions,
+  type FindTarget,
   setSheetPage,
   syncSheetPins,
   type LabelShape,
@@ -254,8 +264,12 @@ export type EditOp =
   | { op: "addSheetPin"; file: string; sheetUuid: string; childFile: string; name: string; shape: string; at: Point }
   /** A sheet symbol's name, and the page number of the instance drawn on the sheet at `path`. */
   | { op: "setSheetProps"; file: string; uuid: string; name?: string; page?: { path: string; number: string } }
+  /** Rename one pin of a sheet symbol. */
+  | { op: "setSheetPinName"; file: string; uuid: string; pin: string; name: string }
   /** Pins for the child sheet's hierarchical labels that have none, and labels in it for the pins that have none. */
   | { op: "syncSheetPins"; file: string; sheetUuid: string; childFile: string }
+  /** Replace every match of `find` in these sheet files (expanded into setText, setField and setSheetProps ops). */
+  | { op: "replaceAll"; file: string; files: string[]; find: string; replace: string; options: FindOptions }
   /** Renumber references across the design (expanded into setField ops). */
   | { op: "annotate"; file: string; mode: "all" | "unannotated" | "clear"; order?: "x" | "y"; sheetPath?: string; startAfter?: number; sheetMultiplier?: 100 | 1000 }
   // Board (.kicad_pcb) operations; items are named by UUID.
@@ -268,6 +282,10 @@ export type EditOp =
   /** Flip footprints to the other side, mirrored around `centerX` (default: in place). */
   | { op: "boardFlip"; file: string; uuids: string[]; centerX?: number }
   | { op: "boardDelete"; file: string; uuids: string[] }
+  /** KiCad's Group (Ctrl+G): a new group of these top-level items or groups. */
+  | { op: "boardGroup"; file: string; members: string[]; name?: string; uuid?: string }
+  /** KiCad's Ungroup (Ctrl+Shift+G). */
+  | { op: "boardUngroup"; file: string; groups: string[] }
   | { op: "addTrack"; file: string; points: Point[]; width: number; layer: string; net: string }
   | { op: "addVia"; file: string; at: Point; size: number; drill: number; layers: [string, string]; net: string; type?: "blind" | "buried" | "micro" }
   /** A board graphic: the Edge.Cuts outline, silkscreen or drawing shapes. */
@@ -312,7 +330,10 @@ export type EditOp =
       /** Delete a net class (and its patterns); its nets fall back to the others or Default. */
       removeClass?: string;
     }
+  /** The project file's schematic formatting (schematic.drawing), KiCad's key names. */
+  | { op: "setSchematicDrawing"; file: string; drawing: Record<string, boolean | string | number> }
   | { op: "addBoardText"; file: string; text: NewBoardText }
+  | { op: "addTextBox"; file: string; box: NewTextBox }
   | { op: "setBoardText"; file: string; uuids: string[]; text?: string; size?: number; layer?: string }
   /** A copper zone outline; follow with refillZones to compute its copper. */
   | { op: "addZone"; file: string; zone: NewZone }
@@ -360,6 +381,14 @@ export function zonesStaleAfter(ops: EditOp[], stale: boolean): boolean {
   return stale || ops.some((o) => o.file.endsWith(".kicad_pcb") && !copperNeutral(o));
 }
 
+/** The edit that gives a found item new text. */
+export function replaceOp(t: FindTarget, to: string): EditOp {
+  if (t.kind === "field") return { op: "setField", file: t.file, uuid: t.uuid, name: t.field, value: to, sheetPath: t.sheetPath };
+  if (t.kind === "sheet") return { op: "setSheetProps", file: t.file, uuid: t.uuid, name: to };
+  if (t.kind === "sheetpin") return { op: "setSheetPinName", file: t.file, uuid: t.uuid, pin: t.pin, name: to };
+  return { op: "setText", file: t.file, uuid: t.uuid, text: to };
+}
+
 /** Human-readable name for the undo history. */
 export function describeOp(op: EditOp): string {
   switch (op.op) {
@@ -394,17 +423,21 @@ export function describeOp(op: EditOp): string {
     case "duplicate": return `Paste ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "placeSymbol": return `Place ${op.reference}${op.unit && op.unit > 1 ? ` unit ${String.fromCharCode(64 + op.unit)}` : ""}`;
     case "insertBlock": return "Insert design block";
+    case "replaceAll": return `Replace "${op.find}" with "${op.replace}"`;
     case "annotate": return op.mode === "all" ? "Annotate all" : op.mode === "clear" ? "Clear annotation" : "Annotate new parts";
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
     case "setSheetProps": return op.name !== undefined ? `Rename sheet to ${op.name}` : "Sheet page number";
     case "syncSheetPins": return "Synchronize sheet pins";
+    case "setSheetPinName": return `Sheet pin: ${op.name}`;
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
     case "boardArrange": return op.label;
     case "moveFootprintText": return "Move footprint text";
     case "boardRotate": return "Rotate";
     case "boardFlip": return "Flip";
     case "boardDelete": return `Delete ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
+    case "boardGroup": return "Group";
+    case "boardUngroup": return "Ungroup";
     case "addTrack": return "Route track";
     case "addVia": return op.type ? `Add ${op.type} via` : "Add via";
     case "addBoardShape": return op.shape.layer === "Edge.Cuts" ? "Draw board outline" : `Draw ${op.shape.kind} on ${op.shape.layer}`;
@@ -413,6 +446,7 @@ export function describeOp(op: EditOp): string {
     case "setZoneOutline": return op.label ?? "Edit zone outline";
     case "autoroute": return op.connections.length === 1 ? `Autoroute ${op.connections[0]!.net}` : `Autoroute ${op.connections.length} connections`;
     case "setProjectRules": return op.exclude ? "Exclude DRC finding" : op.include ? "Include DRC finding" : op.removeClass ? `Remove net class ${op.removeClass}` : op.classPatterns ? `Nets of ${op.classPatterns.name}` : "Board setup";
+    case "setSchematicDrawing": return "Schematic formatting";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
     case "teardrops": return op.remove ? "Remove teardrops" : "Teardrops";
     case "addDimension": return "Add dimension";
@@ -423,6 +457,7 @@ export function describeOp(op: EditOp): string {
     case "setEvidence": return "Datasheet evidence";
     case "setRequirements": return "Requirements";
     case "addBoardText": return `Add text "${op.text.text}"`;
+    case "addTextBox": return "Add text box";
     case "setBoardText": return op.text !== undefined ? `Text "${op.text}"` : op.size !== undefined ? `Text size ${op.size} mm` : `Text layer ${op.layer}`;
     case "setZoneProps": return op.net !== undefined ? `Zone net ${op.net || "(none)"}` : op.connect !== undefined ? "Zone pad connection" : op.layer !== undefined ? `Zone layer ${op.layer}` : "Zone properties";
     case "moveTrackEnd": return "Drag track";
@@ -465,6 +500,14 @@ export class Editor {
   /** Turn design-wide operations into per-file ones. */
   private expand(files: Record<string, string>, ops: EditOp[], root?: string): EditOp[] {
     return ops.flatMap((op): EditOp[] => {
+      if (op.op === "replaceAll") {
+        const sheets = op.files.map((file) => {
+          const text = files[file];
+          if (text === undefined) throw new Error(`missing ${file}`);
+          return { file, root: sheetRoot(parse(text)) };
+        });
+        return planReplace(sheets, op.find, op.replace, op.options).map((t): EditOp => replaceOp(t, t.to));
+      }
       if (op.op !== "annotate") return [op];
       if (!root) throw new Error("Annotation needs the root schematic");
       const schematic = loadSchematic(root, (f) => {
@@ -503,6 +546,15 @@ export class Editor {
       }
       if (op.op === "setRequirements") {
         changed[op.file] = serializeRequirements(op.requirements);
+        continue;
+      }
+      if (op.op === "setSchematicDrawing") {
+        const text = changed[op.file] ?? files[op.file];
+        if (text === undefined) throw new Error(`No such file: ${op.file}`);
+        const pro = JSON.parse(text) as { schematic?: { drawing?: Record<string, unknown> } };
+        pro.schematic ??= {};
+        pro.schematic.drawing = { ...(pro.schematic.drawing ?? {}), ...op.drawing };
+        changed[op.file] = JSON.stringify(pro, null, 2) + "\n";
         continue;
       }
       if (op.op === "setProjectRules") {
@@ -674,6 +726,7 @@ export class Editor {
             if (op.page) setSheetPage(n, op.page.path, op.page.number);
           });
           break;
+        case "setSheetPinName": each([op.uuid], (n) => setSheetPinName(n, op.pin, op.name)); break;
         case "syncSheetPins": {
           const sheet = findItem(root, op.sheetUuid);
           if (!sheet) throw new Error("Sheet not found");
@@ -774,6 +827,7 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       break;
     case "cleanupTracks":
       for (const u of op.remove) deleteBoardItem(root, u);
+      pruneGroups(root, op.remove);
       for (const r of op.reshape) {
         const n = findBoardItem(root, r.uuid);
         if (n) {
@@ -802,6 +856,14 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       break;
     case "boardDelete":
       for (const u of op.uuids) deleteBoardItem(root, u);
+      // Deleted items leave their groups; groups left empty go (KiCad's commit).
+      pruneGroups(root, op.uuids);
+      break;
+    case "boardGroup":
+      addGroup(root, op.members, op.name ?? "", op.uuid);
+      break;
+    case "boardUngroup":
+      for (const g of op.groups) removeGroup(root, g);
       break;
     case "addTrack":
       for (let i = 1; i < op.points.length; i++) {
@@ -822,8 +884,11 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
     case "addBoardText":
       addBoardText(root, op.text);
       break;
+    case "addTextBox":
+      addTextBox(root, op.box);
+      break;
     case "setBoardText":
-      for (const n of items(op.uuids)) if (headOf(n) === "gr_text") setBoardText(n, op);
+      for (const n of items(op.uuids)) if (headOf(n) === "gr_text" || headOf(n) === "gr_text_box") setBoardText(n, op);
       break;
     case "autoroute": {
       const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
@@ -842,7 +907,11 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       addDimension(root, op);
       break;
     case "setLocked":
-      for (const n of items(op.uuids)) setLocked(n, op.locked);
+      for (const u of op.uuids) {
+        const n = findBoardItem(root, u);
+        if (n && headOf(n) === "group") setGroupLocked(root, u, op.locked);
+        else if (n) setLocked(n, op.locked);
+      }
       break;
     case "setPadProps": {
       const fp = findBoardItem(root, op.footprint);
@@ -874,6 +943,8 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
       const board = parseBoard(serialize(doc));
       const r = tuneNetLength(board, rules, copperItems(board), op.net, op.target, op.prefer);
+      // The replaced tracks leave their groups (KiCad's meander is a new item, outside them).
+      pruneGroups(root, r.replace.map((t) => t.uuid));
       for (const t of r.replace) {
         deleteBoardItem(root, t.uuid);
         for (let k = 1; k < t.points.length; k++) addTrack(root, { start: t.points[k - 1]!, end: t.points[k]!, width: t.width, layer: t.layer, net: op.net });
@@ -966,7 +1037,10 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
         if (!text || !at) continue;
         placeFootprint(root, text, { ...m, libId: m.footprint, at });
       }
-      if (op.deleteExtra) for (const e of op.plan.extra) deleteBoardItem(root, e.uuid);
+      if (op.deleteExtra) {
+        for (const e of op.plan.extra) deleteBoardItem(root, e.uuid);
+        pruneGroups(root, op.plan.extra.map((e) => e.uuid));
+      }
       break;
     }
     default:

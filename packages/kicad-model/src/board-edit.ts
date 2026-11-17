@@ -149,6 +149,27 @@ export function rotateBoardItem(node: List, deg: number, center?: Point): void {
     return;
   }
   const c = center ?? itemCenter(node);
+  if (head === "gr_text_box") {
+    // A text box stays start/end only at quarter turns; otherwise KiCad keeps its four corners.
+    const start = findChild(node, "start"), end = findChild(node, "end");
+    const angle = norm360(Number(arg(findChild(node, "angle"), 0) ?? 0) + deg);
+    if (start && end && angle % 90 !== 0) {
+      const a = getXY(start), b = getXY(end);
+      const pts = list("pts", ...[a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }].map((p) => list("xy", r6(p.x), r6(p.y))));
+      const i = node.children.indexOf(start);
+      removeChild(node, end);
+      node.children[i] = pts;
+      format(pts, indentOfLine(node.trivia[i] ?? "") ?? "\t\t");
+    }
+    mapPoints(node, (p) => rotatePoint(p, c, deg));
+    const an = findChild(node, "angle");
+    if (an) angle ? setArg(an, 0, num(r6(angle))) : removeChild(node, an);
+    else if (angle) {
+      const m = findChild(node, "margins") ?? findChild(node, "pts") ?? findChild(node, "end");
+      insertAt(node, m ? node.children.indexOf(m) + 1 : 1, list("angle", r6(angle)));
+    }
+    return;
+  }
   mapPoints(node, (p) => rotatePoint(p, c, deg));
   if (head === "gr_text") {
     const a = findChild(node, "at");
@@ -876,6 +897,50 @@ export function addBoardText(root: List, t: NewBoardText): string {
   const effects: Node[] = [list("font", list("size", size, size), list("thickness", t.thickness ?? Math.round(size * 0.15 * 1000) / 1000))];
   if (t.layer.startsWith("B.")) effects.push(list("justify", sym("mirror")));
   insertBoardItem(root, list("gr_text", str(t.text), list("at", r6(t.at.x), r6(t.at.y), t.angle ?? 0), list("layer", str(t.layer)), list("uuid", str(id)), list("effects", ...effects)));
+  return id;
+}
+
+export interface NewTextBox {
+  text: string;
+  /** Opposite corners. */
+  a: Point;
+  b: Point;
+  layer: string;
+  /** Glyph height (mm); width follows. */
+  size?: number;
+  border?: boolean;
+  borderWidth?: number;
+}
+
+/**
+ * A text box (gr_text_box), written as KiCad's text box tool makes one: text
+ * at the top left, margins of half the border plus three quarters of the text
+ * height, a border, mirrored on a back layer.
+ */
+export function addTextBox(root: List, t: NewTextBox): string {
+  const id = newBoardUuid();
+  const size = t.size ?? 1;
+  const width = t.borderWidth ?? 0.1;
+  const margin = r6(width / 2 + size * 0.75);
+  const start = { x: Math.min(t.a.x, t.b.x), y: Math.min(t.a.y, t.b.y) };
+  const end = { x: Math.max(t.a.x, t.b.x), y: Math.max(t.a.y, t.b.y) };
+  const justify = list("justify", sym("left"), sym("top"), ...(t.layer.startsWith("B.") ? [sym("mirror")] : []));
+  insertBoardItem(
+    root,
+    list(
+      "gr_text_box",
+      str(t.text),
+      list("start", r6(start.x), r6(start.y)),
+      list("end", r6(end.x), r6(end.y)),
+      list("margins", margin, margin, margin, margin),
+      list("layer", str(t.layer)),
+      list("uuid", str(id)),
+      list("effects", list("font", list("size", size, size), list("thickness", Math.round(size * 0.15 * 1000) / 1000)), justify),
+      list("border", sym(t.border === false ? "no" : "yes")),
+      list("stroke", list("width", width), list("type", sym("default"))),
+      list("knockout", sym("no")),
+    ),
+  );
   return id;
 }
 

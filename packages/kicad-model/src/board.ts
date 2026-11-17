@@ -153,6 +153,42 @@ export interface BoardText {
   keepUpright?: boolean;
 }
 
+/** A text box (KiCad's PCB_TEXTBOX), as stored: the box and its text before wrapping. */
+export interface TextBox {
+  uuid: string;
+  layer: string;
+  locked?: boolean;
+  /** The text as written (KiCad wraps it to the box when it draws it). */
+  text: string;
+  /** Corners: a rectangle's start, (end.x, start.y), end, (start.x, end.y); or the four points of a rotated box. */
+  corners: Point[];
+  /** Stored as start/end (an unrotated or quarter-turned box) rather than four points. */
+  rect: boolean;
+  /** Text angle, degrees. */
+  angle: number;
+  margins: { left: number; top: number; right: number; bottom: number };
+  /** Character width (x) and height (y). */
+  size: Point;
+  /** The font thickness as written; 0 when none is (KiCad then draws with a pen of an eighth of the width). */
+  thickness: number;
+  bold?: boolean;
+  italic?: boolean;
+  /** justify words: left/right (else centred), top/bottom (else centred), mirror. */
+  justify: string[];
+  border: boolean;
+  /** The border's stroke width. */
+  borderWidth: number;
+  knockout?: boolean;
+}
+
+export interface BoardGroup {
+  uuid: string;
+  name: string;
+  locked?: boolean;
+  /** Member UUIDs: footprints, tracks, vias, zones, drawings, texts, or other groups. */
+  members: string[];
+}
+
 export interface Track {
   uuid: string;
   locked?: boolean;
@@ -262,6 +298,10 @@ export interface Board {
   /** Board-level graphics on all layers. */
   drawings: Graphic[];
   texts: BoardText[];
+  /** Groups (KiCad's (group …)): members by UUID, which may be other groups. */
+  groups: BoardGroup[];
+  /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
+  textBoxes: TextBox[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
   setup: { maskMargin: number; pasteMargin: number; pasteRatio: number; tentFront: boolean; tentBack: boolean; allowMaskBridgesInFootprints?: boolean; /** Drill/place origin (fab outputs' 0,0 when used). */ auxOrigin?: Point; /** Grid origin (Position Relative's reference). */ gridOrigin?: Point };
   warnings: string[];
@@ -769,6 +809,8 @@ export function parseBoard(source: string): Board {
     outline: [],
     drawings: [],
     texts: [],
+    groups: [],
+    textBoxes: [],
     setup: { maskMargin: 0, pasteMargin: 0, pasteRatio: 0, tentFront: true, tentBack: true },
     warnings: doc.diagnostics.map((d) => `${d.line}:${d.column}: ${d.message}`),
   };
@@ -903,6 +945,50 @@ export function parseBoard(source: string): Board {
         });
         break;
       }
+      case "gr_text_box": {
+        const start = findChild(node, "start"), end = findChild(node, "end");
+        const effects = findChild(node, "effects");
+        const font = effects && findChild(effects, "font");
+        const size = pt(font && findChild(font, "size"));
+        const stroke = findChild(node, "stroke");
+        const borderWidth = Number(arg(findChild(stroke ?? node, "width"), 0) ?? 0);
+        const m = findChild(node, "margins");
+        const justify = effects && findChild(effects, "justify");
+        const thickness = Number(arg(font && findChild(font, "thickness"), 0) ?? 0);
+        // Without margins (older files), KiCad's legacy margin: half the border plus three quarters of the text height.
+        const legacy = Math.round((borderWidth / 2) * 1e6) / 1e6 + Math.round(size.x * 0.75 * 1e6) / 1e6;
+        const a = pt(start), b = pt(end);
+        const borderNode = findChild(node, "border");
+        board.textBoxes.push({
+          uuid: itemUuid(node),
+          layer: str(findChild(node, "layer")),
+          locked: isLocked(node) || undefined,
+          text: str(node, 0),
+          corners: start && end ? [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }] : ptsOf(findChild(node, "pts") ?? node),
+          rect: !!(start && end),
+          angle: Number(arg(findChild(node, "angle"), 0) ?? 0),
+          margins: m ? { left: Number(arg(m, 0)), top: Number(arg(m, 1)), right: Number(arg(m, 2)), bottom: Number(arg(m, 3)) } : { left: legacy, top: legacy, right: legacy, bottom: legacy },
+          // KiCad writes (size height width).
+          size: { x: size.y || 1, y: size.x || 1 },
+          thickness,
+          bold: (!!font && (font.children.some((c) => isAtom(c) && c.raw === "bold") || arg(findChild(font, "bold"), 0) === "yes")) || undefined,
+          italic: (!!font && (font.children.some((c) => isAtom(c) && c.raw === "italic") || arg(findChild(font, "italic"), 0) === "yes")) || undefined,
+          justify: justify ? justify.children.slice(1).filter(isAtom).map(atomText) : [],
+          // Files before the border flag: a border when the stroke has a width.
+          border: borderNode ? arg(borderNode, 0) !== "no" : borderWidth >= 0,
+          borderWidth,
+          knockout: arg(findChild(node, "knockout"), 0) === "yes" || undefined,
+        });
+        break;
+      }
+      case "group":
+        board.groups.push({
+          uuid: itemUuid(node),
+          name: str(node, 0),
+          locked: isLocked(node) || undefined,
+          members: (findChild(node, "members")?.children.slice(1) ?? []).filter(isAtom).map(atomText),
+        });
+        break;
       case "gr_text":
         if (!isHidden(node)) board.texts.push({ ...textOf(node, str(node, 0), (p) => p), uuid: itemUuid(node) });
         break;

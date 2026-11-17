@@ -139,6 +139,8 @@ export interface ProjectView {
   /** Where that sidecar lives (it may not exist yet). */
   requirementsFile: string;
   rootSheet?: string;
+  /** How global labels list the pages they are on (the project file's schematic formatting). */
+  intersheetRefs?: import("@crossprobe/kicad-model").IntersheetRefSettings;
   sheets: SheetView[];
   components: ComponentInfo[];
   nets: NetInfo[];
