@@ -642,6 +642,9 @@ export function blockFromSelection(source: List, uuids: string[], projectName = 
   const id = newUuid();
   const doc = parse(newSheetFile(id));
   const target = sheetRoot(doc);
+  // A sheet symbol names a sub-sheet file the block wouldn't carry: KiCad would find it missing.
+  if (uuids.some((u) => { const n = findItem(source, u); return !!n && headOf(n) === "sheet"; }))
+    throw new Error("A design block can't hold sheet symbols: leave them out of the selection");
   duplicateItems(source, target, uuids, 0, 0, {}, [`/${id}`], projectName);
   return serialize(doc);
 }
