@@ -823,6 +823,7 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       break;
     case "cleanupTracks":
       for (const u of op.remove) deleteBoardItem(root, u);
+      pruneGroups(root, op.remove);
       for (const r of op.reshape) {
         const n = findBoardItem(root, r.uuid);
         if (n) {
@@ -935,6 +936,8 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
       const board = parseBoard(serialize(doc));
       const r = tuneNetLength(board, rules, copperItems(board), op.net, op.target, op.prefer);
+      // The replaced tracks leave their groups (KiCad's meander is a new item, outside them).
+      pruneGroups(root, r.replace.map((t) => t.uuid));
       for (const t of r.replace) {
         deleteBoardItem(root, t.uuid);
         for (let k = 1; k < t.points.length; k++) addTrack(root, { start: t.points[k - 1]!, end: t.points[k]!, width: t.width, layer: t.layer, net: op.net });
@@ -1027,7 +1030,10 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
         if (!text || !at) continue;
         placeFootprint(root, text, { ...m, libId: m.footprint, at });
       }
-      if (op.deleteExtra) for (const e of op.plan.extra) deleteBoardItem(root, e.uuid);
+      if (op.deleteExtra) {
+        for (const e of op.plan.extra) deleteBoardItem(root, e.uuid);
+        pruneGroups(root, op.plan.extra.map((e) => e.uuid));
+      }
       break;
     }
     default:
