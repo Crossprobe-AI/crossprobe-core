@@ -62,6 +62,7 @@
   --sch-sheet-file: #725600;
   --sch-note: #0000c2;
   --sch-nc: #0000ff;
+  --sch-dnp: #dc090d;
   color-scheme: light;
 }
 
@@ -754,6 +755,7 @@ button.link:hover {
 .r-bus { stroke: var(--sch-bus); --w: 0.3048px; }
 .r-junction { stroke: var(--sch-wire); fill: var(--sch-wire) !important; }
 .r-noconnect { stroke: var(--sch-nc); }
+.r-dnp { stroke: var(--sch-dnp); opacity: 0.7; }
 .r-body { stroke: var(--sch-body); --w: 0.254px; }
 .r-body.fill { fill: var(--sch-body); stroke: none; }
 .r-bodyFill.fill { fill: var(--sch-body-fill); stroke: none; }
