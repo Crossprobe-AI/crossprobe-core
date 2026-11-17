@@ -47,6 +47,30 @@ export function transformLibPoint(p: Point, o: Orientation, origin: Point): Poin
 }
 
 /** True when `p` lies on segment a–b (inclusive of endpoints). Axis-aligned or diagonal. */
+/** Is the point inside the polygon (even-odd), or on its outline? */
+export function inPolygon(p: Point, poly: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i]!;
+    const b = poly[j]!;
+    if (onSegment(p, a, b)) return true;
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/** Does the segment a–b touch the polygon: an end inside it, or crossing its outline? */
+export function segmentInPolygon(a: Point, b: Point, poly: Point[]): boolean {
+  if (inPolygon(a, poly) || inPolygon(b, poly)) return true;
+  const cross = (o: Point, p: Point, q: Point) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const c = poly[j]!;
+    const d = poly[i]!;
+    if (cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0) return true;
+  }
+  return false;
+}
+
 export function onSegment(p: Point, a: Point, b: Point, eps = 1e-4): boolean {
   const cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
   const len = Math.hypot(b.x - a.x, b.y - a.y);

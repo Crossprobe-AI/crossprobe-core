@@ -707,6 +707,42 @@ export function renderSheet(
         items.push({ kind: "graphic", prims });
         break;
       }
+      case "netclass_flag":
+      case "directive_label": {
+        const at = findChild(node, "at");
+        const p = pt(at);
+        const angle = Number(arg(at, 2) ?? 0);
+        const len = Number(arg(findChild(node, "length"), 0) ?? 2.54);
+        // The stub leaves the wire upward at 0°, then turns with the angle (KiCad's degrees, counter-clockwise).
+        const d = dir((angle + 90) % 360);
+        const end = { x: p.x + d.x * len, y: p.y + d.y * len };
+        const r = 0.635;
+        const shapeName = str(findChild(node, "shape")) || "round";
+        const tip = { x: end.x + d.x * r, y: end.y + d.y * r };
+        const prims: Prim[] = [{ t: "path", d: polyPath([p, end]), role: "directive" }];
+        if (shapeName === "round" || shapeName === "dot") prims.push({ t: "circle", cx: tip.x, cy: tip.y, r, role: "directive", fill: shapeName === "dot" });
+        else if (shapeName === "diamond") prims.push({ t: "path", d: polyPath([end, { x: tip.x - d.y * r, y: tip.y + d.x * r }, { x: end.x + d.x * 2 * r, y: end.y + d.y * 2 * r }, { x: tip.x + d.y * r, y: tip.y - d.x * r }], true), role: "directive" });
+        else prims.push({ t: "path", d: polyPath([{ x: end.x - d.y * r, y: end.y + d.x * r }, { x: end.x - d.y * r + d.x * 2 * r, y: end.y + d.x * r + d.y * 2 * r }, { x: end.x + d.y * r + d.x * 2 * r, y: end.y - d.x * r + d.y * 2 * r }, { x: end.x + d.y * r, y: end.y - d.x * r }], true), role: "directive" });
+        const classes = findChildren(node, "property").find((f) => str(f, 0) === "Netclass");
+        for (const f of findChildren(node, "property")) {
+          const value = str(f, 1);
+          if (!value || effectsOf(f).hidden) continue;
+          const fa = findChild(f, "at");
+          prims.push(text(Number(arg(fa, 0)), Number(arg(fa, 1)), value, { ...effectsOf(f), v: "middle" }, Number(arg(fa, 2) ?? 0), "directive"));
+        }
+        items.push({ kind: "directive", points: [p], prims, text: classes ? str(classes, 1) : "", field: "Netclass" });
+        break;
+      }
+      case "rule_area": {
+        const prims: Prim[] = [];
+        const outline = findChild(node, "polyline");
+        if (outline) {
+          const pts = findChildren(findChild(outline, "pts") ?? outline, "xy").map(pt);
+          prims.push({ t: "path", d: polyPath(pts, true), role: "ruleArea", dash: true });
+        }
+        items.push({ kind: "ruleArea", prims, uuid: str(findChild(outline ?? node, "uuid")) });
+        break;
+      }
       case "sheet": {
         const uuid = str(findChild(node, "uuid"));
         const name = findChildren(node, "property").find((p) => /^Sheet ?name$/.test(str(p, 0)));

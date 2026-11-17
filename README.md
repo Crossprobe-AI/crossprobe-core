@@ -141,10 +141,11 @@ completes a feature.
 | Text, text boxes, lines, rectangles, circles, arcs | Works | No font or style settings; beziers are view only |
 | Images | View only | |
 | Intersheet references | Works | The pages a global label is on, as KiCad lists them (own page, short form, prefix and suffix), switched on in Page settings; drawn where KiCad places them, not movable |
-| Tables, rule areas, net class directives, hyperlinks | No | |
+| Net class directives, rule areas | Works | Placed on wires and buses, or on a rule area's outline for everything inside; a label's Netclass field counts too. Nets get KiCad's classes, combined ones included ("A,Default"), and the project file keeps them as KiCad does. Only the Netclass field: no component classes |
+| Tables, hyperlinks | No | |
 | Find and replace | Works | Ctrl+F: texts, text boxes, labels, sheet names and pins, and fields, on every sheet; match case, whole words, wildcards, references, hidden fields. Replace all is one undo step. Not pin names or numbers |
 | Cross-probing and net highlighting | Works | Between schematic, board and 3D |
-| ERC | Partly | 28 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts), a global label that appears once, labels and power nets that differ only in case, field names with spaces around them. Not checked: units of one part on different nets, bus conflicts, undefined net classes, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
+| ERC | Partly | 29 checks, at least 98% agreement with KiCad on its demos, and 89% of KiCad's findings on the edge cases in its own test data: pin conflicts (with the project's pin map), undriven and unconnected pins, no-connect, label, wire, off-grid, multiple net names, similar labels, duplicate references, sheet pins and hierarchical labels without a partner, unplaced units (and their input, supply and bidirectional pins), units with different footprints, duplicate sheet names, a local label named like a global one, unresolved text variables (in texts), a global label that appears once, labels and power nets that differ only in case, field names with spaces around them. Undefined net classes. Not checked: units of one part on different nets, bus conflicts, ground pins off the ground net, library and footprint link issues. Severities are read from the project; no exclusions |
 | Netlist export | Works | KiCad's format (`.net`): the same parts, fields, nets and pins as `kicad-cli` writes on its demos. A net in several classes names the first. Not the OrcadPCB2, CadStar, Allegro, PADS, SPICE or XML formats |
 | SPICE simulation | No | |
 | Design blocks | Partly | Inserts the blocks in `blocks/`; can't save a selection as a block |
@@ -159,7 +160,7 @@ completes a feature.
 | Update PCB from schematic, update schematic from PCB | Works | |
 | Update footprints from the library | Works | |
 | Schematic ↔ board parity, ratsnest | Works | A few zone-to-pad cases over-report unconnected items |
-| Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB |
+| Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB. A net in several classes (by pattern or from the schematic) combines them by priority, with Default filling what they leave unset, as KiCad 10 does |
 | Stackup | Partly | Read and used; written only from the presets; no editor |
 | Custom rules | Partly | `clearance`, `hole_size`, `annular_width`, `track_width`, `via_diameter`, with the common condition functions. Not: length, skew, differential pair gap, edge, silk and courtyard clearance, `disallow` |
 | Interactive routing with 45° tracks | Works | Posture, width, via and layer change while routing |

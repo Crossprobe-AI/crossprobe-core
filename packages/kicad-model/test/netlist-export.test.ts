@@ -57,8 +57,7 @@ function read(source: string) {
   }
   const nets = new Map<string, string[]>();
   for (const n of findChildren(findChild(root, "nets")!, "net")) {
-    // A net in several classes lists them all in KiCad's file; ours names the first.
-    nets.set(`${text(n, "name")} [${text(n, "class").split(",")[0]}]`, findChildren(n, "node").map((x) => `${text(x, "ref")}.${text(x, "pin")} ${text(x, "pinfunction")} ${text(x, "pintype")}`).sort());
+    nets.set(`${text(n, "name")} [${text(n, "class")}]`, findChildren(n, "node").map((x) => `${text(x, "ref")}.${text(x, "pin")} ${text(x, "pinfunction")} ${text(x, "pintype")}`).sort());
   }
   const sheets = findChildren(findChild(root, "design")!, "sheet").map((s) => {
     const t = findChild(s, "title_block");
