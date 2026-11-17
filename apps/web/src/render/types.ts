@@ -182,6 +182,8 @@ export interface ProjectView {
   boardFile?: string;
   /** The board's own drawing sheet (.kicad_wks), when the project names one; else the default frame. */
   boardDrawingSheet?: import("@crossprobe/kicad-model").DrawingSheet;
+  /** The project's text variables (for the board's drawing sheet texts). */
+  textVariables?: Record<string, string>;
   /** Project-relative path of the .kicad_pro. */
   projectFile: string;
   /** What Update PCB from Schematic would change (schematic and board both present). */

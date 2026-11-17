@@ -72,7 +72,7 @@ const LABEL_SHAPES: Array<[LabelShape, string]> = [["input", "Input"], ["output"
 const IMAGE_KEEP_BYTES = 1 << 20;
 /** The longest side, in pixels, a picture is redrawn to. */
 const IMAGE_MAX_SIDE = 1600;
-/** Larger than this even when redrawn, a picture is refused (each one sits in the sheet's text, and in every undo step). */
+/** A redrawn picture is made smaller until it fits this (each one sits in the sheet's text, and in every undo step). */
 const IMAGE_MAX_BYTES = 4 << 20;
 
 /**
@@ -90,16 +90,26 @@ async function toPngBase64(file: File): Promise<{ png: string; scale: number } |
   }
   try {
     const bitmap = await createImageBitmap(file);
-    const k = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * k));
-    canvas.height = Math.max(1, Math.round(bitmap.height * k));
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const png = canvas.toDataURL("image/png").split(",")[1] ?? "";
-    if ((png.length * 3) / 4 > IMAGE_MAX_BYTES) return { error: `This picture is too large for a schematic even when reduced (${((png.length * 3) / 4 / 1048576).toFixed(1)} MB as PNG). Use a smaller or simpler picture.` };
-    // The redrawn PNG has no resolution (300 ppi): keep the picture's size on the sheet.
-    const ppi = info?.ppi ?? 300;
-    return { png, scale: Math.round(((bitmap.width / canvas.width) * (300 / ppi)) * 10000) / 10000 };
+    // Redrawn at most IMAGE_MAX_SIDE on its longest side, and smaller again while still too big
+    // (a noisy photo compresses badly); refused only below 200 pixels.
+    let side = Math.min(IMAGE_MAX_SIDE, Math.max(bitmap.width, bitmap.height));
+    for (;;) {
+      const k = side / Math.max(bitmap.width, bitmap.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * k));
+      canvas.height = Math.max(1, Math.round(bitmap.height * k));
+      canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const png = canvas.toDataURL("image/png").split(",")[1] ?? "";
+      const bytes = (png.length * 3) / 4;
+      if (bytes > IMAGE_MAX_BYTES && side > 200) {
+        side = Math.max(200, Math.floor(side / Math.SQRT2));
+        continue;
+      }
+      if (bytes > IMAGE_MAX_BYTES) return { error: `This picture is too large for a schematic even when reduced (${(bytes / 1048576).toFixed(1)} MB as PNG). Use a smaller or simpler picture.` };
+      // The redrawn PNG has no resolution (300 ppi): keep the picture's size on the sheet.
+      const ppi = info?.ppi ?? 300;
+      return { png, scale: Math.round((bitmap.width / canvas.width) * (300 / ppi) * 10000) / 10000 };
+    }
   } catch {
     return { error: "This file isn't a picture this browser can read." };
   }
