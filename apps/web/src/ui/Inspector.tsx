@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { clearanceCheckType, displayName, exclusionEntry } from "@crossprobe/kicad-model";
+import { clearanceCheckType, displayName, ercExclusionEntry, exclusionEntry } from "@crossprobe/kicad-model";
 import type { EditOp } from "../edit/ops";
 import type { ComponentInfo, ProjectView } from "../render/types";
 import { Icon } from "./icons";
@@ -651,10 +651,46 @@ export function Inspector({
                           {QUICK_FIXES[v.type]!.label}
                         </button>
                       )}
+                      {onEdit && project.projectFile && (
+                        <button
+                          className="quick-fix"
+                          title="Accept this finding on purpose: it moves to Excluded (saved in the project file, as KiCad does)"
+                          onClick={() => {
+                            const comment = window.prompt("Why is this fine? (kept with the exclusion)", "");
+                            if (comment !== null) onEdit([{ op: "setErcExclusions", file: project.projectFile!, exclude: { entry: ercExclusionEntry(v), comment } }]);
+                          }}
+                        >
+                          Exclude
+                        </button>
+                      )}
                     </div>
                   ))}
                 </details>
               ))}
+            {issueFilter !== "board" && project.ercExcluded.length > 0 && (
+              <details className="issue-group">
+                <summary>
+                  <span className="sev excluded" />
+                  Excluded (ERC) <span className="muted small">{project.ercExcluded.length}</span>
+                </summary>
+                {project.ercExcluded.slice(0, LIMIT).map((v, i) => (
+                  <div key={i} className="issue-row">
+                    <button className="item issue" onClick={() => onSelect({ kind: "marker", sheet: v.sheet, at: v.items[0]!.at, label: v.message })} title={v.comment || undefined}>
+                      <span className="sev excluded" />
+                      <span className="val muted">
+                        <b>{ERC_LABELS[v.type] ?? v.type}</b> {v.items.map((it) => it.description).join(" · ")}
+                        {v.comment && <span className="small"> — {v.comment}</span>}
+                      </span>
+                    </button>
+                    {onEdit && project.projectFile && (
+                      <button className="quick-fix" title="Check this again (removes the exclusion from the project file)" onClick={() => onEdit([{ op: "setErcExclusions", file: project.projectFile!, include: v.entries }])}>
+                        Include
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </details>
+            )}
             {issueFilter !== "erc" && project.clearance.length > 0 && (
               <details className="issue-group" open>
                 <summary>
