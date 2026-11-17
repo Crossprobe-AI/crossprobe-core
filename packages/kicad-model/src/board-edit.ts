@@ -245,6 +245,15 @@ function toggleMirror(text: List) {
   } else insertAt(justify, justify.children.length, sym("mirror"));
 }
 
+/** Swap an arc's start and end (a mirrored arc runs the other way). */
+function swapArcEnds(arc: List): void {
+  const s0 = findChild(arc, "start"), e0 = findChild(arc, "end");
+  if (!s0 || !e0) return;
+  const a0 = getXY(s0), b0 = getXY(e0);
+  setXY(s0, b0);
+  setXY(e0, a0);
+}
+
 /**
  * Flip a footprint to the other side, mirrored left/right around `centerX`
  * (default: in place), the way KiCad's Flip does it.
@@ -266,6 +275,8 @@ export function flipFootprint(node: List, centerX?: number): void {
       setArg(a, 1, num(r6(-getXY(a).y)));
       setAngle(a, norm360(180 - angleOf(a)), false);
       for (const sub of ch.children) if (isList(sub) && headOf(sub) !== "at") mirrorLocalY(sub);
+      // A custom pad's arcs run the other way too (PAD::FlipPrimitives flips each shape).
+      for (const arc of findChildren(findChild(ch, "primitives") ?? ch, "gr_arc")) swapArcEnds(arc);
       const chamfer = findChild(ch, "chamfer");
       if (chamfer) {
         chamfer.children.forEach((c, i) => {
@@ -286,14 +297,7 @@ export function flipFootprint(node: List, centerX?: number): void {
       mirrorLocalY(ch);
       if (h === "fp_text_box") toggleMirror(ch);
       // A mirrored arc runs the other way: KiCad swaps its ends (EDA_SHAPE::flip).
-      if (h === "fp_arc") {
-        const s0 = findChild(ch, "start"), e0 = findChild(ch, "end");
-        if (s0 && e0) {
-          const a0 = getXY(s0), b0 = getXY(e0);
-          setXY(s0, b0);
-          setXY(e0, a0);
-        }
-      }
+      if (h === "fp_arc") swapArcEnds(ch);
     }
   }
 }
