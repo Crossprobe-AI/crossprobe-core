@@ -296,6 +296,8 @@ export function BoardView({
     return out;
   };
   const [drag, setDrag] = useState<{ from: Point; d: Point; committed?: Board } | null>(null);
+  // Drawing sheet bitmaps loaded (each load draws again).
+  const [sheetImages, setSheetImages] = useState(0);
   const [box, setBox] = useState<{ a: Point; b: Point } | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [cursor, setCursor] = useState<Point | null>(null);
@@ -819,7 +821,7 @@ export function BoardView({
       const xa = -tx / scale, xb = (width - tx) / scale;
       const view = { x0: flipped ? 2 * cx - xb : xa, x1: flipped ? 2 * cx - xa : xb, y0: -ty / scale, y1: (height - ty) / scale };
       const trackLabels = (layer: string) => layer.endsWith(".Cu") && drawTrackLabels(ctx, board, scale, flipped, visible, view, layer);
-      if (pageFrame && visible.has("Drawing Sheet")) drawFrame(ctx, pageFrame, scale);
+      if (pageFrame && visible.has("Drawing Sheet")) drawFrame(ctx, pageFrame, scale, () => setSheetImages((n) => n + 1));
       drawScene(ctx, scene, visible, scale, overlay ? 0.28 : 1, false, flipped, overlay ? undefined : trackLabels);
       if (overlay) drawScene(ctx, overlay, visible, scale, 1, true, flipped, trackLabels);
       if (visible.has("Vias")) drawViaLabels(ctx, board, scale, flipped, view);
@@ -1122,7 +1124,7 @@ export function BoardView({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner, pageFrame]);
+  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner, pageFrame, sheetImages]);
 
   // ---- Pointer handling ------------------------------------------------------
 

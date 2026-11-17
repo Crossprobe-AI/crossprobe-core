@@ -480,7 +480,8 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
         break;
       case "pin":
         (sg.pins ??= []).push(it.erc);
-        if (it.power && !it.powerSymbol) sg.nodes.push(it.node);
+        // A power part with an ordinary reference is listed, with every pad of a stacked pin.
+        if (it.power && !it.powerSymbol) sg.nodes.push(it.node, ...(it.stacked ?? []));
         if (it.power) {
           if (it.power.kind === "global") {
             // A power symbol also joins same-named local labels on its sheet.

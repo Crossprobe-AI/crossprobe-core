@@ -82,11 +82,20 @@ describe.skipIf(!cli)("ERC exclusions", () => {
     addWire(root, [{ x: 20.32, y: 50.8 }, { x: 40.64, y: 50.8 }]);
     addWire(root, [{ x: 30.48, y: 40.64 }, { x: 30.48, y: 60.96 }]);
     addLabel(root, "label", "CROSSING", { x: 30.48, y: 50.8 });
+    // A wire to nowhere, and a hierarchical label with no sheet pin.
+    addWire(root, [{ x: 60.96, y: 30.48 }, { x: 76.2, y: 30.48 }]);
+    addLabel(root, "hierarchical_label", "ORPHAN", { x: 30.48, y: 76.2 }, 0, "input");
     writeFileSync(join(dir, SUB), serialize(doc));
     const s = loadSchematic(ROOT, read);
     const findings = runErc(s, buildNetlist(s, { detail: true }), projectErcSettings(read("pic_programmer.kicad_pro")));
-    const picked = findings.filter((v) => (v.type === "label_dangling" && v.items[0]!.description.includes("NOWHERE")) || v.type === "label_multiple_wires");
-    expect(picked.map((v) => v.type).sort()).toEqual(["label_dangling", "label_multiple_wires"]);
+    const ours = (v: { type: string; items: Array<{ description: string }> }) =>
+      (v.type === "label_dangling" && v.items[0]!.description.includes("NOWHERE")) ||
+      v.type === "label_multiple_wires" ||
+      (v.type === "hier_label_mismatch" && v.items[0]!.description.includes("ORPHAN")) ||
+      v.type === "wire_dangling" ||
+      v.type === "unconnected_wire_endpoint";
+    const picked = findings.filter(ours);
+    expect([...new Set(picked.map((v) => v.type))].sort()).toEqual(["hier_label_mismatch", "label_dangling", "label_multiple_wires", "unconnected_wire_endpoint"]);
     for (const v of picked) for (const i of v.items) expect(i.uuid, `${v.type}: ${i.description}`).toBeTruthy();
 
     const pro = JSON.parse(read("pic_programmer.kicad_pro"));
@@ -101,7 +110,11 @@ describe.skipIf(!cli)("ERC exclusions", () => {
     type V = { type: string; excluded?: boolean; items: Array<{ description: string }> };
     const report = JSON.parse(readFileSync(out, "utf8")) as { sheets: Array<{ path: string; violations: V[] }> };
     // kicad-cli also lists a sub-sheet's markers under the root sheet, never as excluded: those are left out.
-    const theirs = report.sheets.filter((x) => x.path === "/pic_sockets/").flatMap((x) => x.violations).filter((v) => (v.type === "label_dangling" && v.items[0]!.description.includes("NOWHERE")) || v.type === "label_multiple_wires");
-    expect(theirs.map((v) => [v.type, v.excluded ?? false]).sort()).toEqual([["label_dangling", true], ["label_multiple_wires", true]]);
+    const theirs = report.sheets.filter((x) => x.path === "/pic_sockets/").flatMap((x) => x.violations).filter(ours);
+    // Every one of these KiCad reports is excluded, of each kind. (KiCad reports one unconnected
+    // end per wire here where we report each end: a difference of the check, not of exclusions.)
+    expect(theirs.length).toBeGreaterThan(0);
+    expect(theirs.filter((v) => !v.excluded).map((v) => v.type)).toEqual([]);
+    expect([...new Set(theirs.map((v) => v.type))].sort()).toEqual(["hier_label_mismatch", "label_dangling", "label_multiple_wires", "unconnected_wire_endpoint"]);
   });
 });
