@@ -110,6 +110,8 @@ export interface EditContext {
   nextPage: number;
   /** The project's net classes, to offer when placing a directive. */
   netClasses?: string[];
+  /** The sheet instance shown as a page number, for "#<page>" links. */
+  pagePath?: (page: string) => string | undefined;
   /** The project's folder ("" or "name/"), for files saved next to it (design blocks). */
   projectDir?: string;
   /** Names of the hierarchical labels inside a sheet instance. */
@@ -153,7 +155,7 @@ const Item = memo(function Item({
 }) {
   return (
     <g
-      className={`i-${item.kind}${highlighted ? " hl" : ""}${selected ? " esel" : ""}`}
+      className={`i-${item.kind}${highlighted ? " hl" : ""}${selected ? " esel" : ""}${item.href ? " has-link" : ""}`}
       data-net={item.net}
       data-ref={item.ref}
       data-sheet={item.sheetPath}
@@ -244,6 +246,8 @@ export function SchematicView({
     const png = await toPngBase64(file);
     if (png) onEdit?.([{ op: "addImage", file: sheet.file, at, png }]);
   };
+  /** The one selected text or label, which can carry a link. */
+  const pickedText = picked.size === 1 ? sheet.items.find((i) => (i.kind === "text" || i.kind === "label") && i.uuid && picked.has(i.uuid)) : undefined;
   /** The one selected image (a graphic drawn as a picture), whose size can be chosen. */
   const pickedImage = picked.size === 1 ? sheet.items.find((i) => i.kind === "graphic" && i.uuid && picked.has(i.uuid) && i.prims[0]?.t === "image") : undefined;
   /** The shape new global and hierarchical labels get (KiCad's defaults). */
@@ -656,6 +660,17 @@ export function SchematicView({
         return new Set([id]);
       });
     }
+    // Not editing: a linked text opens its link (a web address, or "#<page>" for that page).
+    if (!editing) {
+      const linked = itemAt(under);
+      const href = linked && sheet.items.find((i) => i.uuid === linked.dataset.uuid && i.href)?.href;
+      if (href) {
+        if (href.startsWith("#")) {
+          const path = ctx?.pagePath?.(href.slice(1));
+          if (path) return onOpenSheet(path);
+        } else if (/^(https?:|mailto:|file:)/i.test(href)) return void window.open(href, "_blank", "noopener");
+      }
+    }
     if (!g) return onSelect(null);
     if (g.dataset.sheet && e.detail >= 2 && !editing) return onOpenSheet(g.dataset.sheet);
     // While editing, a pin belongs to its symbol (it is what gets moved); when viewing, it shows its net.
@@ -1045,6 +1060,21 @@ export function SchematicView({
                 }}
               >
                 Save as block
+              </button>
+            </span>
+          )}
+          {tool === "select" && pickedText && (
+            <span className="hint-option">
+              {" · "}
+              <button
+                className="link"
+                title="A web address, or #2 for page 2; empty removes the link"
+                onClick={() => {
+                  const href = window.prompt("Link (a web address, or #2 for page 2)", pickedText.href ?? "");
+                  if (href !== null && href.trim() !== (pickedText.href ?? "")) onEdit?.([{ op: "setHyperlink", file: sheet.file, uuid: pickedText.uuid!, href: href.trim() }]);
+                }}
+              >
+                {pickedText.href ? "Link ✓" : "Link…"}
               </button>
             </span>
           )}

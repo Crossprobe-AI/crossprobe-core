@@ -547,3 +547,9 @@ tool lists it first, inserting it adds a renumbered copy, and KiCad reads the sa
 `test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's
 ISO, GOST and default templates on demo schematics: every frame text is in KiCad's SVG of the
 page, with the same text at the same place. In the app, vme-wren opens with its CERN title block.
+
+## Links
+
+`scripts/e2e-hyperlink.mjs` gives a text on KiCad's pic_programmer demo the link "#2": out of
+editing, clicking it opens page 2. With a web address instead, the click opens that address, and
+the file has KiCad's `(href …)`. `test/sch-hyperlink.test.ts` checks that KiCad keeps the links.
