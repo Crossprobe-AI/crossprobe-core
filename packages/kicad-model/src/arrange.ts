@@ -13,7 +13,7 @@
  * Boxes and moves are in mm, computed in KiCad's integer nanometres so the
  * rounding is KiCad's.
  */
-import type { Board, BoardText, Footprint, Graphic, Pad } from "./board.js";
+import type { Board, BoardText, Footprint, Graphic, Pad, TextBox } from "./board.js";
 import { strokeGlyph } from "./stroke-font.js";
 import type { Point } from "./geometry.js";
 import { padShapes, shapeBox } from "./drc.js";
@@ -133,7 +133,8 @@ type Indexed =
   | { kind: "via"; item: Board["vias"][number] }
   | { kind: "zone"; item: Board["zones"][number] }
   | { kind: "graphic"; item: Graphic }
-  | { kind: "text"; item: BoardText };
+  | { kind: "text"; item: BoardText }
+  | { kind: "textbox"; item: TextBox };
 const indexes = new WeakMap<Board, Map<string, Indexed>>();
 function indexOf(board: Board): Map<string, Indexed> {
   let m = indexes.get(board);
@@ -146,6 +147,7 @@ function indexOf(board: Board): Map<string, Indexed> {
   for (const item of board.zones) add(item.uuid, { kind: "zone", item });
   for (const item of board.drawings) add(item.uuid, { kind: "graphic", item });
   for (const item of board.texts) add(item.uuid, { kind: "text", item });
+  for (const item of board.textBoxes) add(item.uuid, { kind: "textbox", item });
   indexes.set(board, m);
   return m;
 }
@@ -178,6 +180,12 @@ export function boardItemBox(board: Board, uuid: string): Box4 | undefined {
       return graphicBox(it.item);
     case "text":
       return textBox(it.item);
+    case "textbox": {
+      // The box, with half its border (EDA_SHAPE's bounding box).
+      const out = new Bounds();
+      for (const p of it.item.corners) out.point(p, Math.max(0, it.item.borderWidth) / 2);
+      return out.result();
+    }
   }
 }
 
@@ -391,6 +399,9 @@ export function boardItemPosition(board: Board, uuid: string, pad?: string): Poi
     }
     case "text":
       return it.item.at;
+    case "textbox":
+      // A box's start (or first corner when turned), as KiCad's GetPosition.
+      return it.item.corners[0];
   }
 }
 

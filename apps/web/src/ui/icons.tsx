@@ -55,6 +55,12 @@ const ICONS = {
       <path d="M9 20h6" />
     </>
   ),
+  textbox: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <path d="M8 9h8M12 9v7" />
+    </>
+  ),
   hole: (
     <>
       <circle cx="12" cy="12" r="7" />
