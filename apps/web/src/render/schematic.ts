@@ -15,6 +15,10 @@ import {
   type SheetInstance,
   shownText,
   intersheetRefs,
+  drawingSheetPrims,
+  sheetsByPage,
+  type DrawingSheet,
+  type DrawingSheetPrim,
 } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
@@ -460,6 +464,29 @@ function sheetPrims(node: List): Prim[] {
   return out;
 }
 
+/** A drawing sheet's piece as drawn primitives. */
+function sheetPrim(p: DrawingSheetPrim): Prim[] {
+  switch (p.kind) {
+    case "line":
+      return [{ t: "path", d: polyPath([p.a, p.b]), role: "frame", w: p.width }];
+    case "rect":
+      return [{ t: "path", d: polyPath([p.a, { x: p.b.x, y: p.a.y }, p.b, { x: p.a.x, y: p.b.y }], true), role: "frame", w: p.width }];
+    case "polygon":
+      return [{ t: "path", d: polyPath(p.points, true), role: "frame", fill: true }];
+    case "text": {
+      const e: Effects = { size: p.size.y, h: p.h === "left" ? "start" : p.h === "right" ? "end" : "middle", v: p.v === "center" ? "middle" : p.v, hidden: false, bold: p.bold, italic: p.italic };
+      const lines = p.text.split("\n");
+      const step = p.size.y * 1.6;
+      const r = (p.angle * Math.PI) / 180;
+      // Lines stack down the text's own direction.
+      return lines.map((line, i) => {
+        const k = (i - (p.v === "bottom" ? lines.length - 1 : p.v === "center" ? (lines.length - 1) / 2 : 0)) * step;
+        return text(p.at.x + k * Math.sin(r), p.at.y + k * Math.cos(r), line, e, p.angle, "frame");
+      });
+    }
+  }
+}
+
 function frame(paper: { w: number; h: number }, title: Record<string, string>, sheetLabel: string, file: string): Prim[] {
   const rect = (x: number, y: number, w: number, h: number): Prim => ({
     t: "path",
@@ -601,6 +628,8 @@ export function renderSheet(
   schematic: Schematic,
   netlist: Netlist,
   pinNets: Map<string, string>,
+  /** The project's drawing sheet (.kicad_wks), drawn instead of the default frame. */
+  drawingSheet?: DrawingSheet,
 ): SheetView {
   const items: SchItem[] = [];
   const nets = netlist.sheetItems.get(sheet.path);
@@ -618,7 +647,22 @@ export function renderSheet(
   const title: Record<string, string> = {};
   const tb = findChild(root, "title_block");
   for (const c of tb?.children ?? []) if (isList(c)) title[headOf(c) === "comment" ? `comment${arg(c, 0)}` : headOf(c)!] = shown(str(c, headOf(c) === "comment" ? 1 : 0));
-  items.push({ kind: "graphic", prims: frame(paper, title, sheet.namePath, sheet.file) });
+  if (drawingSheet) {
+    const pages = sheetsByPage(schematic);
+    const index = pages.indexOf(sheet);
+    const info = {
+      titleBlock: sheet.data.titleBlock,
+      paper: paperName || "A4",
+      page: sheet.pageNumber ?? String(index + 1),
+      pages: pages.length,
+      sheetName: sheet.ref?.name ?? "",
+      sheetPath: sheet.namePath,
+      fileName: sheet.file,
+      variables: schematic.textVariables,
+      generator: "Crossprobe",
+    };
+    items.push({ kind: "graphic", prims: drawingSheetPrims(drawingSheet, w, h, info, index === 0).flatMap(sheetPrim) });
+  } else items.push({ kind: "graphic", prims: frame(paper, title, sheet.namePath, sheet.file) });
 
   let wireIndex = 0;
   let labelIndex = 0;

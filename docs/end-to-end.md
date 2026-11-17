@@ -531,3 +531,9 @@ checks the classes on KiCad's jetson and royalblue demos against those KiCad sav
 reports it. Exclude (with a reason) moves it to Excluded and saves it in the project file, and
 KiCad's ERC of the saved project reports it excluded too; Include brings it back.
 `test/erc-exclusions.test.ts` checks the entries both ways.
+
+## Drawing sheets
+
+`test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's
+ISO, GOST and default templates on demo schematics: every frame text is in KiCad's SVG of the
+page, with the same text at the same place. In the app, vme-wren opens with its CERN title block.
