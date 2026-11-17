@@ -18,6 +18,8 @@ for z in board.Zones():
         "islandMode": int(z.GetIslandRemovalMode()),
         "islandAreaMin": z.GetMinIslandArea() / 1e12,
         "connect": int(z.GetPadConnection()),
+        "hatched": int(z.GetFillMode()) == 1,
+        "hatch": [z.GetHatchThickness() / 1e6, z.GetHatchGap() / 1e6, z.GetHatchOrientation().AsDegrees()] if int(z.GetFillMode()) == 1 else None,
     }
 with open(sys.argv[2], "w") as f:
     json.dump(out, f)

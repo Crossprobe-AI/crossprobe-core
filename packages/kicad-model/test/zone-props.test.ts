@@ -20,8 +20,8 @@ const CONNECT = { thermal: 1, solid: 2, none: 0, tht: 3 } as const;
 
 describe.skipIf(!existsSync(PY) || !BOARDS.length)("zone properties KiCad reads back", () => {
   const sets: ZoneProps[] = [
-    { name: "Pour A", priority: 3, clearance: 0.3, minThickness: 0.2, thermalGap: 0.4, thermalWidth: 0.45, islandMode: 2, islandAreaMin: 2.5, connect: "solid" },
-    { name: "", priority: 0, clearance: 0.127, minThickness: 0.254, thermalGap: 0.25, thermalWidth: 0.3, islandMode: 1, connect: "tht" },
+    { name: "Pour A", priority: 3, clearance: 0.3, minThickness: 0.2, thermalGap: 0.4, thermalWidth: 0.45, islandMode: 2, islandAreaMin: 2.5, connect: "solid", fillMode: "hatch", hatchThickness: 0.7, hatchGap: 1.2, hatchOrientation: 30 },
+    { name: "", priority: 0, clearance: 0.127, minThickness: 0.254, thermalGap: 0.25, thermalWidth: 0.3, islandMode: 1, connect: "tht", fillMode: "solid" },
   ];
   it.each(BOARDS)("%s", (rel) => {
     const text = readFileSync(join(DEMOS, rel), "utf8");
@@ -50,12 +50,30 @@ describe.skipIf(!existsSync(PY) || !BOARDS.length)("zone properties KiCad reads 
           thermalWidth: props.thermalWidth,
           islandMode: props.islandMode,
           connect: CONNECT[props.connect!],
+          hatched: props.fillMode === "hatch",
+          hatch: props.fillMode === "hatch" ? [props.hatchThickness, props.hatchGap, props.hatchOrientation] : null,
         };
         expect({ ...k, islandAreaMin: undefined }, `${rel} ${z.uuid}`).toEqual({ ...want, islandAreaMin: undefined });
         if (props.islandMode === 2) expect(k.islandAreaMin).toBeCloseTo(props.islandAreaMin!, 6);
         const o = ours.zones.find((x) => x.uuid === z.uuid)!;
-        expect({ name: o.name, priority: o.priority, clearance: o.clearance, minThickness: o.minThickness, thermalGap: o.thermalGap, thermalWidth: o.thermalWidth, islandMode: o.islandMode, connect: o.connect }).toEqual({ ...want, connect: props.connect });
+        expect({ name: o.name, priority: o.priority, clearance: o.clearance, minThickness: o.minThickness, thermalGap: o.thermalGap, thermalWidth: o.thermalWidth, islandMode: o.islandMode, connect: o.connect, hatched: o.hatched, hatch: o.hatch ? [o.hatch.thickness, o.hatch.gap, o.hatch.orientation] : null }).toEqual({ ...want, connect: props.connect });
       }
     }
+  });
+});
+
+describe.skipIf(!BOARDS.length)("hatched back to solid", () => {
+  it("drops the mode and the hatch settings, as KiCad writes a solid zone", () => {
+    const doc = parse(readFileSync(join(DEMOS, BOARDS[0]!), "utf8"));
+    const root = boardRoot(doc);
+    const z = parseBoard(serialize(doc)).zones.find((x) => !x.keepout)!;
+    setZoneProps(root, findBoardItem(root, z.uuid)!, { fillMode: "hatch", hatchGap: 2 });
+    let zone = serialize(findBoardItem(root, z.uuid)!);
+    expect(zone).toContain("(mode hatch)");
+    expect(zone).toContain("(hatch_gap 2)");
+    setZoneProps(root, findBoardItem(root, z.uuid)!, { fillMode: "solid" });
+    zone = serialize(findBoardItem(root, z.uuid)!);
+    expect(zone).not.toMatch(/\(mode |\(hatch_/);
+    expect(parseBoard(serialize(doc)).zones.find((x) => x.uuid === z.uuid)!.hatched).toBe(false);
   });
 });
