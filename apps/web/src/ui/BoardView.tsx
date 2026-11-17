@@ -271,7 +271,8 @@ export function BoardView({
     // Everything in a locked group is locked too (KiCad's IsLocked).
     for (const g of board.groups) if (g.locked) for (const u of groupItems(board, g.uuid)) ids.add(u);
     // Items locked in the file that aren't modelled here (images, tables…), as group members.
-    for (const u of board.lockedItems ?? []) ids.add(u);
+    // (Items modelled here are left to their own lock handling, which L can undo.)
+    for (const u of board.lockedItems ?? []) if (!boardItemOf(board, u)) ids.add(u);
     return ids;
   }, [board]);
   /**
