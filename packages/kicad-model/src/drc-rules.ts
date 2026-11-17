@@ -17,6 +17,8 @@ export interface DruConstraint {
   min?: number;
   max?: number;
   opt?: number;
+  /** A skew constraint's (within_diff_pairs): skew is measured within each diff pair, not across all the rule's nets. */
+  withinDiffPairs?: boolean;
 }
 
 export interface DruRule {
@@ -93,7 +95,7 @@ export function parseDru(text: string): DruRule[] {
         const parts = n.children.slice(1).filter(isAtom).map((a) => a.raw);
         return parseLength(parts.join(""));
       };
-      constraints.push({ type, min: get("min"), max: get("max"), opt: get("opt") });
+      constraints.push({ type, min: get("min"), max: get("max"), opt: get("opt"), ...(type === "skew" && findChild(c, "within_diff_pairs") ? { withinDiffPairs: true } : {}) });
     }
     let condition: Expr | undefined;
     if (condText !== undefined) {
