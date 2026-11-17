@@ -13,7 +13,7 @@ import { flashChecker } from "./board.js";
 import { customConstraint, type RuleItem } from "./drc-rules.js";
 import { netClassOf } from "./drc.js";
 
-export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed";
+export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch";
 
 export interface BoardViolation {
   type: BoardCheck;
@@ -415,6 +415,136 @@ function checkCourtyards(board: Board, out: BoardViolation[]) {
           const item = (fp: Footprint): DrcItem => ({ kind: "pad", net: "", reference: fp.reference, uuid: fp.uuid, description: `Footprint ${fp.reference}` });
           out.push({ type: "courtyards_overlap", severity: "error", actual: area, message: "Courtyards overlap", at: { x: p.X / S, y: p.Y / S }, items: [item(a.fp), item(b.fp)] });
         }
+      }
+  }
+}
+
+/** Whether a pad's hole (a circle, or a slot as a segment of its width) touches a filled outline. */
+function holeInArea(pad: Pad, polys: ClipperLib.Paths): boolean {
+  const hole = pad.drillSize ?? (pad.drill ? { x: pad.drill, y: pad.drill } : undefined);
+  if (!hole || hole.x <= 0) return false;
+  const r = Math.min(hole.x, hole.y) / 2;
+  const half = hole.x > hole.y ? { x: hole.x / 2 - r, y: 0 } : { x: 0, y: hole.y / 2 - r };
+  const t = (pad.rotation * Math.PI) / 180;
+  const o = { x: half.x * Math.cos(t) + half.y * Math.sin(t), y: -half.x * Math.sin(t) + half.y * Math.cos(t) };
+  const a = { x: pad.at.x - o.x, y: pad.at.y - o.y }, b = { x: pad.at.x + o.x, y: pad.at.y + o.y };
+  const loops = polys.map((p) => p.map((q) => ({ x: q.X / S, y: q.Y / S })));
+  // Inside (even-odd over all loops, holes included)…
+  let inside = false;
+  for (const loop of loops)
+    for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+      const p = loop[i]!, q = loop[j]!;
+      if (p.y > a.y !== q.y > a.y && a.x < ((q.x - p.x) * (a.y - p.y)) / (q.y - p.y) + p.x) inside = !inside;
+    }
+  if (inside) return true;
+  // …or within the hole's radius of an edge.
+  const seg = { kind: "seg" as const, a, b, r };
+  return loops.some((loop) => loop.some((p, i) => shapeDistance(seg, { kind: "seg", a: p, b: loop[(i + 1) % loop.length]!, r: 0 }).dist <= 0));
+}
+
+/**
+ * Plated and unplated holes inside another footprint's courtyard (KiCad's
+ * pth_inside_courtyard / npth_inside_courtyard): a hole that touches the
+ * other part's front courtyard, else its back one. Heatsink pads are left out,
+ * as are via holes.
+ */
+function checkCourtyardHoles(board: Board, out: BoardViolation[]) {
+  const yards = new Map<Footprint, { front?: ClipperLib.Paths; back?: ClipperLib.Paths; box: { x0: number; y0: number; x1: number; y1: number } }>();
+  for (const fp of board.footprints) {
+    const y: { front?: ClipperLib.Paths; back?: ClipperLib.Paths } = {};
+    for (const [side, key] of [["F.CrtYd", "front"], ["B.CrtYd", "back"]] as const) {
+      const shapes = fp.graphics.filter((g) => g.layer === side).map((g) => ({ kind: g.kind, points: g.points }));
+      const polys = shapes.length ? boardArea({ ...board, outline: shapes }) : undefined;
+      if (polys?.length) y[key] = polys;
+    }
+    const all = [...(y.front ?? []), ...(y.back ?? [])].flat();
+    if (!all.length) continue;
+    const xs = all.map((p) => p.X / S), ys = all.map((p) => p.Y / S);
+    yards.set(fp, { ...y, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } });
+  }
+  const test = (pad: Pad, owner: Footprint, fp: Footprint) => {
+    const y = yards.get(fp);
+    if (!y || pad.property === "heatsink") return;
+    const type = pad.type === "thru_hole" ? "pth_inside_courtyard" : pad.type === "np_thru_hole" ? "npth_inside_courtyard" : undefined;
+    if (!type) return;
+    const reach = Math.max(pad.drillSize?.x ?? 0, pad.drillSize?.y ?? 0, pad.drill ?? 0);
+    if (pad.at.x + reach < y.box.x0 || pad.at.x - reach > y.box.x1 || pad.at.y + reach < y.box.y0 || pad.at.y - reach > y.box.y1) return;
+    const side = y.front && holeInArea(pad, y.front) ? "F.CrtYd" : y.back && holeInArea(pad, y.back) ? "B.CrtYd" : undefined;
+    if (!side) return;
+    const fpItem: DrcItem = { kind: "pad", net: "", reference: fp.reference, uuid: fp.uuid, description: `Footprint ${fp.reference}` };
+    out.push({ type, severity: "error", message: `${type === "pth_inside_courtyard" ? "PTH" : "NPTH"} inside courtyard`, at: pad.at, items: [padItem(owner, pad), fpItem] });
+  };
+  // KiCad's pair order: by UUID, each pair once, the second's pads against the first and back.
+  const fps = [...board.footprints].sort((a, b) => (a.uuid < b.uuid ? -1 : a.uuid > b.uuid ? 1 : 0));
+  for (let i = 0; i < fps.length; i++)
+    for (let j = i + 1; j < fps.length; j++) {
+      const a = fps[i]!, b = fps[j]!;
+      for (const pad of b.pads) test(pad, b, a);
+      for (const pad of a.pads) test(pad, a, b);
+    }
+}
+
+/**
+ * Footprints whose type (SMD or through-hole) isn't what their pads say
+ * (KiCad's footprint_type_mismatch, FOOTPRINT::GetLikelyAttribute): any
+ * plated through-hole pad makes it through-hole, else copper SMD pads make it
+ * SMD; fiducial, heatsink, castellated and mechanical pads don't count.
+ */
+function checkFootprintTypes(board: Board, out: BoardViolation[]) {
+  const skip = new Set(["fiducial_glob", "fiducial_loc", "heatsink", "castellated", "mechanical"]);
+  for (const fp of board.footprints) {
+    const set = fp.attributes.mount;
+    if (set === "unspecified") continue;
+    let tht = 0, smd = 0;
+    for (const pad of fp.pads) {
+      if (pad.property && skip.has(pad.property)) continue;
+      if (pad.type === "thru_hole") tht++;
+      else if (pad.type === "smd" && pad.layers.some((l) => l.endsWith(".Cu"))) smd++;
+    }
+    const likely = tht ? "through_hole" : smd ? "smd" : undefined;
+    if (likely && likely !== set)
+      out.push({
+        type: "footprint_type_mismatch",
+        severity: "error",
+        message: `Footprint component type doesn't match footprint pads (expected '${likely === "smd" ? "SMD" : "Through hole"}'; actual '${set === "smd" ? "SMD" : "Through hole"}')`,
+        at: fp.at,
+        items: [{ kind: "pad", net: "", reference: fp.reference, uuid: fp.uuid, description: `Footprint ${fp.reference}` }],
+      });
+  }
+}
+
+/** Whether two closed outlines overlap or touch. */
+function outlinesCollide(a: Point[], b: Point[]): boolean {
+  const inside = (p: Point, poly: Point[]) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const q = poly[i]!, r = poly[j]!;
+      if (q.y > p.y !== r.y > p.y && p.x < ((r.x - q.x) * (p.y - q.y)) / (r.y - q.y) + q.x) c = !c;
+    }
+    return c;
+  };
+  if (inside(a[0]!, b) || inside(b[0]!, a)) return true;
+  for (let i = 0; i < a.length; i++)
+    for (let j = 0; j < b.length; j++)
+      if (shapeDistance({ kind: "seg", a: a[i]!, b: a[(i + 1) % a.length]!, r: 0 }, { kind: "seg", a: b[j]!, b: b[(j + 1) % b.length]!, r: 0 }).dist <= 1e-6) return true;
+  return false;
+}
+
+/**
+ * Copper zones of one net and one priority whose outlines overlap or touch
+ * (KiCad's zones_intersect: "intersecting zones must have distinct
+ * priorities"), per copper layer. Rule areas and teardrops are left out.
+ */
+function checkZoneIntersections(board: Board, out: BoardViolation[]) {
+  for (const layer of board.copperLayers) {
+    const zones = board.zones.filter((z) => !z.keepout && !z.teardrop && z.outline.length >= 3 && z.layers.some((l) => l === layer || (l.startsWith("*") && l.endsWith(".Cu")) || l === "F&B.Cu"));
+    for (let i = 0; i < zones.length; i++)
+      for (let j = i + 1; j < zones.length; j++) {
+        const a = zones[i]!, b = zones[j]!;
+        if (a.net !== b.net || a.priority !== b.priority) continue;
+        if (!outlinesCollide(a.outline, b.outline)) continue;
+        const item = (z: typeof a): DrcItem => ({ kind: "zone", net: z.net, uuid: z.uuid, description: `Zone [${z.net}] on ${layer}` });
+        out.push({ type: "zones_intersect", severity: "error", message: "Copper zones intersect (intersecting zones must have distinct priorities)", at: a.outline[0]!, items: [item(a), item(b)] });
       }
   }
 }
@@ -955,10 +1085,15 @@ const onPadLayer = (pad: Pad, layer: string) => pad.layers.some((l) => l === lay
 export function checkBoard(board: Board, rules: DesignRules, items: CopperItem[] = copperItems(board)): BoardViolation[] {
   const all: BoardViolation[] = [];
   const sev = rules.severities ?? {};
-  const on = (t: BoardCheck) => sev[t] !== "ignore";
+  // KiCad ignores some checks unless the project turns them on.
+  const DEFAULT_IGNORE: BoardCheck[] = ["footprint_type_mismatch"];
+  const on = (t: BoardCheck) => (sev[t] === undefined ? !DEFAULT_IGNORE.includes(t) : sev[t] !== "ignore");
   if (on("drill_out_of_range") || on("annular_width") || on("holes_co_located") || on("hole_to_hole")) checkHoles(board, rules, all);
   if (on("track_dangling") || on("via_dangling")) checkDangling(board, items, all);
   if (on("courtyards_overlap")) checkCourtyards(board, all);
+  if (on("pth_inside_courtyard") || on("npth_inside_courtyard")) checkCourtyardHoles(board, all);
+  if (on("footprint_type_mismatch")) checkFootprintTypes(board, all);
+  if (on("zones_intersect")) checkZoneIntersections(board, all);
   if (on("starved_thermal")) checkThermals(board, rules, all);
   if (on("text_height") || on("text_thickness")) checkTextSizes(board, rules, all);
   if (on("track_width") || on("via_diameter")) checkWidths(board, rules, items, all);

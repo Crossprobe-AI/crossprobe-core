@@ -63,6 +63,10 @@ const DRC_LABELS: Record<string, string> = {
   solder_mask_bridge: "Solder mask bridges nets",
   silk_overlap: "Silkscreen overlaps silkscreen",
   items_not_allowed: "Item in a keep-out area",
+  pth_inside_courtyard: "Plated hole in another part's courtyard",
+  npth_inside_courtyard: "Unplated hole in another part's courtyard",
+  zones_intersect: "Zones of one net and priority overlap",
+  footprint_type_mismatch: "Footprint type doesn't match its pads",
 };
 
 const ERC_LABELS: Record<string, string> = {

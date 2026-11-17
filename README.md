@@ -178,7 +178,7 @@ completes a feature.
 | Text | Partly | Silkscreen text can be placed and edited; knockout and TrueType text are view only |
 | Dimensions | Partly | Aligned and orthogonal can be placed; radial, leader and centre are view only |
 | Text boxes, images, tables, groups | No | |
-| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
+| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap, holes in another part's courtyard; overlapping zones of one net and priority; footprint type against its pads; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
 | DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
 | Net inspector | Works | Lengths per layer, vias, CSV. Lengths follow KiCad 10.0; KiCad 10.0.5 measures a few nets up to 0.2 mm shorter |
 | Selection filter, layer visibility, flip view, measure tool | Works | No layer colours, presets or net colours |
