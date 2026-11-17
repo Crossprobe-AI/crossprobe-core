@@ -81,6 +81,14 @@ const ERC_LABELS: Record<string, string> = {
   multiple_net_names: "Several names for one net",
   similar_labels: "Labels differ only in case",
   hier_label_mismatch: "Sheet pin without a label, or label without a pin",
+  missing_unit: "Units not placed",
+  missing_input_pin: "Input pins in units not placed",
+  missing_bidi_pin: "Bidirectional pins in units not placed",
+  missing_power_pin: "Supply pins in units not placed",
+  different_unit_footprint: "Units of one part with different footprints",
+  duplicate_sheet_names: "Two sheets with one name",
+  same_local_global_label: "Local and global label with one name",
+  unresolved_variable: "Text variable that names nothing",
   duplicate_reference: "Duplicate reference",
 };
 
