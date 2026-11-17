@@ -56,6 +56,8 @@ export type ErcType =
   | "similar_label_and_power"
   | "similar_power"
   | "undefined_netclass"
+  | "ground_pin_not_ground"
+  | "different_unit_net"
   | "duplicate_reference";
 
 export interface ErcItem {
@@ -134,7 +136,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
   missing_unit: "warning", missing_input_pin: "warning", missing_bidi_pin: "warning", missing_power_pin: "error", different_unit_footprint: "error",
   duplicate_sheet_names: "error", same_local_global_label: "warning", unresolved_variable: "error",
-  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning", undefined_netclass: "error",
+  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning", undefined_netclass: "error", ground_pin_not_ground: "warning", different_unit_net: "error",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -208,6 +210,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   checkSingleGlobalLabels(schematic, report);
   checkSimilarNames(schematic, netlist, report);
   checkFieldNames(schematic, report);
+  checkPinNets(schematic, netlist, report);
   if (options.netClasses) checkNetClassNames(schematic, new Set([...options.netClasses, "Default"]), report);
   checkDuplicateReferences(schematic, report);
   return out;
@@ -623,6 +626,45 @@ export function isErcExcluded(v: ErcViolation, entries: string[]): boolean {
     const paths = [specific, mainPath].filter(Boolean);
     return !paths.length || !sheet || paths.includes(sheet);
   });
+}
+
+/**
+ * Two checks on the nets of a part's pins. A part with a supply pin on a ground net whose other
+ * supply pin is named like ground (GND, AGND, VSS, EARTH…) but isn't on one (ground_pin_not_ground);
+ * the same pin of a multi-unit part (a supply pin shared by all units) on different nets in
+ * different units (different_unit_net).
+ */
+function checkPinNets(schematic: Schematic, netlist: Netlist, report: Report) {
+  const isGround = (t: string) => {
+    const u = t.toUpperCase();
+    return u.includes("GND") || u === "EARTH" || u.startsWith("EARTH_") || u === "VSS" || u === "VSSA";
+  };
+  // Every pin with its net, sheet and symbol.
+  type At = { pin: SchematicPin; net: string; sheet: SheetInstance };
+  const all: At[] = [];
+  for (const group of netlist.detail!.groups) for (const sg of group.subgraphs) for (const pin of sg.pins) all.push({ pin, net: group.name ?? "", sheet: sg.sheet });
+  const bySymbol = new Map<string, At[]>();
+  for (const a of all) {
+    if (a.pin.powerSymbol) continue;
+    const k = `${a.sheet.path}|${a.pin.symbolUuid}`;
+    bySymbol.set(k, [...(bySymbol.get(k) ?? []), a]);
+  }
+  for (const pins of bySymbol.values()) {
+    const power = pins.filter((a) => a.pin.type === "power_in" || a.pin.type === "power_out");
+    if (!power.some((a) => isGround(a.net))) continue;
+    for (const a of power) {
+      if (isGround(a.pin.name) && !isGround(a.net)) report("ground_pin_not_ground", a.sheet, `Pin ${a.pin.name} not connected to ground net`, [pinItem(a.pin)]);
+    }
+  }
+  const multi = new Set(schematic.placements.filter((p) => (p.lib?.unitCount ?? 1) > 1).map((p) => `${p.sheet.path}|${p.symbol.uuid}`));
+  const first = new Map<string, At>();
+  for (const a of all) {
+    if (!multi.has(`${a.sheet.path}|${a.pin.symbolUuid}`)) continue;
+    const k = `${a.pin.reference}:${a.pin.number}`;
+    const seen = first.get(k);
+    if (!seen) first.set(k, a);
+    else if (seen.net !== a.net) report("different_unit_net", a.sheet, `Pin ${a.pin.number} is connected to both ${a.net} and ${seen.net}`, [pinItem(a.pin), pinItem(seen.pin)]);
+  }
 }
 
 /** Directives and labels naming a net class the project doesn't have. */
