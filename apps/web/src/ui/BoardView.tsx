@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { alignMoves, boardItemBox, copperItems, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
+import { alignMoves, boardItemBox, boardItemPosition, copperItems, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
 import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, layerColor, padPath, type BoardScene } from "../render/board";
 import { attachedTrackEnds, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
@@ -8,6 +8,7 @@ import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { BoardProps } from "./BoardProps";
 import { CreateArray } from "./CreateArray";
+import { PositionRelative, type RelativeReference } from "./PositionRelative";
 import type { PlacingFootprint } from "./FootprintPicker";
 import { fromOverlay, useViewport } from "./viewport";
 
@@ -587,6 +588,7 @@ export function BoardView({
         else if (ed.tool !== "select") ed.onTool("select");
         else setPicked([]);
       } else if (e.key === "Home") vp.fit(mirror(scene.bbox));
+      else if (key === "p" && e.shiftKey && picked.length) openPosRel();
       else if (key === "x") ed.onTool("route");
       else if (key === "b" && !route) ed.onEdit([{ op: "refillZones", file: ed.file }]);
       else if (key === "a" && !route) {
@@ -1036,6 +1038,17 @@ export function BoardView({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (fromOverlay(e)) return;
+    if (posRel?.picking && e.button === 0) {
+      // Position Relative's "Select item…" / "Select point…": this click picks its reference, nothing else.
+      e.preventDefault();
+      const p = toBoard(e);
+      if (posRel.picking === "point") return setPosRel({ ...posRel, picking: undefined, reference: { kind: "point", at: snapTarget(p).at, label: "point" } });
+      const hit = pickItem(board, p, tol(), visible);
+      const uuid = hit && (hit.kind === "fptext" ? hit.footprint : hit.uuid);
+      const at = hit && boardItemPosition(board, uuid!, hit.kind === "footprint" ? hit.pad : undefined);
+      if (hit && at) setPosRel({ ...posRel, picking: undefined, reference: { kind: "item", at, label: describe(hit.kind === "fptext" ? { kind: "footprint", uuid: hit.footprint, reference: hit.reference } : hit) } });
+      return;
+    }
     if (e.altKey && e.button === 0 && (!editing || tool === "select")) {
       // Alt+click: choose among everything under the cursor.
       const all = pickAll(board, toBoard(e), tol(), visible).map(allowed).filter((x): x is BoardItem => !!x);
@@ -1341,6 +1354,12 @@ export function BoardView({
     const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
     if (uuids.length) setArrayFor({ uuids, origin: selectionCenter() });
   };
+  /** Position Relative To: the items it moves, its reference, and what a click on the board picks for it. */
+  const [posRel, setPosRel] = useState<{ items: Array<{ uuid: string; locked?: boolean }>; reference?: RelativeReference; picking?: "item" | "point" } | null>(null);
+  const openPosRel = () => {
+    const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
+    if (uuids.length) setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })) });
+  };
   const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
   /** Menu entries: [label, shortcut, action], a separator, or a submenu. */
   type MenuEntry = [string, string, () => void] | "-" | { label: string; items: Array<[string, string, () => void] | "-"> };
@@ -1443,7 +1462,7 @@ export function BoardView({
     const out: MenuEntry[] = [];
     // KiCad offers Align/Distribute once more than one item is selected.
     if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at));
-    if (tool === "select" && picked.length) out.push(["Create Array…", "Ctrl+T", openArray], "-");
+    if (tool === "select" && picked.length) out.push(["Create Array…", "Ctrl+T", openArray], ["Position Relative To…", "Shift+P", openPosRel], "-");
     if (hit?.kind === "footprint") {
       if (pad?.net) out.push([`Select net ${shortName(pad.net)}`, "", () => selectNet(pad.net)], "-");
       out.push(["Rotate", "R", () => press("r")], ["Flip to other side", "F", () => press("f")]);
@@ -1596,6 +1615,19 @@ export function BoardView({
             edit!.onEdit(ops);
           }}
         />}
+      {editing && posRel && (
+        <PositionRelative
+          board={board}
+          file={edit!.file}
+          items={posRel.items}
+          reference={posRel.reference}
+          picking={posRel.picking}
+          onPick={(what) => setPosRel({ ...posRel, picking: posRel.picking === what ? undefined : what })}
+          onReference={(reference) => setPosRel({ ...posRel, reference, picking: undefined })}
+          onEdit={(ops) => edit!.onEdit(ops)}
+          onClose={() => setPosRel(null)}
+        />
+      )}
       {editing && arrayFor && (
         <CreateArray file={edit!.file} uuids={arrayFor.uuids} origin={arrayFor.origin} onEdit={(ops) => edit!.onEdit(ops)} onClose={() => setArrayFor(null)} />
       )}
