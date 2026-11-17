@@ -844,3 +844,26 @@ export function setSheetPinName(sheet: List, pinUuid: string, name: string): voi
   const pin = findChildren(sheet, "pin").find((p) => uuidOf(p) === pinUuid);
   if (pin) setArg(pin, 0, str(name));
 }
+
+/**
+ * An image (PNG, as base64), centred on `at`, as KiCad keeps one: its data in lines of 76
+ * characters. At scale 1 it is shown at 300 pixels per inch.
+ */
+export function addImage(root: List, at: Point, pngBase64: string, scale = 1): string {
+  const id = newUuid();
+  const chunks = pngBase64.replace(/\s+/g, "").match(/.{1,76}/g) ?? [];
+  const node = list("image", list("at", snapIU(at.x), snapIU(at.y)), ...(scale !== 1 ? [list("scale", scale)] : []), list("uuid", str(id)), list("data", ...chunks.map((c) => str(c))));
+  insertTopLevel(root, node);
+  // One line per chunk, as KiCad writes them.
+  const data = findChild(node, "data")!;
+  data.trivia = data.children.map((_, i) => (i > 1 ? "\n\t\t\t" : i ? " " : ""));
+  data.closeTrivia = "\n\t\t";
+  return id;
+}
+
+/** Change an image's scale (1: 300 pixels per inch). */
+export function setImageScale(node: List, scale: number): void {
+  const s = findChild(node, "scale");
+  if (s) setArg(s, 0, scale);
+  else insertAt(node, node.children.indexOf(findChild(node, "at")!) + 1, list("scale", scale));
+}

@@ -65,6 +65,8 @@ import {
   setSheetName,
   blockFromSelection,
   blockMetadataJson,
+  addImage,
+  setImageScale,
   setSheetPinName,
   addDirective,
   addRuleArea,
@@ -252,6 +254,9 @@ export type EditOp =
   | { op: "setText"; file: string; uuid: string; text: string }
   | { op: "addLabel"; file: string; kind: NewLabelKind; text: string; at: Point; angle?: number; shape?: LabelShape }
   | { op: "addJunction"; file: string; at: Point }
+  /** An image (PNG as base64) centred on `at`. */
+  | { op: "addImage"; file: string; at: Point; png: string; scale?: number }
+  | { op: "setImageScale"; file: string; uuid: string; scale: number }
   /** A net class directive on a wire (or a rule area's outline). */
   | { op: "addDirective"; file: string; at: Point; netclass: string; angle?: number }
   /** A rule area (closed outline), with a directive for `netclass` on its first corner when given. */
@@ -473,6 +478,8 @@ export function describeOp(op: EditOp): string {
     case "addSchGraphic": return `Add ${op.graphic.kind === "polyline" ? "lines" : op.graphic.kind}`;
     case "setText": return `Text: ${op.text}`;
     case "addLabel": return `Add label ${op.text}`;
+    case "addImage": return "Add image";
+    case "setImageScale": return "Image size";
     case "addDirective": return `Net class ${op.netclass}`;
     case "addRuleArea": return op.netclass ? `Rule area for ${op.netclass}` : "Rule area";
     case "addJunction": return "Add junction";
@@ -773,6 +780,8 @@ export class Editor {
         case "setText": each([op.uuid], (n) => setItemText(n, op.text)); break;
         case "addLabel": addLabel(root, op.kind, op.text, op.at, op.angle ?? 0, op.shape); break;
         case "addJunction": addJunction(root, op.at); break;
+        case "addImage": addImage(root, op.at, op.png, op.scale ?? 1); break;
+        case "setImageScale": each([op.uuid], (n) => setImageScale(n, op.scale)); break;
         case "addDirective": addDirective(root, op.at, op.netclass, op.angle ?? 0); break;
         case "addRuleArea":
           addRuleArea(root, op.points);

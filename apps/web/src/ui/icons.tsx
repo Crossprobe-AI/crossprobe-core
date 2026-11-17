@@ -341,6 +341,13 @@ const ICONS = {
     </>
   ),
   ruleArea: <path d="M4 5h16v14H4z" strokeDasharray="3 2" />,
+  image: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="1" />
+      <path d="M4 16l5-5 4 4 2-2 5 5" />
+      <circle cx="15.5" cy="9.5" r="1.5" />
+    </>
+  ),
   table: <path d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14" />,
   chevronRight: <path d="M9 5l7 7-7 7" />,
 } satisfies Record<string, ReactNode>;
