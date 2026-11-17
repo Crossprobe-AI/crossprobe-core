@@ -8,6 +8,8 @@ what KiCad itself does with the same projects.
 
 Website: <https://crossprobe.dev>
 
+![A board in progress in Crossprobe: a part selected in the schematic is shown on the board among the unrouted connections, one track is routed by hand, Route all finishes the rest, and the 3D view turns the result](docs/media/demo.gif)
+
 ## What it does
 
 - Schematic, PCB and 3D views, with cross-probing between them.
