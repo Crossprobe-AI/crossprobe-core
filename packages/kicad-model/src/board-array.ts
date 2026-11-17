@@ -106,8 +106,8 @@ const getXY = (n: List | undefined): Point => ({ x: Number(arg(n, 0) ?? 0), y: N
 function itemPosition(node: List): Point {
   const head = headOf(node) ?? "";
   if (head === "segment" || head === "gr_line" || head === "gr_rect" || head === "gr_circle") return getXY(findChild(node, "start") ?? findChild(node, "center"));
-  if (head === "arc") return getXY(findChild(node, "start"));
-  if (head === "gr_arc") {
+  // Arcs (tracks and drawings): their centre.
+  if (head === "arc" || head === "gr_arc") {
     const [a, m, b] = ["start", "mid", "end"].map((h) => getXY(findChild(node, h)));
     const d = 2 * (a!.x * (m!.y - b!.y) + m!.x * (b!.y - a!.y) + b!.x * (a!.y - m!.y));
     if (!d) return a!;
