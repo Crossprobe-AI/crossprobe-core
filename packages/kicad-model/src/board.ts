@@ -10,6 +10,7 @@
 import { arcPoints } from "./drc.js";
 import { arg, atomText, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
 import type { Point } from "./geometry.js";
+import { pageSettings, type PageSettings } from "./page-settings.js";
 
 export interface BoardLayer {
   id: number;
@@ -302,6 +303,8 @@ export interface Board {
   texts: BoardText[];
   /** Groups (KiCad's (group …)): members by UUID, which may be other groups. */
   groups: BoardGroup[];
+  /** The paper and title block (KiCad's Page Settings). */
+  page?: PageSettings;
   /** Items in KiCad's tuning patterns (generated meanders): length checks leave them out. */
   tuningPatternMembers?: string[];
   /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
@@ -765,6 +768,7 @@ export function parseBoard(source: string): Board {
     version: Number(arg(findChild(root, "version"), 0) ?? 0),
     thickness: Number(arg(findChild(findChild(root, "general") ?? root, "thickness"), 0)) || undefined,
     revision: str(findChild(findChild(root, "title_block") ?? root, "rev")) || undefined,
+    page: pageSettings(root),
     stackup: (() => {
       const st = findChild(findChild(root, "setup") ?? root, "stackup");
       if (!st) return undefined;

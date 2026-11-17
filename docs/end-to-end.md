@@ -546,3 +546,8 @@ tool lists it first, inserting it adds a renumbered copy, and KiCad reads the sa
 `test/drawing-sheet.test.ts` puts vme-wren's own sheet, interf_u's (older format), and KiCad's
 ISO, GOST and default templates on demo schematics: every frame text is in KiCad's SVG of the
 page, with the same text at the same place. In the app, vme-wren opens with its CERN title block.
+
+`scripts/e2e-board-sheet.mjs` opens interf_u's board, whose project names a board drawing sheet
+(`pcbnew.page_layout_descr_file`: `pagelayout_logo.kicad_wks`). The board view reads it and draws it
+around the board with the board's title block, and the "Drawing sheet" toggle hides it.
+pic_programmer's board names none and gets the default frame.

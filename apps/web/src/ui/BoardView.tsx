@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { alignMoves, boardItemBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
+import { alignMoves, boardItemBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode, type DrawingSheetPrim } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
-import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, layerColor, padPath, type BoardScene } from "../render/board";
+import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, drawFrame, layerColor, padPath, type BoardScene } from "../render/board";
 import { attachedTrackEnds, boardItemOf, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
 import type { EditOp } from "../edit/ops";
 import type { Selection } from "./selection";
@@ -214,6 +214,7 @@ export function BoardView({
   designRules,
   edit,
   dirty = false,
+  frame: pageFrame,
 }: {
   board: Board;
   visible: Set<string>;
@@ -232,6 +233,8 @@ export function BoardView({
   edit?: BoardEditProps;
   /** Zone fills are out of date (board edited since the last refill). */
   dirty?: boolean;
+  /** The page frame (drawing sheet), drawn behind the board. */
+  frame?: DrawingSheetPrim[];
 }) {
   const scene = useMemo(() => buildScene(board), [board]);
   const overlay = useMemo(() => {
@@ -791,6 +794,7 @@ export function BoardView({
       const xa = -tx / scale, xb = (width - tx) / scale;
       const view = { x0: flipped ? 2 * cx - xb : xa, x1: flipped ? 2 * cx - xa : xb, y0: -ty / scale, y1: (height - ty) / scale };
       const trackLabels = (layer: string) => layer.endsWith(".Cu") && drawTrackLabels(ctx, board, scale, flipped, visible, view, layer);
+      if (pageFrame && visible.has("Drawing Sheet")) drawFrame(ctx, pageFrame, scale);
       drawScene(ctx, scene, visible, scale, overlay ? 0.28 : 1, false, flipped, overlay ? undefined : trackLabels);
       if (overlay) drawScene(ctx, overlay, visible, scale, 1, true, flipped, trackLabels);
       if (visible.has("Vias")) drawViaLabels(ctx, board, scale, flipped, view);
@@ -1093,7 +1097,7 @@ export function BoardView({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner]);
+  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag, boxCorner, pageFrame]);
 
   // ---- Pointer handling ------------------------------------------------------
 
