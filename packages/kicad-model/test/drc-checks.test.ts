@@ -1,7 +1,8 @@
 /**
  * Board checks beyond clearance against `kicad-cli pcb drc` on KiCad's demo
  * boards: hole size, annular width, dangling tracks and vias, courtyard
- * overlaps, co-located / too-close holes, text size and mirroring, and
+ * overlaps, holes in another footprint's courtyard, overlapping zones of one net and
+ * priority, footprint type against its pads, co-located / too-close holes, text size and mirroring, and
  * silkscreen at the board edge, over solder-mask openings or over other
  * silkscreen, and solder-mask bridges. Severities and exclusions come
  * from each project, custom rules from its .kicad_dru. KiCad stops reporting
@@ -20,7 +21,7 @@ const CORPUS = process.env.KICAD_CORPUS!;
 const KICAD_CLI = process.env.KICAD_CLI!;
 const CACHE = join(tmpdir(), "crossprobe-drc-cache");
 mkdirSync(CACHE, { recursive: true });
-const TYPES = ["drill_out_of_range", "annular_width", "track_dangling", "via_dangling", "courtyards_overlap", "holes_co_located", "hole_to_hole", "starved_thermal", "text_height", "text_thickness", "track_width", "via_diameter", "mirrored_text_on_front_layer", "nonmirrored_text_on_back_layer", "silk_edge_clearance", "silk_over_copper", "solder_mask_bridge", "silk_overlap"];
+const TYPES = ["drill_out_of_range", "annular_width", "track_dangling", "via_dangling", "courtyards_overlap", "holes_co_located", "hole_to_hole", "starved_thermal", "text_height", "text_thickness", "track_width", "via_diameter", "mirrored_text_on_front_layer", "nonmirrored_text_on_back_layer", "silk_edge_clearance", "silk_over_copper", "solder_mask_bridge", "silk_overlap", "pth_inside_courtyard", "npth_inside_courtyard", "zones_intersect", "footprint_type_mismatch"];
 const LIMIT = 199;
 
 function hasKicadCli(): boolean {
