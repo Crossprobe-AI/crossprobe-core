@@ -63,8 +63,8 @@ run at twice the speed. No ffmpeg is needed:
 
 `scripts/readme-demo.mjs <project folder>` records `docs/media/demo.gif` from a board in
 progress: the USB-C board below, stopped before "Route all"
-(`STOP=poured node scripts/e2e-usb.mjs <project folder>`). The run selects the
-microcontroller in the schematic, shows it on the board, routes one connection by hand,
+(`STOP=poured node scripts/e2e-usb.mjs <project folder>`). The run opens the
+project folder from the start screen, selects the microcontroller in the schematic, shows it on the board, routes one connection by hand,
 runs "Route all" and turns the 3D view, with a short caption on each step. The frames are screenshots, and
 `scripts/lib/gif.mjs` encodes them, so this needs no ffmpeg either. Run it again when the
 app's look changes.
@@ -355,6 +355,14 @@ and the right-click menu:
 
 KiCad's pcbnew reads the saved board's outline as exactly those corners. Four undos restore it.
 `apps/web/test/point-edit.test.ts` covers the handles of every shape kind.
+
+## Zone properties
+
+`scripts/e2e-zone-props.mjs` selects pic_programmer's copper zone. In its properties panel it sets a
+name, priority 2, clearance 0.3, minimum width 0.2, thermal gap 0.6, spoke width 0.4, and removing
+islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads every property back
+from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
+of properties into the zones of three demo boards, and pcbnew reads each one back.
 
 ## Cleanup tracks & vias
 

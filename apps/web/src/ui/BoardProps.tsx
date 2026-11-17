@@ -110,6 +110,8 @@ export function BoardProps({ board, picked, file, onEdit }: { board: Board; pick
   if (!tracks.length && !vias.length && !fps.length && !zones.length && !shapes.length && !texts.length) return null;
   const textIds = texts.map((t) => t.uuid!);
   const zoneIds = zones.map((z) => z.uuid);
+  /** A zone property change, then a refill (KiCad refills after its zone dialog). */
+  const zoneEdit = (p: Omit<Extract<EditOp, { op: "setZoneProps" }>, "op" | "file" | "uuids">) => onEdit([{ op: "setZoneProps", file, uuids: zoneIds, ...p }, { op: "refillZones", file }]);
   const rect = shapes.length === 1 && shapes[0]!.kind === "rect" ? shapes[0]! : undefined;
   const nets = [...board.nets].filter((n) => n).sort((a, b) => a.localeCompare(b));
   const trackIds = tracks.map((t) => t.uuid);
@@ -215,6 +217,32 @@ export function BoardProps({ board, picked, file, onEdit }: { board: Board; pick
               <option value="none">None</option>
             </select>
           </label>
+          {zones.length === 1 && (
+            <label className="prop">
+              <span>Name</span>
+              <input
+                defaultValue={zones[0]!.name}
+                key={zones[0]!.uuid + zones[0]!.name}
+                onBlur={(e) => e.target.value !== zones[0]!.name && onEdit([{ op: "setZoneProps", file, uuids: zoneIds, name: e.target.value }])}
+                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              />
+            </label>
+          )}
+          <NumField label="Priority" step={1} unit="" value={common(zones.map((z) => z.priority))} onCommit={(v) => v >= 0 && zoneEdit({ priority: Math.round(v) })} />
+          <NumField label="Clearance" value={common(zones.map((z) => z.clearance))} onCommit={(v) => v >= 0 && zoneEdit({ clearance: v })} />
+          <NumField label="Minimum width" value={common(zones.map((z) => z.minThickness))} onCommit={(v) => v > 0 && zoneEdit({ minThickness: v })} />
+          <NumField label="Thermal gap" value={common(zones.map((z) => z.thermalGap))} onCommit={(v) => v >= 0 && zoneEdit({ thermalGap: v })} />
+          <NumField label="Spoke width" value={common(zones.map((z) => z.thermalWidth))} onCommit={(v) => v > 0 && zoneEdit({ thermalWidth: v })} />
+          <label className="prop" title="Copper islands left unconnected after the fill (KiCad's island removal): remove all, keep all, or remove those below a minimum area">
+            <span>Islands</span>
+            <select value={common(zones.map((z) => String(z.islandMode))) ?? ""} onChange={(e) => zoneEdit({ islandMode: Number(e.target.value) as 0 | 1 | 2 })}>
+              {common(zones.map((z) => z.islandMode)) === undefined && <option value="">mixed</option>}
+              <option value="0">Remove all</option>
+              <option value="1">Keep all</option>
+              <option value="2">Below an area</option>
+            </select>
+          </label>
+          {zones.every((z) => z.islandMode === 2) && <NumField label="Minimum island" unit="mm²" value={common(zones.map((z) => z.islandAreaMin))} onCommit={(v) => v >= 0 && zoneEdit({ islandAreaMin: v })} />}
         </section>
       )}
       {texts.length > 0 && (
