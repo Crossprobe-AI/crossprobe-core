@@ -3285,3 +3285,17 @@ button.sb-checks:hover {
   min-width: 290px;
   z-index: 30;
 }
+
+/* Create Array and Position Relative dialogs. */
+.array-fields input[type="number"] {
+  width: 7em;
+}
+.row-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.row-buttons button.on {
+  outline: 2px solid var(--accent, #4c8bf5);
+}

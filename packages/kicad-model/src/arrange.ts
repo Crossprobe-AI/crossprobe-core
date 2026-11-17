@@ -360,3 +360,61 @@ export function distributeMoves(items: ArrangeItem[], mode: DistributeMode): Arr
   });
   return out;
 }
+
+/** A circle's centre through three points, or undefined when they are in line. */
+const centreOf = (a: Point, m: Point, b: Point) => arcCenter(a, m, b);
+
+/**
+ * An item's position as KiCad's GetPosition gives it: a footprint's or via's
+ * anchor, a track's start (an arc track's centre), a zone's first corner, an arc's centre, a
+ * polygon's first point, another shape's start, a text's anchor; with
+ * `pad`, that pad of the footprint.
+ */
+export function boardItemPosition(board: Board, uuid: string, pad?: string): Point | undefined {
+  const it = indexOf(board).get(uuid);
+  if (!it) return undefined;
+  switch (it.kind) {
+    case "footprint":
+      return (pad !== undefined && it.item.pads.find((p) => p.number === pad)?.at) || it.item.at;
+    case "track": {
+      const t = it.item;
+      return (t.kind === "arc" && t.mid && centreOf(t.start, t.mid, t.end)) || t.start;
+    }
+    case "via":
+      return it.item.at;
+    case "zone":
+      return it.item.outline[0];
+    case "graphic": {
+      const [a, m, b] = it.item.points;
+      if (it.item.kind === "arc" && a && m && b) return centreOf(a, m, b) ?? a;
+      return a;
+    }
+    case "text":
+      return it.item.at;
+  }
+}
+
+/**
+ * KiCad's Position Relative: the selection moves together so that its anchor
+ * (the top-left footprint, else the top-left item, by position) lands at
+ * `reference` + `offset`. Locked items are left out, as KiCad filters them
+ * from the selection. `polar`: the offset is a radius and an angle (degrees,
+ * clockwise on screen, as KiCad's y runs down).
+ */
+export function positionRelativeMoves(board: Board, items: Array<{ uuid: string; locked?: boolean }>, reference: Point, offset: Point, polar = false): ArrangeMove[] {
+  const free = items.filter((i) => !i.locked);
+  const placed = free.flatMap((i) => {
+    const at = boardItemPosition(board, i.uuid);
+    return at ? [{ uuid: i.uuid, at, footprint: indexOf(board).get(i.uuid)!.kind === "footprint" }] : [];
+  });
+  const topLeft = (list: typeof placed) => list.reduce<(typeof placed)[number] | undefined>((best, c) => (!best || c.at.x < best.at.x || (c.at.x === best.at.x && c.at.y < best.at.y) ? c : best), undefined);
+  const anchor = topLeft(placed.filter((p) => p.footprint)) ?? topLeft(placed);
+  if (!anchor) return [];
+  const t = polar
+    ? { x: KiROUND(nm(offset.x) * Math.cos((offset.y * Math.PI) / 180)), y: KiROUND(nm(offset.x) * Math.sin((offset.y * Math.PI) / 180)) }
+    : { x: nm(offset.x), y: nm(offset.y) };
+  const dx = (nm(reference.x) + t.x - nm(anchor.at.x)) / NM;
+  const dy = (nm(reference.y) + t.y - nm(anchor.at.y)) / NM;
+  if (!dx && !dy) return [];
+  return placed.map((p) => ({ uuid: p.uuid, dx, dy }));
+}
