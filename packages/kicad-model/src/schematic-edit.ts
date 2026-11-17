@@ -558,7 +558,8 @@ function cloneNode(node: List): List {
 /** Give a copied item new UUIDs (its own and its pins'). */
 function renewUuids(node: List): string {
   const id = newUuid();
-  const own = findChild(node, "uuid");
+  // A rule area keeps its UUID in its polyline.
+  const own = findChild(node, "uuid") ?? (headOf(node) === "rule_area" ? findChild(findChild(node, "polyline") ?? node, "uuid") : undefined);
   if (own) setArg(own, 0, str(id));
   for (const pin of findChildren(node, "pin")) {
     const u = findChild(pin, "uuid");
