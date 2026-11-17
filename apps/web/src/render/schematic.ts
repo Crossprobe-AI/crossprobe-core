@@ -15,11 +15,11 @@ import {
   type SheetInstance,
   shownText,
   intersheetRefs,
+  defaultFrame,
   drawingSheetPrims,
   sheetsByPage,
   type DrawingSheet,
-  type DrawingSheetPrim,
-} from "@crossprobe/kicad-model";
+  type DrawingSheetPrim, base64Bytes, bitmapInfo, bitmapSizeMm, type BitmapInfo } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -479,64 +479,22 @@ function sheetPrim(p: DrawingSheetPrim): Prim[] {
       const step = p.size.y * 1.6;
       const r = (p.angle * Math.PI) / 180;
       // Lines stack down the text's own direction.
+      // Squeezed to its maxlen: narrower than it is tall.
+      const xScale = p.size.y > 0 && Math.abs(p.size.x - p.size.y) > 1e-6 ? p.size.x / p.size.y : undefined;
       return lines.map((line, i) => {
         const k = (i - (p.v === "bottom" ? lines.length - 1 : p.v === "center" ? (lines.length - 1) / 2 : 0)) * step;
-        return text(p.at.x + k * Math.sin(r), p.at.y + k * Math.cos(r), line, e, p.angle, "frame");
+        const t = text(p.at.x + k * Math.sin(r), p.at.y + k * Math.cos(r), line, e, p.angle, "frame");
+        return xScale && t.t === "text" ? { ...t, xScale } : t;
       });
     }
+    case "bitmap":
+      return [{ t: "image", x: p.at.x, y: p.at.y, w: p.w, h: p.h, href: `data:image/png;base64,${p.png}` }];
   }
 }
 
+/** The default page frame (shared with the board view: defaultFrame). */
 function frame(paper: { w: number; h: number }, title: Record<string, string>, sheetLabel: string, file: string): Prim[] {
-  const rect = (x: number, y: number, w: number, h: number): Prim => ({
-    t: "path",
-    d: polyPath([{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }], true),
-    role: "frame",
-  });
-  const line = (x0: number, y0: number, x1: number, y1: number): Prim => ({ t: "path", d: polyPath([{ x: x0, y: y0 }, { x: x1, y: y1 }]), role: "frame" });
-  const e = (size: number, h: Effects["h"] = "start", bold = false): Effects => ({ size, h, v: "middle", hidden: false, bold, italic: false });
-  const m = 10;
-  const g = 2; // gap between the outer and inner border, where the zone references go
-  const out: Prim[] = [rect(m, m, paper.w - 2 * m, paper.h - 2 * m), rect(m + g, m + g, paper.w - 2 * (m + g), paper.h - 2 * (m + g))];
-
-  // Zone references every 50 mm, as on KiCad's default drawing sheet.
-  const step = 50;
-  const cols = Math.max(1, Math.round((paper.w - 2 * m) / step));
-  const rows = Math.max(1, Math.round((paper.h - 2 * m) / step));
-  const cw = (paper.w - 2 * m) / cols;
-  const rh = (paper.h - 2 * m) / rows;
-  for (let c = 0; c < cols; c++) {
-    const x = m + c * cw;
-    if (c > 0) out.push(line(x, m, x, m + g), line(x, paper.h - m - g, x, paper.h - m));
-    out.push(text(x + cw / 2, m + g / 2, String(c + 1), e(1.3, "middle"), 0, "frame"), text(x + cw / 2, paper.h - m - g / 2, String(c + 1), e(1.3, "middle"), 0, "frame"));
-  }
-  for (let r = 0; r < rows; r++) {
-    const y = m + r * rh;
-    const letter = String.fromCharCode(65 + (r % 26));
-    if (r > 0) out.push(line(m, y, m + g, y), line(paper.w - m - g, y, paper.w - m, y));
-    out.push(text(m + g / 2, y + rh / 2, letter, e(1.3, "middle"), 0, "frame"), text(paper.w - m - g / 2, y + rh / 2, letter, e(1.3, "middle"), 0, "frame"));
-  }
-
-  // Title block, bottom right of the inner frame.
-  const bw = 110;
-  const bh = 34;
-  const x0 = paper.w - m - g - bw;
-  const y0 = paper.h - m - g - bh;
-  out.push(rect(x0, y0, bw, bh), line(x0, y0 + 14, x0 + bw, y0 + 14), line(x0, y0 + 22, x0 + bw, y0 + 22), line(x0, y0 + 28, x0 + bw, y0 + 28));
-  out.push(line(x0 + 40, y0 + 28, x0 + 40, y0 + bh), line(x0 + 80, y0 + 28, x0 + 80, y0 + bh));
-  if (title["company"]) out.push(text(x0 + 2, y0 + 3, title["company"], e(1.6, "start", true), 0, "frame"));
-  [1, 2, 3, 4].forEach((n, i) => {
-    const c = title[`comment${n}`];
-    if (c) out.push(text(x0 + 2, y0 + 6.5 + i * 2.2, c, e(1.1), 0, "frame"));
-  });
-  out.push(text(x0 + 2, y0 + 16.5, `Sheet: ${sheetLabel}`, e(1.27), 0, "frame"));
-  out.push(text(x0 + 2, y0 + 19.5, `File: ${file}`, e(1.27), 0, "frame"));
-  out.push(text(x0 + 2, y0 + 25, `Title: ${title["title"] ?? ""}`, e(2, "start", true), 0, "frame"));
-  const paperName = `${Math.round(paper.w)}×${Math.round(paper.h)} mm`;
-  out.push(text(x0 + 2, y0 + 31, `Size: ${paperName}`, e(1.27), 0, "frame"));
-  out.push(text(x0 + 42, y0 + 31, `Date: ${title["date"] ?? ""}`, e(1.27), 0, "frame"));
-  out.push(text(x0 + 82, y0 + 31, `Rev: ${title["rev"] ?? ""}`, e(1.27), 0, "frame"));
-  return out;
+  return defaultFrame(paper, title, sheetLabel, file).flatMap(sheetPrim);
 }
 
 /** Rough extent of an item's primitives (path coordinates, circles, text boxes). */
@@ -568,23 +526,16 @@ function imagePrim(node: List): Prim | undefined {
   const data = findChild(node, "data");
   if (!data) return undefined;
   const b64 = data.children.slice(1).filter(isAtom).map(atomText).join("").replace(/\s+/g, "");
-  let w = 0, h = 0, mime = "image/png";
+  // Sized as KiCad sizes it: by the PNG's own resolution, else 300 pixels per inch.
+  let info: BitmapInfo | undefined;
   try {
-    const head = atob(b64.slice(0, 64));
-    if (head.startsWith("\x89PNG")) {
-      const u32 = (o: number) => ((head.charCodeAt(o) << 24) | (head.charCodeAt(o + 1) << 16) | (head.charCodeAt(o + 2) << 8) | head.charCodeAt(o + 3)) >>> 0;
-      w = u32(16);
-      h = u32(20);
-    } else {
-      mime = "image/jpeg";
-    }
+    info = bitmapInfo(base64Bytes(b64, 1 << 16));
   } catch {
     return undefined;
   }
-  if (!w || !h) return undefined;
-  const mmW = (w / 300) * 25.4 * scale;
-  const mmH = (h / 300) * 25.4 * scale;
-  return { t: "image", x: at.x - mmW / 2, y: at.y - mmH / 2, w: mmW, h: mmH, href: `data:${mime};base64,${b64}` };
+  if (!info) return undefined;
+  const { w: mmW, h: mmH } = bitmapSizeMm(info, scale);
+  return { t: "image", x: at.x - mmW / 2, y: at.y - mmH / 2, w: mmW, h: mmH, href: `data:${info.mime};base64,${b64}` };
 }
 
 /** KiCad 7+ text box: a rectangle with word-wrapped text inside its margins. */

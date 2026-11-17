@@ -2,6 +2,7 @@ import type { Board } from "@crossprobe/kicad-model";
 import { layerColor } from "../render/board";
 import { Icon } from "./icons";
 import type { SheetView } from "../render/types";
+import { SHEET_COLOR } from "../render/board";
 
 export function SheetTree({ sheets, current, onOpen }: { sheets: SheetView[]; current: string; onOpen: (path: string) => void }) {
   const byPath = new Map(sheets.map((s) => [s.path, s]));
@@ -77,6 +78,7 @@ export function LayerList({
       {copper.map((l) => row(l, layerColor(l, copper)))}
       {row("Vias", "#b9b9b9")}
       {row("Ratsnest", "#e8e8e8", "Ratsnest (unrouted)")}
+      {row("Drawing Sheet", SHEET_COLOR, "Drawing sheet")}
       <h4>Technical</h4>
       {technical.map((l) => row(l, layerColor(l, copper)))}
       {selectable && onSelectable && (
@@ -108,4 +110,4 @@ export function LayerList({
 }
 
 /** Shown at first, as in KiCad: copper, silkscreen, fabrication and courtyards, the outline and drawings. */
-export const DEFAULT_LAYERS = (board: Board) => new Set([...board.copperLayers, "Vias", "Ratsnest", "F.SilkS", "B.SilkS", "F.Fab", "B.Fab", "F.CrtYd", "B.CrtYd", "Edge.Cuts", "Dwgs.User", "Cmts.User"]);
+export const DEFAULT_LAYERS = (board: Board) => new Set([...board.copperLayers, "Vias", "Ratsnest", "F.SilkS", "B.SilkS", "F.Fab", "B.Fab", "F.CrtYd", "B.CrtYd", "Edge.Cuts", "Dwgs.User", "Cmts.User", "Drawing Sheet"]);

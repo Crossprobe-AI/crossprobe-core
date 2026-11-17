@@ -4,7 +4,7 @@
  * on pan/zoom keeps large boards (thousands of footprints, big zone fills)
  * interactive.
  */
-import { displayName, knockoutText, padCorners, textBoxBorder, textBoxText, textOutline, textPen, textStrokes, type Board, type BoardText, type Graphic, type Pad, type Point } from "@crossprobe/kicad-model";
+import { displayName, knockoutText, padCorners, textBoxBorder, textBoxText, textOutline, textPen, textStrokes, type Board, type DrawingSheetPrim, type BoardText, type Graphic, type Pad, type Point } from "@crossprobe/kicad-model";
 
 export const LAYER_COLORS: Record<string, string> = {
   "F.Cu": "#c83434",
@@ -577,6 +577,54 @@ export function drawViaLabels(ctx: CanvasRenderingContext2D, board: Board, scale
     ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
     ctx.fillText(name, 0, 0);
     ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** KiCad's drawing sheet colour in the board editor. */
+export const SHEET_COLOR = "#c872ab";
+
+/** The page frame (drawing sheet primitives, page mm = board mm), texts in KiCad's stroke font. */
+export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim[], scale: number): void {
+  ctx.save();
+  ctx.strokeStyle = SHEET_COLOR;
+  ctx.fillStyle = SHEET_COLOR;
+  const pen = (w: number) => (ctx.lineWidth = Math.max(w, 1 / scale));
+  for (const p of prims) {
+    ctx.beginPath();
+    if (p.kind === "line") {
+      pen(p.width);
+      ctx.moveTo(p.a.x, p.a.y);
+      ctx.lineTo(p.b.x, p.b.y);
+      ctx.stroke();
+    } else if (p.kind === "rect") {
+      pen(p.width);
+      ctx.rect(Math.min(p.a.x, p.b.x), Math.min(p.a.y, p.b.y), Math.abs(p.b.x - p.a.x), Math.abs(p.b.y - p.a.y));
+      ctx.stroke();
+    } else if (p.kind === "polygon") {
+      p.points.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+      ctx.closePath();
+      ctx.fill();
+    } else if (p.kind !== "text") {
+      // Other kinds (drawing sheet bitmaps) aren't drawn on the board yet.
+      continue;
+    } else {
+      // Too small to read: skip the strokes.
+      if (p.size.y * scale < 2 || !p.text) continue;
+      const t: BoardText = {
+        layer: "",
+        text: p.text,
+        at: p.at,
+        rotation: p.angle,
+        size: p.size,
+        thickness: p.width,
+        bold: p.bold,
+        justify: [p.h === "center" ? "" : p.h, p.v === "center" ? "" : p.v].filter(Boolean),
+      };
+      pen(p.width || p.size.y / 8);
+      for (const st of textStrokes(t)) st.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }

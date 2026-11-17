@@ -280,6 +280,18 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     }
   }
 
+  /** The board's drawing sheet (pcbnew's Page Settings › Drawing sheet), relative to the project. */
+  function boardDrawingSheet(): ReturnType<typeof parseDrawingSheet> | undefined {
+    try {
+      const wks = String(JSON.parse(files[project] ?? "{}")?.pcbnew?.page_layout_descr_file ?? "").replace(/^\$\{KIPRJMOD\}\//, "");
+      if (wks && files[dir + wks] !== undefined) return parseDrawingSheet(files[dir + wks]!);
+      if (wks) warnings.push(`board drawing sheet ${wks} not found: the default frame is drawn`);
+    } catch {
+      // An unreadable project file leaves the default frame.
+    }
+    return undefined;
+  }
+
   return {
     name,
     evidence: parseEvidence(files[evidenceFileName(base)]),
@@ -294,6 +306,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     nets,
     board,
     boardFile: board ? `${base}.kicad_pcb` : undefined,
+    boardDrawingSheet: board ? boardDrawingSheet() : undefined,
     projectFile: project,
     clearance,
     boardChecks,

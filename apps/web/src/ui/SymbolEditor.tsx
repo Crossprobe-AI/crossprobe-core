@@ -545,7 +545,16 @@ export function SymbolEditor({
                     const change = (patch: Partial<PinAlternate> | null) => setPins({ alternates: patch ? list.map((x, j) => (j === i ? { ...x, ...patch } : x)) : list.filter((_, j) => j !== i) });
                     return (
                       <div key={`${a.name}${i}`} className="pin-alternate-row">
-                        <Field label="" value={a.name} onCommit={(v) => v && change({ name: v })} />
+                        <Field
+                          label=""
+                          value={a.name}
+                          onCommit={(v) => {
+                            if (!v || v === a.name) return;
+                            // KiCad keeps a pin's alternates by name: a second one of the same name would replace the first.
+                            if (list.some((x, j) => j !== i && x.name === v)) return void window.alert(`This pin already has an alternate function named ${v}.`);
+                            change({ name: v });
+                          }}
+                        />
                         <select value={a.type} onChange={(e) => change({ type: e.target.value as PinTypeName })} title="Electrical type">
                           {PIN_TYPES.map((t) => (
                             <option key={t}>{t}</option>
@@ -565,7 +574,8 @@ export function SymbolEditor({
                   <button
                     className="link"
                     onClick={() => {
-                      const name = window.prompt("Alternate function name (e.g. SDA)");
+                      const name = window.prompt("Alternate function name (e.g. SDA)")?.trim();
+                      if (name && pins[0]!.alternates.some((x) => x.name === name)) return void window.alert(`This pin already has an alternate function named ${name}.`);
                       if (name) setPins({ alternates: [...pins[0]!.alternates, { name, type: pins[0]!.type, shape: pins[0]!.shape }] });
                     }}
                   >

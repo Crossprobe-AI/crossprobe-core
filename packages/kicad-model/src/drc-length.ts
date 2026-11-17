@@ -21,7 +21,7 @@
 import type { Board, Pad, Track, Via } from "./board.js";
 import { flashChecker } from "./board.js";
 import { netClassOf, type DesignRules, type DrcItem } from "./drc.js";
-import { customConstraint, type DruRule, type RuleItem } from "./drc-rules.js";
+import { customConstraint, matchDpSuffix, type DruRule, type RuleItem } from "./drc-rules.js";
 import type { Point } from "./geometry.js";
 import { layerDistance, netLayerLengths } from "./net-stats.js";
 import { onLayer } from "./fab.js";
@@ -258,13 +258,28 @@ export function checkLengthRules(board: Board, rules: DesignRules, custom: DruRu
       if (low || high) out.push(violation("length_out_of_range", g, total, c.min, c.max, `Track length out of range (rule '${g.rule}' ${low ? `min length ${c.min!.toFixed(4)}` : `max length ${c.max!.toFixed(4)}`} mm; actual ${total.toFixed(4)} mm)`));
     }
   }
-  for (const [rule, list] of byRule) {
+  for (const [rule, all] of byRule) {
     const c = custom.find((r) => r.name === rule)!.constraints.find((x) => x.type === "skew")!;
-    const longest = Math.max(...list.map((e) => e.total));
-    for (const { g, total } of list) {
-      const skew = Math.abs(total - longest);
-      if ((c.max !== undefined && skew > c.max) || (c.min !== undefined && skew < c.min))
-        out.push(violation("skew_out_of_range", g, skew, c.min, c.max, `Skew between traces out of range (rule '${rule}' ${c.max !== undefined && skew > c.max ? `max skew ${c.max.toFixed(4)}` : `min skew ${c.min!.toFixed(4)}`} mm; actual ${skew.toFixed(4)} mm)`));
+    // (within_diff_pairs): each net against its partner (KiCad's DpCoupledNet); nets without one are left out.
+    const sets: Array<typeof all> = [];
+    if (c.withinDiffPairs) {
+      const byNet = new Map(all.map((e) => [e.g.net, e]));
+      for (const e of all) {
+        const partner = matchDpSuffix(e.g.net)?.partner;
+        const p = partner !== undefined ? byNet.get(partner) : undefined;
+        if (!byNet.has(e.g.net) || !p) continue;
+        sets.push([e, p]);
+        byNet.delete(e.g.net);
+        byNet.delete(p.g.net);
+      }
+    } else sets.push(all);
+    for (const list of sets) {
+      const longest = Math.max(...list.map((e) => e.total));
+      for (const { g, total } of list) {
+        const skew = Math.abs(total - longest);
+        if ((c.max !== undefined && skew > c.max) || (c.min !== undefined && skew < c.min))
+          out.push(violation("skew_out_of_range", g, skew, c.min, c.max, `Skew between traces out of range (rule '${rule}' ${c.max !== undefined && skew > c.max ? `max skew ${c.max.toFixed(4)}` : `min skew ${c.min!.toFixed(4)}`} mm; actual ${skew.toFixed(4)} mm)`));
+      }
     }
   }
   return out;

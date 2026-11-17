@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
-import { addLabel, buildNetlist, ercExclusionEntry, isErcExcluded, loadSchematic, projectErcSettings, runErc, sheetRoot } from "../src/index.js";
+import { addLabel, addWire, buildNetlist, ercExclusionEntry, isErcExcluded, loadSchematic, projectErcSettings, runErc, sheetRoot } from "../src/index.js";
 
 const KICAD_CLI = process.env.KICAD_CLI!;
 const DEMO = join(process.env.KICAD_DEMOS!, "pic_programmer");
@@ -67,5 +67,41 @@ describe.skipIf(!cli)("ERC exclusions", () => {
     const kicadEntry = `single_global_label|304800|304800|0f6b0d1a-1111-4222-8333-444455556666|00000000-0000-0000-0000-000000000000|${lonely.sheet}||`;
     expect(isErcExcluded(lonely, [kicadEntry])).toBe(true);
     expect(isErcExcluded(lonely, [kicadEntry.replace("304800|304800", "304800|406400")])).toBe(false);
+  });
+
+  it("KiCad honours entries for labels and wires on a sub-sheet", () => {
+    // Items that had no UUID in our findings before: a dangling label, and the wire of a label on two wires.
+    const dir = mkdtempSync(join(tmpdir(), "erc-excl2-"));
+    cpSync(DEMO, dir, { recursive: true });
+    const read = (f: string) => readFileSync(join(dir, f), "utf8");
+    const ROOT = "pic_programmer.kicad_sch";
+    const SUB = "pic_sockets.kicad_sch";
+    const doc = parse(read(SUB));
+    const root = sheetRoot(doc);
+    addLabel(root, "label", "NOWHERE", { x: 30.48, y: 30.48 });
+    addWire(root, [{ x: 20.32, y: 50.8 }, { x: 40.64, y: 50.8 }]);
+    addWire(root, [{ x: 30.48, y: 40.64 }, { x: 30.48, y: 60.96 }]);
+    addLabel(root, "label", "CROSSING", { x: 30.48, y: 50.8 });
+    writeFileSync(join(dir, SUB), serialize(doc));
+    const s = loadSchematic(ROOT, read);
+    const findings = runErc(s, buildNetlist(s, { detail: true }), projectErcSettings(read("pic_programmer.kicad_pro")));
+    const picked = findings.filter((v) => (v.type === "label_dangling" && v.items[0]!.description.includes("NOWHERE")) || v.type === "label_multiple_wires");
+    expect(picked.map((v) => v.type).sort()).toEqual(["label_dangling", "label_multiple_wires"]);
+    for (const v of picked) for (const i of v.items) expect(i.uuid, `${v.type}: ${i.description}`).toBeTruthy();
+
+    const pro = JSON.parse(read("pic_programmer.kicad_pro"));
+    pro.erc.erc_exclusions = picked.map((v) => [ercExclusionEntry(v), ""]);
+    writeFileSync(join(dir, "pic_programmer.kicad_pro"), JSON.stringify(pro, null, 2));
+    const out = join(dir, "erc.json");
+    try {
+      execFileSync(KICAD_CLI, ["sch", "erc", "--format", "json", "--severity-all", "-o", out, join(dir, ROOT)], { stdio: "ignore" });
+    } catch {
+      // Findings make a non-zero exit.
+    }
+    type V = { type: string; excluded?: boolean; items: Array<{ description: string }> };
+    const report = JSON.parse(readFileSync(out, "utf8")) as { sheets: Array<{ path: string; violations: V[] }> };
+    // kicad-cli also lists a sub-sheet's markers under the root sheet, never as excluded: those are left out.
+    const theirs = report.sheets.filter((x) => x.path === "/pic_sockets/").flatMap((x) => x.violations).filter((v) => (v.type === "label_dangling" && v.items[0]!.description.includes("NOWHERE")) || v.type === "label_multiple_wires");
+    expect(theirs.map((v) => [v.type, v.excluded ?? false]).sort()).toEqual([["label_dangling", true], ["label_multiple_wires", true]]);
   });
 });
