@@ -368,8 +368,9 @@ boards, and pcbnew reads each one back.
 
 `test/zone-hatch.test.ts` makes pic_programmer's GND zone hatched four ways (straight, 30° with
 thin lines, chamfered holes, rounded holes at 45°). KiCad's pcbnew refills each one
-(`test/pcbnew-refill.py`), and so do we. The copper differs on 2.7–3.9% of KiCad's area, against
-1.8% for the same zone filled solid.
+(`test/pcbnew-refill.py`), and so do we, with KiCad's copper rings around thermal reliefs. The
+copper differs on 2.5–3.6% of KiCad's area, against 1.8% for the same zone filled solid (on the
+straight hatch, 200 mm² against the solid fill's 194 mm²).
 
 ## Groups
 
