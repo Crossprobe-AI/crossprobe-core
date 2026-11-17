@@ -145,6 +145,8 @@ export interface SheetFile {
   labels: Label[];
   sheets: SheetRef[];
   busAliases: Map<string, string[]>;
+  /** Free texts on the sheet. */
+  texts: Array<{ text: string; at: Point }>;
   /** The title block: title, date, rev, company, comment1 … comment9. */
   titleBlock: Record<string, string>;
   /**
@@ -308,6 +310,7 @@ export function parseSheetFile(source: string): SheetFile {
     labels: [],
     sheets: [],
     titleBlock: {},
+    texts: [],
     busAliases: new Map(),
     legacyInstances: new Map(),
   };
@@ -351,6 +354,9 @@ export function parseSheetFile(source: string): SheetFile {
         break;
       case "no_connect":
         sheet.noConnects.push(point(findChild(node, "at")));
+        break;
+      case "text":
+        sheet.texts.push({ text: text(node, 0), at: point(findChild(node, "at")) });
         break;
       case "label":
       case "global_label":

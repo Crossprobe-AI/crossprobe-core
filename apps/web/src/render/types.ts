@@ -6,6 +6,7 @@ export type Role =
   | "bus"
   | "junction"
   | "noconnect"
+  | "dnp"
   | "body"
   | "bodyFill"
   | "pin"
@@ -66,6 +67,9 @@ export interface SchItem {
   owner?: string;
   /** Labels, texts, text boxes and fields: the text as the file has it (what is drawn has its variables replaced). */
   text?: string;
+  /** Sheet symbols: the names of their pins, and the page number of the sheet they show (their `text` is its name). */
+  pinNames?: string[];
+  page?: string;
   /** Global and hierarchical labels: the shape (input, output, bidirectional, tri_state, passive). */
   shape?: string;
   /** Symbols: the reference as stored (also for power symbols). */
