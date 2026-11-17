@@ -702,6 +702,11 @@ export function renderSheet(
           prims.push(...g.body);
           pins = g.pins;
         }
+        // A part that is not populated is crossed out, corner to corner of its body and pins.
+        if (sym.dnp) {
+          const b = bboxOf([...prims, ...pins.flatMap((p) => p.prims.filter((q) => q.t !== "text"))]);
+          if (b) prims.push({ t: "path", d: `M${f(b.x)} ${f(b.y)}L${f(b.x + b.w)} ${f(b.y + b.h)}M${f(b.x + b.w)} ${f(b.y)}L${f(b.x)} ${f(b.y + b.h)}`, role: "dnp", w: 0.4572 });
+        }
         const ref = isPower || reference.startsWith("#") ? undefined : reference;
         const net = isPower ? sym.properties["Value"] : undefined;
         items.push({ kind: "symbol", ref, reference, net, prims });

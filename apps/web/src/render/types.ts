@@ -6,6 +6,7 @@ export type Role =
   | "bus"
   | "junction"
   | "noconnect"
+  | "dnp"
   | "body"
   | "bodyFill"
   | "pin"
