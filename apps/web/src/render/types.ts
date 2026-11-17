@@ -45,7 +45,7 @@ export type Prim =
   | { t: "image"; x: number; y: number; w: number; h: number; href: string };
 
 export interface SchItem {
-  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "pin" | "label" | "sheet" | "text" | "graphic";
+  kind: "wire" | "bus" | "junction" | "noconnect" | "symbol" | "field" | "pin" | "label" | "sheet" | "text" | "graphic";
   prims: Prim[];
   /** Net this item belongs to (wires, labels, pins). */
   net?: string;
@@ -61,7 +61,10 @@ export interface SchItem {
   bbox?: { x: number; y: number; w: number; h: number };
   /** UUID of the file node this came from (pins: their symbol's), for editing. */
   uuid?: string;
-  /** Labels, texts and text boxes: the text as the file has it (what is drawn has its variables replaced). */
+  /** Fields: the field's name and the UUID of the symbol it belongs to (their own `uuid` is "<symbol>#<name>"). */
+  field?: string;
+  owner?: string;
+  /** Labels, texts, text boxes and fields: the text as the file has it (what is drawn has its variables replaced). */
   text?: string;
   /** Global and hierarchical labels: the shape (input, output, bidirectional, tri_state, passive). */
   shape?: string;

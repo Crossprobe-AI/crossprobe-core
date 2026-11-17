@@ -346,6 +346,10 @@ KiCad's `sch upgrade` writes the same items back, and its SVG plot shows both te
 KiCad's `sch upgrade` writes each change back, and its netlist names the pin SDA and
 marks the part DNP. `test/symbol-props.test.ts` checks the model functions the same way.
 
+`scripts/e2e-field-move.mjs` drags a resistor's value away from the part, turns it (R)
+and changes it with a double-click, then drags the part: its fields go along. KiCad
+writes the field back where it was put.
+
 ## Symbol units
 
 `scripts/e2e-symbol-units.mjs` builds a two-unit symbol in the symbol editor:
