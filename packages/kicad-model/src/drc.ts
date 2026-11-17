@@ -121,7 +121,13 @@ function wildcard(pattern: string): RegExp {
   return re;
 }
 function compileWildcard(pattern: string): RegExp {
-  return new RegExp("^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
+  // A net class pattern is a wildcard ("osc*") or a regular expression ("in\d+") that matches the whole name.
+  const glob = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+  try {
+    return new RegExp(`^(?:${glob}|${pattern})$`);
+  } catch {
+    return new RegExp(`^${glob}$`);
+  }
 }
 
 /** The net class of a net: explicit assignment, then the first matching pattern, else Default. */
