@@ -14,6 +14,7 @@ import { gerberJob, gerberProjectGuid } from "./gbrjob.js";
 import { ipcD356 } from "./ipc356.js";
 import type { Point } from "./geometry.js";
 import { strokeAdvance, strokeGlyph, strokeLinePositions } from "./stroke-font.js";
+import { textBoxBorder, textBoxText } from "./textbox.js";
 import { fracture, padCopperCenter, padPolygons } from "./zone-fill.js";
 import ClipperLib from "clipper-lib";
 import { projectFileName } from "./new-project.js";
@@ -428,6 +429,13 @@ export function plotLayer(g: Plotter, board: Board, layer: string): void {
   // Texts on whatever layer they're on (KiCad plots them on all of them).
   for (const fp of board.footprints) for (const t of fp.texts) if (t.layer === layer) plotText(g, t);
   for (const t of board.texts) if (t.layer === layer) plotText(g, t);
+  // Text boxes: the border (KiCad plots it as a rectangle of the stroke's width) and the wrapped text.
+  for (const tb of board.textBoxes) {
+    if (tb.layer !== layer) continue;
+    const border = textBoxBorder(tb);
+    if (border) g.stroke([...border, border[0]!], tb.borderWidth);
+    plotText(g, textBoxText(tb));
+  }
 
   for (const fp of board.footprints) {
     for (const pad of fp.pads) {
