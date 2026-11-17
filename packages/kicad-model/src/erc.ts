@@ -57,6 +57,8 @@ export type ErcType =
   | "similar_power"
   | "undefined_netclass"
   | "ground_pin_not_ground"
+  | "bus_to_net_conflict"
+  | "net_not_bus_member"
   | "different_unit_net"
   | "duplicate_reference";
 
@@ -136,7 +138,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
   missing_unit: "warning", missing_input_pin: "warning", missing_bidi_pin: "warning", missing_power_pin: "error", different_unit_footprint: "error",
   duplicate_sheet_names: "error", same_local_global_label: "warning", unresolved_variable: "error",
-  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning", undefined_netclass: "error", ground_pin_not_ground: "warning", different_unit_net: "error",
+  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning", undefined_netclass: "error", ground_pin_not_ground: "warning", different_unit_net: "error", bus_to_net_conflict: "error", net_not_bus_member: "warning",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -211,6 +213,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   checkSimilarNames(schematic, netlist, report);
   checkFieldNames(schematic, report);
   checkPinNets(schematic, netlist, report);
+  checkBuses(schematic, netlist, report);
   if (options.netClasses) checkNetClassNames(schematic, new Set([...options.netClasses, "Default"]), report);
   checkDuplicateReferences(schematic, report);
   return out;
@@ -347,10 +350,18 @@ function checkSubgraph(sg: SubgraphDetail, net: SubgraphDetail[], netPins: Schem
 
   // Labels.
   const busLabel = (text: string) => !!expandBusMembers(text, sheet.data.busAliases);
+  // A bus label on wires: a bus name where a net belongs (KiCad reports the first wire and that label).
+  const firstBusLabel = labels.find((l) => busLabel(l.text));
+  if (firstBusLabel && sg.wires.length) {
+    const w = sheet.data.wires[sg.wires[0]!]!;
+    report("bus_to_net_conflict", sheet, "Invalid connection between bus and net items", [{ description: wireDesc(w), at: w.a }, { description: labelDesc(firstBusLabel), at: firstBusLabel.at, ...(firstBusLabel.uuid && { uuid: firstBusLabel.uuid }) }]);
+  }
+  // A label sitting on a bus belongs to the bus (see checkBuses), not loose.
+  const onBus = (p: Point) => sheet.data.buses.some((b) => onSegment(p, b.a, b.b));
   for (const [k, label] of labels.entries()) {
     if (busLabel(label.text)) continue;
     const item: ErcItem = { description: `${label.kind === "local" ? "Label" : label.kind === "global" ? "Global Label" : "Hierarchical Label"} '${label.text}'`, at: label.at };
-    const alone = !sg.wires.length && !sg.pins.length && !sg.sheetPins && labels.length === 1 && !sg.noConnects.length;
+    const alone = !sg.wires.length && !sg.pins.length && !sg.sheetPins && labels.length === 1 && !sg.noConnects.length && !onBus(label.at);
     if (alone) report("label_dangling", sheet, "Label not connected", [item]);
     else if (label.kind === "local" && k === 0) {
       const nonPowerPins = netPins.filter((p) => !p.powerSymbol);
@@ -413,11 +424,6 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
       if (pin.type !== "no_connect") pinPoints.push({ at, reference: pl.reference, number: pin.number, symbol: pl.symbol.uuid });
     }
   }
-  const wireDesc = (w: { a: Point; b: Point }) => {
-    const len = Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y);
-    const dir = Math.abs(w.a.x - w.b.x) < 1e-6 ? "Vertical" : Math.abs(w.a.y - w.b.y) < 1e-6 ? "Horizontal" : "";
-    return `${dir ? dir + " " : ""}Wire, length ${len.toFixed(4).replace(/\.?0+$/, "")} mm`;
-  };
 
   data.wires.forEach((w, i) => {
     // An end is connected when something else is there, or it lands on another wire or bus.
@@ -664,6 +670,77 @@ function checkPinNets(schematic: Schematic, netlist: Netlist, report: Report) {
     const seen = first.get(k);
     if (!seen) first.set(k, a);
     else if (seen.net !== a.net) report("different_unit_net", a.sheet, `Pin ${a.pin.number} is connected to both ${a.net} and ${seen.net}`, [pinItem(a.pin), pinItem(seen.pin)]);
+  }
+}
+
+/** "Horizontal Wire, length 50.8 mm", as KiCad describes a wire or bus segment. */
+function wireDesc(w: { a: Point; b: Point }, kind = "Wire"): string {
+  const len = Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y);
+  const dir = Math.abs(w.a.x - w.b.x) < 1e-6 ? "Vertical" : Math.abs(w.a.y - w.b.y) < 1e-6 ? "Horizontal" : "";
+  return `${dir ? dir + " " : ""}${kind}, length ${len.toFixed(4).replace(/\.?0+$/, "")} mm`;
+}
+const labelDesc = (l: { kind: string; text: string }) => `${l.kind === "global" ? "Global Label" : l.kind === "hierarchical" ? "Hierarchical Label" : "Label"} '${l.text}'`;
+
+/**
+ * Per sheet, each bus (its connected segments) and what sits on it: a label with a plain net
+ * name (bus_to_net_conflict), differently named labels (multiple_net_names), and wires through a
+ * bus entry whose net isn't one of the bus's members (net_not_bus_member).
+ */
+function checkBuses(schematic: Schematic, netlist: Netlist, report: Report) {
+  for (const sheet of schematic.sheets) {
+    const { buses, labels, busEntries } = sheet.data;
+    if (!buses.length) continue;
+    const isBusName = (t: string) => !!expandBusMembers(shownText(t, sheet, schematic), sheet.data.busAliases);
+    // Connected segments: one touching another's end, or sharing one.
+    const group = buses.map((_, i) => i);
+    const find = (i: number): number => (group[i] === i ? i : (group[i] = find(group[i]!)));
+    buses.forEach((a, i) => buses.forEach((b, j) => {
+      if (j > i && [a.a, a.b].some((p) => onSegment(p, b.a, b.b)) || (j > i && [b.a, b.b].some((p) => onSegment(p, a.a, a.b)))) group[find(i)] = find(j);
+    }));
+    const groups = new Map<number, number[]>();
+    buses.forEach((_, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), i]));
+    // Wire ends: the name given to the wires there on this sheet (their strongest label), if any.
+    const netAt = new Map<string, string>();
+    for (const g of netlist.detail!.groups) {
+      for (const sg of g.subgraphs) {
+        if (sg.sheet !== sheet || !sg.drivers.length) continue;
+        const name = [...sg.drivers].sort((a, b) => b.priority - a.priority)[0]!.name;
+        for (const w of sg.wires) for (const p of [sheet.data.wires[w]!.a, sheet.data.wires[w]!.b]) netAt.set(pointKey(p), name);
+      }
+    }
+    for (const segs of groups.values()) {
+      const on = labels.filter((l) => segs.some((i) => onSegment(l.at, buses[i]!.a, buses[i]!.b)));
+      const first = buses[segs[0]!]!;
+      const busItem = { description: wireDesc(first, "Bus"), at: first.a };
+      const net = on.find((l) => !isBusName(l.text));
+      if (net) report("bus_to_net_conflict", sheet, "Invalid connection between bus and net items", [{ description: labelDesc(net), at: net.at, ...(net.uuid && { uuid: net.uuid }) }, busItem]);
+      const prio = { global: 7, local: 4, hierarchical: 3 } as const;
+      const names = new Map<string, { priority: number; label: (typeof on)[number] }>();
+      for (const l of on) {
+        const key = escapeNetName(shownText(l.text, sheet, schematic));
+        if (!names.has(key) || names.get(key)!.priority < prio[l.kind]) names.set(key, { priority: prio[l.kind], label: l });
+      }
+      if (names.size > 1) {
+        const [chosen, second] = [...names.entries()].sort((a, b) => b[1].priority - a[1].priority || (a[0] < b[0] ? -1 : 1));
+        report("multiple_net_names", sheet, `Both ${chosen![0]} and ${second![0]} are attached to the same items; ${chosen![0]} will be used in the netlist`, [
+          { description: `Label '${chosen![1].label.text}'`, at: chosen![1].label.at },
+          { description: `Label '${second![1].label.text}'`, at: second![1].label.at },
+        ]);
+      }
+      // Wires through an entry must carry one of the bus's members.
+      const busLabel = on.filter((l) => isBusName(l.text)).sort((a, b) => prio[b.kind] - prio[a.kind] || (a.text < b.text ? -1 : 1))[0];
+      if (!busLabel) continue;
+      const members = new Set(expandBusMembers(shownText(busLabel.text, sheet, schematic), sheet.data.busAliases) ?? []);
+      for (const e of busEntries) {
+        const [busEnd, wireEnd] = segs.some((i) => onSegment(e.a, buses[i]!.a, buses[i]!.b)) ? [e.a, e.b] : segs.some((i) => onSegment(e.b, buses[i]!.a, buses[i]!.b)) ? [e.b, e.a] : [];
+        if (!busEnd) continue;
+        const netName = netAt.get(pointKey(wireEnd!));
+        if (!netName) continue;
+        const local = netName.startsWith(sheet.namePath) ? netName.slice(sheet.namePath.length) : netName.replace(/^\//, "");
+        if (members.has(local) || members.has(netName)) continue;
+        report("net_not_bus_member", sheet, `Net ${netName} is graphically connected to bus ${sheet.namePath}${busLabel.text} but is not a member of that bus`, [{ description: "Bus to wire entry", at: e.a }, busItem]);
+      }
+    }
   }
 }
 

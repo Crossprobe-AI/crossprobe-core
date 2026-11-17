@@ -100,6 +100,8 @@ const ERC_LABELS: Record<string, string> = {
   undefined_netclass: "Net class not in the project",
   ground_pin_not_ground: "Ground pin off the ground net",
   different_unit_net: "A pin shared by units on different nets",
+  bus_to_net_conflict: "Bus and net connected directly",
+  net_not_bus_member: "Wire on a bus entry that isn't a bus member",
   duplicate_reference: "Duplicate reference",
 };
 
