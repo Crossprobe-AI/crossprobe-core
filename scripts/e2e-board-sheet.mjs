@@ -1,18 +1,45 @@
 // End-to-end, the board's page frame: interf_u's board names a drawing sheet (pagelayout_logo.kicad_wks)
 // in its project; the board view draws it around the board, with the title block filled from the
 // board's page settings, and the "Drawing sheet" visibility toggle hides it. pic_programmer's board
-// names none and gets the default frame.
+// names none and gets the default frame. A logo (a bitmap) added to interf_u's sheet is drawn too.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-board-sheet.mjs <out-dir>
 import puppeteer from "puppeteer-core";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { crc32, deflateSync } from "node:zlib";
 import { resolve } from "node:path";
 const OUT = resolve(process.argv[2] ?? "scripts/e2e-out/board-sheet");
 const URL = process.env.APP_URL ?? "http://localhost:5173/";
+const DEMOS = process.env.KICAD_DEMOS ?? "/Library/Application Support/kicad/demos";
+/** A solid green 200 × 100 px PNG (base64), for a logo on the drawing sheet. */
+const png = (() => {
+  const w = 200, h = 100;
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td));
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: w }, () => [0, 255, 0]).flat())]);
+  const raw = Buffer.concat(Array.from({ length: h }, () => row));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]).toString("base64");
+})();
+const wks = readFileSync(`${DEMOS}/interf_u/pagelayout_logo.kicad_wks`, "utf8").replace(/\)\s*$/, `  (bitmap (name "") (pos 60 30 ltcorner) (scale 1) (data "${png}"))\n)\n`);
 mkdirSync(OUT, { recursive: true });
 const browser = await puppeteer.launch({ executablePath: process.env.BROWSER ?? "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", headless: true });
 const page = await browser.newPage();
 await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
+await page.setRequestInterception(true);
+page.on("request", (req) => {
+  if (req.url().includes("/__demos/file") && decodeURIComponent(req.url()).includes("pagelayout_logo.kicad_wks")) req.respond({ status: 200, contentType: "text/plain", body: wks });
+  else req.continue();
+});
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const problems = [];
 const expect = (ok, msg) => {
@@ -20,6 +47,15 @@ const expect = (ok, msg) => {
   if (!ok) problems.push(msg);
 };
 const boardCanvas = () => [...document.querySelectorAll("canvas")].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+/** Pixels on the board canvas in the logo's green. */
+const greenPixels = () =>
+  page.evaluate((find) => {
+    const c = new Function(`return (${find})()`)();
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] < 30 && d[i + 1] > 220 && d[i + 2] < 30) n++;
+    return n;
+  }, boardCanvas.toString());
 /** Pixels on the board canvas in the drawing sheet's colour (#c872ab). */
 const sheetPixels = () =>
   page.evaluate((find) => {
@@ -57,9 +93,13 @@ expect(await page.evaluate(() => !!window.__crossprobe.project.boardDrawingSheet
 const on = await sheetPixels();
 await page.screenshot({ path: `${OUT}/interf_u.png` });
 expect(on > 500, `the frame is drawn (${on} px)`);
+const logo = await greenPixels();
+// 200 × 100 px at 300 ppi: about 17 × 8.5 mm.
+expect(logo > 200, `the sheet's logo is drawn (${logo} px)`);
 await toggleSheet();
 const off = await sheetPixels();
 expect(off < on / 20, `"Drawing sheet" off hides it (${off} px)`);
+expect((await greenPixels()) === 0, "and its logo");
 await toggleSheet();
 
 console.log("pic_programmer: the default frame");
