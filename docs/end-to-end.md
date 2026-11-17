@@ -311,6 +311,18 @@ of the saved project then finds nothing, as before the edits.
 KiCad's parity check of the saved project then finds nothing. `test/board-reannotate.test.ts`
 covers directions, grid rounding, the mirrored back, exclusions, prefixes and start numbers.
 
+## Align and distribute
+
+`scripts/e2e-align.mjs` box-selects R1–R6, D2–D7 and their tracks on pic_programmer's board
+(33 items), then from the right-click menu:
+1. Align to Top: KiCad's own boxes of the saved board (pcbnew's, footprints without their
+   text, as its align tool takes them) give every moved item the same top.
+2. Distribute Horizontally with Even Gaps: KiCad's boxes give equal gaps, in the order the
+   items had.
+
+Undo puts everything back. `test/arrange.test.ts` compares our boxes with KiCad's on six demo
+boards and covers the target choice (locked item, item under the cursor, extreme item).
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges

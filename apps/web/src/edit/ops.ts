@@ -231,6 +231,8 @@ export type EditOp =
   | { op: "annotate"; file: string; mode: "all" | "unannotated"; order?: "x" | "y" }
   // Board (.kicad_pcb) operations; items are named by UUID.
   | { op: "boardMove"; file: string; uuids: string[]; dx: number; dy: number }
+  /** Align or distribute: each item its own move (`label` names it for undo, as KiCad's commit does). */
+  | { op: "boardArrange"; file: string; label: string; moves: Array<{ uuid: string; dx: number; dy: number }> }
   | { op: "moveFootprintText"; file: string; footprint: string; text: string; dx: number; dy: number }
   /** Rotate by `deg` (CCW); around `center`, or each footprint's own anchor when omitted. */
   | { op: "boardRotate"; file: string; uuids: string[]; deg: number; center?: Point }
@@ -353,6 +355,7 @@ export function describeOp(op: EditOp): string {
     case "addSheet": return `Add sheet ${op.name}`;
     case "addSheetPin": return `Add sheet pin ${op.name}`;
     case "boardMove": return `Move ${op.uuids.length} item${op.uuids.length > 1 ? "s" : ""}`;
+    case "boardArrange": return op.label;
     case "moveFootprintText": return "Move footprint text";
     case "boardRotate": return "Rotate";
     case "boardFlip": return "Flip";
@@ -711,6 +714,12 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       break;
     case "boardMove":
       for (const n of items(op.uuids)) moveBoardItem(n, op.dx, op.dy);
+      break;
+    case "boardArrange":
+      for (const m of op.moves) {
+        const n = findBoardItem(root, m.uuid);
+        if (n) moveBoardItem(n, m.dx, m.dy);
+      }
       break;
     case "moveFootprintText":
       moveFootprintText(root, op.footprint, op.text, op.dx, op.dy);
