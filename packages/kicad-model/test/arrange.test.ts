@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { alignMoves, boardItemBox, distributeMoves, parseBoard, type ArrangeItem } from "../src/index.js";
+import { alignMoves, boardItemBox, boardItemPosition, distributeMoves, parseBoard, positionRelativeMoves, type ArrangeItem } from "../src/index.js";
 
 const PY = process.env.KICAD_PYTHON ?? "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3";
 const DEMOS = process.env.KICAD_DEMOS!;
@@ -54,6 +54,22 @@ describe("distribute", () => {
   });
 });
 
+describe("position relative", () => {
+  const board = parseBoard(`(kicad_pcb (version 20241229) (generator "t")
+  (footprint "R" (layer "F.Cu") (uuid "a") (at 10 20) (property "Reference" "R1" (at 0 0) (layer "F.SilkS")))
+  (footprint "R" (layer "F.Cu") (uuid "b") (at 10 15) (property "Reference" "R2" (at 0 0) (layer "F.SilkS")))
+  (footprint "R" (layer "F.Cu") (uuid "c") (at 5 30) (locked yes) (property "Reference" "R3" (at 0 0) (layer "F.SilkS")))
+  (via (at 2 2) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net 0) (uuid "v")))`);
+  const m = (r: ReturnType<typeof positionRelativeMoves>) => Object.fromEntries(r.map((x) => [x.uuid, [+x.dx.toFixed(6), +x.dy.toFixed(6)]]));
+  it("puts the top-left footprint at the reference plus the offset; locked items stay", () => {
+    // Anchor: b (leftmost footprint, then topmost), not the via further left, not locked c.
+    expect(m(positionRelativeMoves(board, [{ uuid: "a" }, { uuid: "b" }, { uuid: "c", locked: true }, { uuid: "v" }], { x: 0, y: 0 }, { x: 1, y: 1 }))).toEqual({ a: [-9, -14], b: [-9, -14], v: [-9, -14] });
+  });
+  it("takes a polar offset: radius, then the angle clockwise on screen", () => {
+    expect(m(positionRelativeMoves(board, [{ uuid: "b" }], { x: 10, y: 15 }, { x: 2, y: 90 }, true))).toEqual({ b: [0, 2] });
+  });
+});
+
 describe.skipIf(!existsSync(PY) || !BOARDS.length)("boxes as KiCad's", () => {
   it.each(BOARDS)("%s", (rel) => {
     const out = join(mkdtempSync(join(tmpdir(), "bbox-")), "box.json");
@@ -62,8 +78,15 @@ describe.skipIf(!existsSync(PY) || !BOARDS.length)("boxes as KiCad's", () => {
     } catch {
       // pcbnew may crash on exit after writing its output.
     }
-    const kicad = JSON.parse(readFileSync(out, "utf8")) as Record<string, Record<string, [number, number, number, number]>>;
+    const kicad = JSON.parse(readFileSync(out, "utf8")) as Record<string, Record<string, number[]>>;
     const board = parseBoard(readFileSync(join(DEMOS, rel), "utf8"));
+    // Positions as KiCad's GetPosition (arcs: their centre, within 0.1 µm).
+    for (const [uuid, k] of Object.entries(kicad.positions!)) {
+      const p = boardItemPosition(board, uuid);
+      if (!p) continue;
+      expect(Math.max(Math.abs(p.x * 1e6 - k[0]!), Math.abs(p.y * 1e6 - k[1]!)), `position ${uuid}`).toBeLessThanOrEqual(100);
+    }
+    delete kicad.positions;
     for (const [kind, items] of Object.entries(kicad)) {
       // KiCad's arcs have integer centres: within 0.1 µm. Everything else to the nanometre.
       const tol = kind === "tracks" || kind === "drawings" ? 100 : 2;
