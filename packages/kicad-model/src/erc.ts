@@ -82,6 +82,8 @@ export interface ErcViolation {
   /** The sheet kicad-cli files this under, when different (it files screen-level checks under the root). */
   kicadSheetName?: string;
   items: ErcItem[];
+  /** Where KiCad puts the marker, when not at the first item (a wire's loose end): exclusions name it. */
+  at?: Point;
 }
 
 export interface ErcOptions {
@@ -177,7 +179,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   if (!netlist.detail) throw new Error("runErc needs a netlist built with { detail: true }");
   const out: ErcViolation[] = [];
   const pinMap = options.pinMap ?? DEFAULT_PIN_MAP;
-  const report: Report = (type, sheet, message, items, severity, kicadSheet) => {
+  const report: Report = (type, sheet, message, items, severity, kicadSheet, markerAt) => {
     const configured = options.severities?.[type];
     if (configured === "ignore") return;
     out.push({
@@ -188,6 +190,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
       sheetName: sheet.namePath,
       kicadSheetName: kicadSheet && kicadSheet !== sheet ? kicadSheet.namePath : undefined,
       items,
+      ...(markerAt && { at: markerAt }),
     });
   };
 
@@ -226,6 +229,8 @@ type Report = (
   items: ErcItem[],
   severity?: "error" | "warning",
   kicadSheet?: SheetInstance,
+  /** The marker's place, when not at the first item. */
+  markerAt?: Point,
 ) => void;
 
 // ---------------------------------------------------------------------------
@@ -432,7 +437,7 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
       data.wires.some((o, j) => j !== i && onSegment(p, o.a, o.b));
     // One report per loose end, as KiCad does.
     for (const end of [w.a, w.b]) {
-      if (!connected(end)) report("unconnected_wire_endpoint", sheet, "Unconnected wire endpoint", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }]);
+      if (!connected(end)) report("unconnected_wire_endpoint", sheet, "Unconnected wire endpoint", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }], undefined, undefined, end);
     }
   });
 
@@ -613,7 +618,7 @@ const iu = (mm: number) => Math.round(mm * 1e4);
  * item's sheet|other item's sheet. Items whose UUID isn't known here are written as nil.
  */
 export function ercExclusionEntry(v: ErcViolation): string {
-  const at = v.items[0]?.at ?? { x: 0, y: 0 };
+  const at = v.at ?? v.items[0]?.at ?? { x: 0, y: 0 };
   return [v.type, iu(at.x), iu(at.y), v.items[0]?.uuid ?? NIL_UUID, v.items[1]?.uuid ?? NIL_UUID, v.sheet, v.sheet, v.items[1] ? v.sheet : ""].join("|");
 }
 
@@ -623,7 +628,7 @@ export function ercExclusionEntry(v: ErcViolation): string {
  * (an entry naming no sheet matches any).
  */
 export function isErcExcluded(v: ErcViolation, entries: string[]): boolean {
-  const at = v.items[0]?.at;
+  const at = v.at ?? v.items[0]?.at;
   if (!at) return false;
   const sheet = v.kicadSheetName ? undefined : v.sheet;
   return entries.some((e) => {
