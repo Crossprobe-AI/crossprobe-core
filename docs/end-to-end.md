@@ -376,6 +376,19 @@ Ctrl+G. KiCad's pcbnew reads the group back with its 33 members. Then:
 `test/board-group.test.ts` reads the demo's own groups, then nests, locks, ungroups and prunes
 groups. pcbnew reads each step back the same.
 
+## Text boxes
+
+`scripts/e2e-textbox.mjs` draws a 30 × 12 mm text box on pic_programmer's board with the text box
+tool and types a sentence into it. KiCad's pcbnew reads the saved box back:
+- its corners are ours;
+- its text, wrapped to the box (KiCad's `GetShownText`), is the same three lines as ours.
+
+R turns the box a quarter, and the properties panel changes its text; pcbnew reads both. Undo removes
+the box. `test/textbox.test.ts` has pcbnew make a board of eight text boxes. They cover wrapping,
+every justification, bold, a quarter turn, 30° and 180°, mirrored on the back, and with and without a
+border. Our silkscreen Gerbers of that board equal kicad-cli's, also after turning every box by 30°
+and 90° as pcbnew does.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges

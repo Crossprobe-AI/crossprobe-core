@@ -106,7 +106,8 @@ export function BoardProps({ board, picked, file, onEdit }: { board: Board; pick
   const fps = board.footprints.filter((f) => ids.has(f.uuid));
   const zones = board.zones.filter((z) => ids.has(z.uuid));
   const shapes = board.drawings.filter((g) => g.uuid && ids.has(g.uuid));
-  const texts = board.texts.filter((t) => t.uuid && ids.has(t.uuid));
+  // Board texts and text boxes (their content, size and layer edit alike).
+  const texts = [...board.texts.filter((t) => t.uuid && ids.has(t.uuid)), ...board.textBoxes.filter((t) => ids.has(t.uuid))];
   if (!tracks.length && !vias.length && !fps.length && !zones.length && !shapes.length && !texts.length) return null;
   const textIds = texts.map((t) => t.uuid!);
   const zoneIds = zones.map((z) => z.uuid);

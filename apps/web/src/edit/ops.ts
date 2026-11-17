@@ -8,6 +8,8 @@ import { serializeRequirements } from "../requirements/requirements";
 import { arg, findChild, findChildren, format, headOf, insertAt, isList, parse, removeChild, serialize, type Document, type List } from "@crossprobe/kicad-sexpr";
 import {
   createBoardArray,
+  addTextBox,
+  type NewTextBox,
   addGroup,
   removeGroup,
   pruneGroups,
@@ -321,6 +323,7 @@ export type EditOp =
       removeClass?: string;
     }
   | { op: "addBoardText"; file: string; text: NewBoardText }
+  | { op: "addTextBox"; file: string; box: NewTextBox }
   | { op: "setBoardText"; file: string; uuids: string[]; text?: string; size?: number; layer?: string }
   /** A copper zone outline; follow with refillZones to compute its copper. */
   | { op: "addZone"; file: string; zone: NewZone }
@@ -433,6 +436,7 @@ export function describeOp(op: EditOp): string {
     case "setEvidence": return "Datasheet evidence";
     case "setRequirements": return "Requirements";
     case "addBoardText": return `Add text "${op.text.text}"`;
+    case "addTextBox": return "Add text box";
     case "setBoardText": return op.text !== undefined ? `Text "${op.text}"` : op.size !== undefined ? `Text size ${op.size} mm` : `Text layer ${op.layer}`;
     case "setZoneProps": return op.net !== undefined ? `Zone net ${op.net || "(none)"}` : op.connect !== undefined ? "Zone pad connection" : op.layer !== undefined ? `Zone layer ${op.layer}` : "Zone properties";
     case "moveTrackEnd": return "Drag track";
@@ -840,8 +844,11 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
     case "addBoardText":
       addBoardText(root, op.text);
       break;
+    case "addTextBox":
+      addTextBox(root, op.box);
+      break;
     case "setBoardText":
-      for (const n of items(op.uuids)) if (headOf(n) === "gr_text") setBoardText(n, op);
+      for (const n of items(op.uuids)) if (headOf(n) === "gr_text" || headOf(n) === "gr_text_box") setBoardText(n, op);
       break;
     case "autoroute": {
       const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
