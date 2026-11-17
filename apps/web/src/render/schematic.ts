@@ -682,7 +682,9 @@ export function renderSheet(
       }
       case "sheet": {
         const uuid = str(findChild(node, "uuid"));
-        items.push({ kind: "sheet", sheetPath: `${sheet.path}/${uuid}`, prims: sheetPrims(node) });
+        const name = findChildren(node, "property").find((p) => /^Sheet ?name$/.test(str(p, 0)));
+        const page = findChildren(findChild(node, "instances") ?? node, "project").flatMap((p) => findChildren(p, "path")).find((p) => str(p, 0) === sheet.path);
+        items.push({ kind: "sheet", sheetPath: `${sheet.path}/${uuid}`, prims: sheetPrims(node), text: str(name, 1), pinNames: findChildren(node, "pin").map((p) => str(p, 0)), page: page ? str(findChild(page, "page")) : undefined });
         break;
       }
       case "symbol": {

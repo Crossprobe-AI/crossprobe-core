@@ -80,6 +80,7 @@ const ERC_LABELS: Record<string, string> = {
   endpoint_off_grid: "Off connection grid",
   multiple_net_names: "Several names for one net",
   similar_labels: "Labels differ only in case",
+  hier_label_mismatch: "Sheet pin without a label, or label without a pin",
   duplicate_reference: "Duplicate reference",
 };
 

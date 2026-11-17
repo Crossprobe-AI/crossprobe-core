@@ -42,6 +42,7 @@ export type ErcType =
   | "endpoint_off_grid"
   | "multiple_net_names"
   | "similar_labels"
+  | "hier_label_mismatch"
   | "duplicate_reference";
 
 export interface ErcItem {
@@ -105,7 +106,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   pin_to_pin: "warning", pin_not_driven: "error", power_pin_not_driven: "error", pin_not_connected: "error",
   no_connect_connected: "warning", no_connect_dangling: "warning", label_dangling: "error", isolated_pin_label: "warning",
   label_multiple_wires: "warning", wire_dangling: "error", unconnected_wire_endpoint: "warning", endpoint_off_grid: "warning",
-  multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error",
+  multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -171,6 +172,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
     checkSheetGeometry(sheet, schematic, options.gridMm ?? 1.27, asRoot);
   }
   checkLabelsAcrossDesign(schematic, report);
+  checkSheetPins(schematic, report);
   checkDuplicateReferences(schematic, report);
   return out;
 }
@@ -436,6 +438,24 @@ function checkLabelsAcrossDesign(schematic: Schematic, report: Report) {
       const first = seen.get(key);
       if (first === undefined) seen.set(key, l.text);
       else if (first !== l.text) report("similar_labels", sheet, "Labels are similar (lower/upper case difference only)", [{ description: `Label '${l.text}'`, at: l.at }]);
+    }
+  }
+}
+
+/** A sheet symbol's pins and the hierarchical labels inside its sheet go in pairs, by name. */
+function checkSheetPins(schematic: Schematic, report: Report) {
+  for (const sheet of schematic.sheets) {
+    if (!sheet.ref || !sheet.parent) continue;
+    const labels = sheet.data.labels.filter((l) => l.kind === "hierarchical");
+    const pins = new Set(sheet.ref.pins.map((p) => p.name));
+    const names = new Set(labels.map((l) => l.text));
+    for (const pin of sheet.ref.pins) {
+      if (names.has(pin.name)) continue;
+      report("hier_label_mismatch", sheet.parent, `Sheet pin ${pin.name} has no matching hierarchical label inside the sheet`, [{ description: `Hierarchical Sheet Pin '${pin.name}'`, at: pin.at }]);
+    }
+    for (const label of labels) {
+      if (pins.has(label.text)) continue;
+      report("hier_label_mismatch", sheet, `Hierarchical label ${label.text} has no matching sheet pin in the parent sheet`, [{ description: `Hierarchical Label '${label.text}'`, at: label.at }]);
     }
   }
 }

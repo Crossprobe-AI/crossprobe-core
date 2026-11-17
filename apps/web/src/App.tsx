@@ -468,6 +468,7 @@ export function App() {
         placingBlock,
         sheetFileOf: (path: string) => project.sheets.find((s) => s.path === path)?.file,
         nextPage: project.sheets.length + 1,
+        hierLabelsOf: (path: string) => [...new Set((project.sheets.find((s) => s.path === path)?.items ?? []).filter((i) => i.kind === "label" && i.prims.some((p) => p.t !== "image" && p.role === "labelHier")).map((i) => i.text ?? ""))],
         fileExists: (file: string) => project.sheets.some((s) => s.file === file),
       },
     [project, placing, placingBlock],
