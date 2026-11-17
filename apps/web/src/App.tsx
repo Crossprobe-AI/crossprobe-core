@@ -477,6 +477,7 @@ export function App() {
         nextPage: project.sheets.length + 1,
         hierLabelsOf: (path: string) => [...new Set((project.sheets.find((s) => s.path === path)?.items ?? []).filter((i) => i.kind === "label" && i.prims.some((p) => p.t !== "image" && p.role === "labelHier")).map((i) => i.text ?? ""))],
         fileExists: (file: string) => project.sheets.some((s) => s.file === file),
+        projectDir: project.projectFile.includes("/") ? project.projectFile.slice(0, project.projectFile.lastIndexOf("/") + 1) : "",
         netClasses: project.designRules?.classes.map((c) => c.name),
       },
     [project, placing, placingBlock],
@@ -1205,6 +1206,7 @@ export function App() {
                 {editing && (tool === "place" || tool === "power") && <PartPicker key={`${tool}-${pickerOpen}`} power={tool === "power"} project={project} placing={placing} onPick={setPlacing} onNewSymbol={() => void openSymbolEditor()} />}
                 {editing && tool === "block" && (
                   <BlockPicker
+                    projectBlocks={project.projectBlocks}
                     placing={placingBlock}
                     onPick={setPlacingBlock}
                     onInsertFree={(blockText, blockPcb) => {

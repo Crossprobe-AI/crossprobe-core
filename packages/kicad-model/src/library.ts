@@ -109,8 +109,8 @@ export function parseLibTable(text: string): Array<{ name: string; uri: string }
  * A library table (fp-lib-table / sym-lib-table) with `name` → `uri` in it, as KiCad writes the
  * table: the text unchanged when the library is there already.
  */
-export function withLibTableEntry(text: string | undefined, kind: "fp" | "sym", name: string, uri: string, descr = ""): string {
-  const head = kind === "fp" ? "fp_lib_table" : "sym_lib_table";
+export function withLibTableEntry(text: string | undefined, kind: "fp" | "sym" | "design_block", name: string, uri: string, descr = ""): string {
+  const head = kind === "fp" ? "fp_lib_table" : kind === "sym" ? "sym_lib_table" : "design_block_lib_table";
   const libs = text ? parseLibTable(text) : [];
   if (libs.some((l) => l.name === name)) return text!;
   const entry = `\t(lib (name "${name}")(type "KiCad")(uri "${uri}")(options "")(descr "${descr.replace(/["\\]/g, "'")}"))\n`;

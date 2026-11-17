@@ -20,7 +20,18 @@ function cite(c: { page?: number; where?: string } | undefined): string {
   return [c.page ? `p. ${c.page}` : "", c.where].filter(Boolean).join(" · ");
 }
 
-export function BlockPicker({ placing, onPick, onInsertFree }: { placing?: Placing; onPick: (p: Placing) => void; onInsertFree: (text: string, pcb?: string) => void }) {
+export function BlockPicker({
+  placing,
+  onPick,
+  onInsertFree,
+  projectBlocks = [],
+}: {
+  placing?: Placing;
+  onPick: (p: Placing) => void;
+  onInsertFree: (text: string, pcb?: string) => void;
+  /** Blocks saved in the project itself. */
+  projectBlocks?: Array<{ id: string; lib: string; name: string; description: string; keywords: string[]; text: string }>;
+}) {
   const [blocks, setBlocks] = useState<BlockSummary[]>();
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState<string>();
@@ -51,6 +62,8 @@ export function BlockPicker({ placing, onPick, onInsertFree }: { placing?: Placi
   };
 
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const ownShown = projectBlocks.filter((b) => terms.every((t) => `${b.name} ${b.description} ${b.keywords.join(" ")}`.toLowerCase().includes(t)));
+  const own = projectBlocks.find((b) => b.id === chosen);
   const shown = (blocks ?? []).filter((b) => terms.every((t) => `${b.title} ${b.description} ${b.category} ${b.keywords.join(" ")}`.toLowerCase().includes(t)));
   const docTitle = (id: string) => manifest?.sources.find((s) => s.id === id);
 
@@ -59,6 +72,25 @@ export function BlockPicker({ placing, onPick, onInsertFree }: { placing?: Placi
       <input autoFocus placeholder="Search blocks (e.g. “esp32”, “usb”)…" value={query} onChange={(e) => setQuery(e.target.value)} />
       {error && <p className="error small">{error}</p>}
       <div className="part-list">
+        {ownShown.length > 0 && <p className="muted small">This project's blocks</p>}
+        {ownShown.map((b) => (
+          <button
+            key={b.id}
+            className={chosen === b.id ? "on" : ""}
+            title={b.description}
+            onClick={() => {
+              setChosen(b.id);
+              setManifest(undefined);
+              setPcb(undefined);
+              setText(b.text);
+              onPick({ id: b.id, title: b.name, text: b.text });
+            }}
+          >
+            <span className="part-name">{b.name}</span>
+            <span className="badge">{b.lib}</span>
+          </button>
+        ))}
+        {ownShown.length > 0 && <p className="muted small">Library</p>}
         {!blocks && <p className="muted small">Loading…</p>}
         {blocks && !shown.length && <p className="muted small">{blocks.length ? "No block matches." : "No design blocks are available here."}</p>}
         {shown.map((b) => (
@@ -69,6 +101,17 @@ export function BlockPicker({ placing, onPick, onInsertFree }: { placing?: Placi
         ))}
       </div>
 
+      {own && (
+        <div className="block-detail">
+          {own.description && <p className="small">{own.description}</p>}
+          <div className="block-actions">
+            <button className="primary" onClick={() => onInsertFree(own.text)} title="Insert below everything else on this sheet, so nothing connects by accident">
+              Insert in free space
+            </button>
+            <span className="muted small">{placing?.id === chosen ? "or click the sheet to place it · Esc to stop" : ""}</span>
+          </div>
+        </div>
+      )}
       {chosen && manifest && (
         <div className="block-detail">
           <p className="small">{manifest.description}</p>
