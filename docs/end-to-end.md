@@ -65,7 +65,7 @@ run at twice the speed. No ffmpeg is needed:
 progress: the USB-C board below, stopped before "Route all"
 (`STOP=poured node scripts/e2e-usb.mjs <project folder>`). The run selects the
 microcontroller in the schematic, shows it on the board, routes one connection by hand,
-runs "Route all" and turns the 3D view. The frames are screenshots, and
+runs "Route all" and turns the 3D view, with a short caption on each step. The frames are screenshots, and
 `scripts/lib/gif.mjs` encodes them, so this needs no ffmpeg either. Run it again when the
 app's look changes.
 
