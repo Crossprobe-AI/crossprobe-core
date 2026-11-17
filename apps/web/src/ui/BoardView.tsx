@@ -9,6 +9,7 @@ import { Icon } from "./icons";
 import { BoardProps } from "./BoardProps";
 import { CreateArray } from "./CreateArray";
 import { PositionRelative, type RelativeReference } from "./PositionRelative";
+import { addCorner, dragHandle, editShape, handleAt, handles, removeCorner, type Handle } from "../render/point-edit";
 import type { PlacingFootprint } from "./FootprintPicker";
 import { fromOverlay, useViewport } from "./viewport";
 
@@ -268,6 +269,10 @@ export function BoardView({
   const [cursor, setCursor] = useState<Point | null>(null);
   // A dimension being placed: its points so far.
   const [dim, setDim] = useState<{ start: Point; end?: Point; orthogonal: boolean } | null>(null);
+  /** The point editor's shape: one selected zone or board graphic, while selecting. */
+  const pointShape = useMemo(() => (editing && tool === "select" && picked.length === 1 && (picked[0]!.kind === "zone" || picked[0]!.kind === "graphic") ? editShape(board, picked[0]!.uuid) : undefined), [editing, tool, picked, board]);
+  /** A handle being dragged, and where to. */
+  const [ptDrag, setPtDrag] = useState<{ h: Handle; to: Point } | null>(null);
   // The measure tool's ruler: from `a` to the cursor, or to `b` once fixed.
   const [ruler, setRuler] = useState<{ a: Point; b?: Point } | null>(null);
   /** The dimension the cursor makes from the two points: its offset, and for orthogonal ones the direction. */
@@ -288,7 +293,7 @@ export function BoardView({
   };
   // Corners of an outline rectangle or zone polygon being drawn.
   const [shape, setShape] = useState<Point[] | null>(null);
-  const gesture = useRef<"drag" | "box" | null>(null);
+  const gesture = useRef<"drag" | "box" | "handle" | null>(null);
   // Where the button went down on an item, and whether the pointer has left that spot. Until
   // it has, the press is a click: it selects and moves nothing (the same 3 px as panning).
   const pressed = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -351,6 +356,8 @@ export function BoardView({
     return flipped ? { x: 2 * cx - q.x, y: q.y } : q;
   };
   const tol = () => 3 / vp.view.scale;
+  // For the end-to-end scripts: where a screen point is on the board.
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__crossprobeBoardView = { toBoard: (x: number, y: number) => toBoard({ clientX: x, clientY: y }) };
 
   // Net class defaults for routing, and the rules for live clearance checks.
   const classOf = (net: string) => netClasses[net] ?? netClasses[""];
@@ -968,6 +975,36 @@ export function BoardView({
           ctx.stroke();
           ctx.setLineDash([]);
         }
+        if (pointShape) {
+          // The point editor: the shape being edited, and its handles (KiCad's squares).
+          const live = ptDrag ? dragHandle(pointShape, ptDrag.h, ptDrag.to) : pointShape.points;
+          const shown = { ...pointShape, points: live };
+          if (ptDrag) {
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1 / scale;
+            ctx.setLineDash([5 / scale, 3 / scale]);
+            ctx.beginPath();
+            if (shown.kind === "circle") {
+              const [c, r] = live as [Point, Point];
+              ctx.arc(c.x, c.y, Math.hypot(r.x - c.x, r.y - c.y), 0, Math.PI * 2);
+            } else {
+              const pts = shown.kind === "rect" ? [live[0]!, { x: live[1]!.x, y: live[0]!.y }, live[1]!, { x: live[0]!.x, y: live[1]!.y }] : live;
+              pts.forEach((q, k) => (k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+              if (shown.kind !== "line" && shown.kind !== "arc") ctx.closePath();
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          const hs = 4 / scale;
+          for (const h of handles(shown)) {
+            ctx.fillStyle = h.type === "edge" ? "rgba(255, 255, 255, 0.55)" : "#ffffff";
+            ctx.strokeStyle = "#202020";
+            ctx.lineWidth = 1 / scale;
+            const k = h.type === "edge" ? hs * 0.75 : hs;
+            ctx.fillRect(h.at.x - k, h.at.y - k, 2 * k, 2 * k);
+            ctx.strokeRect(h.at.x - k, h.at.y - k, 2 * k, 2 * k);
+          }
+        }
         if (conflicts.length) {
           ctx.fillStyle = "rgba(255, 77, 79, 0.85)";
           for (const c of conflicts) {
@@ -1006,7 +1043,7 @@ export function BoardView({
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler]);
+  }, [scene, overlay, visible, vp.view, vp.ref, flipped, cx, ratsnest, selection, editing, board, pickedIds, drag, box, route, cursor, tool, edit, drc, conflicts, pushed, pendingPair, pending, cursorNet, shape, dim, picked, ruler, pointShape, ptDrag]);
 
   // ---- Pointer handling ------------------------------------------------------
 
@@ -1061,6 +1098,14 @@ export function BoardView({
     }
     if (!editing || e.button !== 0 || tool !== "select") return vp.handlers.onPointerDown(e);
     const p = toBoard(e);
+    // The point editor's handles come before the items under them.
+    const handle = pointShape && !e.shiftKey ? handleAt(pointShape, p, 5 / vp.view.scale) : undefined;
+    if (handle) {
+      gesture.current = "handle";
+      setPtDrag({ h: handle, to: handle.at });
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     const hit = pickSel(p, tol());
     if (hit) {
       if (lockedIds.has(hit.uuid) && !e.shiftKey) {
@@ -1099,6 +1144,7 @@ export function BoardView({
       if (leftPress(e)) setDrag({ ...drag, d: dragOffset(drag.from, toBoard(e)) });
       return;
     }
+    if (gesture.current === "handle" && ptDrag) return setPtDrag({ ...ptDrag, to: snap(toBoard(e), edit!.grid) });
     if (gesture.current === "box" && box) return setBox({ ...box, b: toBoard(e) });
     vp.handlers.onPointerMove(e);
   };
@@ -1135,6 +1181,12 @@ export function BoardView({
         for (const end of attachedTrackEnds(board, ids)) ops.push({ op: "moveTrackEnd", file: ed.file, uuid: end.uuid, index: end.index, to: { x: end.at.x + dx, y: end.at.y + dy } });
         ed.onEdit(ops);
       }
+      return;
+    }
+    if (g === "handle" && ptDrag && pointShape) {
+      const to = snap(toBoard(e), edit!.grid);
+      setPtDrag(null);
+      if (Math.hypot(to.x - ptDrag.h.at.x, to.y - ptDrag.h.at.y) > 1e-9) commitPoints(dragHandle(pointShape, ptDrag.h, to), ptDrag.h.type === "edge" ? "Move edge" : "Move corner");
       return;
     }
     if (g === "box" && box) {
@@ -1347,6 +1399,13 @@ export function BoardView({
   };
 
   // ---- Context menu (right click), KiCad's actions for what's under the cursor ----
+  /** Write the point editor's result: a zone's outline, or a graphic's points. */
+  const commitPoints = (points: Point[], label: string) => {
+    if (!pointShape) return;
+    const ed = edit!;
+    if (pointShape.kind === "zone") ed.onEdit([{ op: "setZoneOutline", file: ed.file, uuid: pointShape.uuid, points, label }]);
+    else ed.onEdit([{ op: "setGraphicPoints", file: ed.file, uuid: pointShape.uuid, points, label }]);
+  };
   /** The Create Array dialog: what it copies, and where the selection is (for the circle's centre). */
   const [arrayFor, setArrayFor] = useState<{ uuids: string[]; origin: Point } | null>(null);
   const openArray = () => {
@@ -1422,8 +1481,10 @@ export function BoardView({
     e.preventDefault();
     const p = toBoard(e);
     const hit = editing ? pickSel(p, tol()) : pickItem(board, p, tol(), visible);
-    // Right-clicking something selects it, as in KiCad (unless it's already in the selection).
-    if (editing && tool === "select" && hit && !pickedIds.has(hit.uuid)) select([hit], false);
+    // Right-clicking something selects it, as in KiCad (unless it's already in the selection,
+    // or it's a handle of the shape being point-edited).
+    const onHandle = pointShape && handleAt(pointShape, p, 5 / vp.view.scale);
+    if (editing && tool === "select" && hit && !pickedIds.has(hit.uuid) && !onHandle) select([hit], false);
     if (!editing && hit) {
       if (hit.kind === "footprint") onSelect({ kind: "component", reference: hit.reference, pad: hit.pad });
       else if ("net" in hit && hit.net) onSelect({ kind: "net", name: hit.net });
@@ -1463,6 +1524,17 @@ export function BoardView({
     // KiCad offers Align/Distribute once more than one item is selected.
     if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at));
     if (tool === "select" && picked.length) out.push(["Create Array…", "Ctrl+T", openArray], ["Position Relative To…", "Shift+P", openPosRel], "-");
+    if (pointShape && (pointShape.kind === "zone" || pointShape.kind === "poly") && menu?.at) {
+      // KiCad's point editor: add a corner on the nearest edge, or remove the corner under the cursor.
+      const at = menu.at;
+      const corner = handleAt(pointShape, at, 5 / vp.view.scale);
+      out.push(["Add Corner", "", () => commitPoints(addCorner(pointShape.points, snap(at, edit!.grid)), "Add corner")]);
+      if (corner?.type === "corner") {
+        const left = removeCorner(pointShape.points, corner.index);
+        out.push(["Remove Corner", "", () => (left ? commitPoints(left, "Remove corner") : edit!.onEdit([{ op: "boardDelete", file: edit!.file, uuids: [pointShape.uuid] }]))]);
+      }
+      out.push("-");
+    }
     if (hit?.kind === "footprint") {
       if (pad?.net) out.push([`Select net ${shortName(pad.net)}`, "", () => selectNet(pad.net)], "-");
       out.push(["Rotate", "R", () => press("r")], ["Flip to other side", "F", () => press("f")]);

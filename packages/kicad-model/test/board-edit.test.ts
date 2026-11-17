@@ -127,3 +127,28 @@ describe.skipIf(!existsSync(join(DEMOS, BOARDS[0] ?? "")))("footprint texts", ()
     }
   });
 });
+
+describe("zone outline", () => {
+  it("is rewritten six corners to a line, as KiCad writes it", async () => {
+    const { setPolygonPoints } = await import("../src/index.js");
+    const text = `(kicad_pcb
+\t(zone
+\t\t(net 0)
+\t\t(uuid "z")
+\t\t(polygon
+\t\t\t(pts
+\t\t\t\t(xy 0 0) (xy 10 0) (xy 10 10)
+\t\t\t)
+\t\t)
+\t)
+)
+`;
+    const doc = parse(text);
+    const zone = findBoardItem(boardRoot(doc), "z")!;
+    const pts = Array.from({ length: 8 }, (_, i) => ({ x: i, y: i * 0.5 }));
+    expect(setPolygonPoints(zone, pts)).toBe(true);
+    expect(serialize(doc)).toContain(`\t\t\t(pts\n\t\t\t\t(xy 0 0) (xy 1 0.5) (xy 2 1) (xy 3 1.5) (xy 4 2) (xy 5 2.5)\n\t\t\t\t(xy 6 3) (xy 7 3.5)\n\t\t\t)`);
+    expect(parseBoard(serialize(doc)).zones[0]!.outline).toEqual(pts);
+    expect(setPolygonPoints(zone, pts.slice(0, 2))).toBe(false);
+  });
+});
