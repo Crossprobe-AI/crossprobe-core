@@ -344,6 +344,18 @@ pic_programmer's board, and with Shift+P:
 Undo puts everything back. `test/arrange.test.ts` compares item positions (what the reference and
 anchor are taken from) with KiCad's on six demo boards.
 
+## Point editing a zone
+
+`scripts/e2e-points.mjs` selects pic_programmer's copper zone by its edge and, from its handles
+and the right-click menu:
+1. Drags a corner to 240, 50.
+2. Drags the top edge up by its middle to y = 40. Its corners slide along the neighbouring
+   edges, as in KiCad.
+3. Adds a corner on the left edge and removes the one at 74.295, 127.635.
+
+KiCad's pcbnew reads the saved board's outline as exactly those corners. Four undos restore it.
+`apps/web/test/point-edit.test.ts` covers the handles of every shape kind.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges

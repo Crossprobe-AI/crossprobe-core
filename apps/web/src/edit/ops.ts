@@ -68,6 +68,7 @@ import {
   addZone,
   setZoneProps,
   setGraphicPoints,
+  setPolygonPoints,
   addBoardText,
   autorouteAll,
   stitchToPours,
@@ -271,7 +272,9 @@ export type EditOp =
   /** A board graphic: the Edge.Cuts outline, silkscreen or drawing shapes. */
   | { op: "addBoardShape"; file: string; shape: NewBoardShape }
   | { op: "setZoneProps"; file: string; uuids: string[]; net?: string; layer?: string; connect?: "thermal" | "solid" | "none" | "tht" }
-  | { op: "setGraphicPoints"; file: string; uuid: string; points: Point[] }
+  | { op: "setGraphicPoints"; file: string; uuid: string; points: Point[]; label?: string }
+  /** A zone's outline corners (KiCad's point editor: drag, add or remove a corner). */
+  | { op: "setZoneOutline"; file: string; uuid: string; points: Point[]; label?: string }
   /** Route connections with the grid router, one after another (each sees the ones before); unroutable ones are skipped. */
   | { op: "autoroute"; file: string; connections: Array<{ from: Point; to: Point; net: string }> }
   /** A footprint's pad on the board: size, shape, drill, net (KiCad's pad properties). */
@@ -405,7 +408,8 @@ export function describeOp(op: EditOp): string {
     case "addVia": return op.type ? `Add ${op.type} via` : "Add via";
     case "addBoardShape": return op.shape.layer === "Edge.Cuts" ? "Draw board outline" : `Draw ${op.shape.kind} on ${op.shape.layer}`;
     case "addZone": return `Add ${op.zone.net || "no-net"} zone`;
-    case "setGraphicPoints": return "Resize shape";
+    case "setGraphicPoints": return op.label ?? "Resize shape";
+    case "setZoneOutline": return op.label ?? "Edit zone outline";
     case "autoroute": return op.connections.length === 1 ? `Autoroute ${op.connections[0]!.net}` : `Autoroute ${op.connections.length} connections`;
     case "setProjectRules": return op.exclude ? "Exclude DRC finding" : op.include ? "Include DRC finding" : op.removeClass ? `Remove net class ${op.removeClass}` : op.classPatterns ? `Nets of ${op.classPatterns.name}` : "Board setup";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
@@ -873,6 +877,11 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
         deleteBoardItem(root, t.uuid);
         for (let k = 1; k < t.points.length; k++) addTrack(root, { start: t.points[k - 1]!, end: t.points[k]!, width: t.width, layer: t.layer, net: op.net });
       }
+      break;
+    }
+    case "setZoneOutline": {
+      const n = findBoardItem(root, op.uuid);
+      if (n) setPolygonPoints(n, op.points);
       break;
     }
     case "setGraphicPoints": {
