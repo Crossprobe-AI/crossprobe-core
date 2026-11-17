@@ -175,6 +175,8 @@ export interface ProjectView {
   designRules: { minClearance: number; copperEdgeClearance?: number; holeClearance?: number; custom?: import("@crossprobe/kicad-model").DruRule[]; classes: import("@crossprobe/kicad-model").NetClass[]; patterns: Array<{ pattern: string; netclass: string }>; assignments: Record<string, string[]> };
   /** Project-relative path of the board file, when there is one. */
   boardFile?: string;
+  /** The board's own drawing sheet (.kicad_wks), when the project names one; else the default frame. */
+  boardDrawingSheet?: import("@crossprobe/kicad-model").DrawingSheet;
   /** Project-relative path of the .kicad_pro. */
   projectFile: string;
   /** What Update PCB from Schematic would change (schematic and board both present). */
