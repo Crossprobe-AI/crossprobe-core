@@ -162,7 +162,7 @@ completes a feature.
 | Schematic ↔ board parity, ratsnest | Works | A few zone-to-pad cases over-report unconnected items |
 | Copper layer count, design-rule minimums, net classes | Works | With presets for KiCad's defaults and JLCPCB. A net in several classes (by pattern or from the schematic) combines them by priority, with Default filling what they leave unset, as KiCad 10 does |
 | Stackup | Partly | Read and used; written only from the presets; no editor |
-| Custom rules | Partly | `clearance`, `hole_size`, `annular_width`, `track_width`, `via_diameter`, `length` and `skew` (with `fromTo` between parts), with the common condition functions. Lengths between parts can differ from KiCad's by up to ~0.7 mm on some routes, so findings near a limit may differ. Not: differential pair gap and uncoupled length, edge, silk and courtyard clearance, `disallow` |
+| Custom rules | Partly | `clearance`, `hole_size`, `annular_width`, `track_width`, `via_diameter`, `length` and `skew` (with `fromTo` between parts), `diff_pair_gap` and `diff_pair_uncoupled`, with the common condition functions. Lengths between parts can differ from KiCad's by up to ~0.7 mm on some routes, so findings near a limit may differ; differential pair gaps and uncoupled lengths equal KiCad's. Not: edge, silk and courtyard clearance, `disallow` |
 | Interactive routing with 45° tracks | Works | Posture, width, via and layer change while routing |
 | Router modes | Partly | Highlight collisions and walkaround work; shove moves up to three tracks, along the grid |
 | Arc tracks | View only | Drawn, measured and plotted; can't be routed |
