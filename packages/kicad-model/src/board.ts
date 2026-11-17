@@ -309,6 +309,8 @@ export interface Board {
   page?: PageSettings;
   /** Items in KiCad's tuning patterns (generated meanders): length checks leave them out. */
   tuningPatternMembers?: string[];
+  /** Every top-level item locked in the file (KiCad's L), by UUID: those not modelled here too (images, tables, targets…). */
+  lockedItems?: string[];
   /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
   textBoxes: TextBox[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
@@ -883,6 +885,10 @@ export function parseBoard(source: string): Board {
   for (const node of forms) {
     if (!isList(node)) continue;
     const head = headOf(node)!;
+    if (head !== "net" && isLocked(node)) {
+      const u = itemUuid(node);
+      if (u) (board.lockedItems ??= []).push(u);
+    }
     switch (head) {
       case "net": {
         const name = netName(node);

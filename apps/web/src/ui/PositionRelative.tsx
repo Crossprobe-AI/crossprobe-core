@@ -16,6 +16,7 @@ export function PositionRelative({
   board,
   file,
   items,
+  extras,
   reference,
   picking,
   onPick,
@@ -26,6 +27,8 @@ export function PositionRelative({
   board: Board;
   file: string;
   items: Array<{ uuid: string; locked?: boolean }>;
+  /** Members of the selection's groups the app doesn't model: moved by the same amount. */
+  extras?: string[];
   reference?: RelativeReference;
   /** What the next click on the board will pick, if anything. */
   picking?: "item" | "point";
@@ -41,6 +44,8 @@ export function PositionRelative({
   const apply = () => {
     if (!reference) return;
     const moves = positionRelativeMoves(board, items, reference.at, { x: a, y: b }, polar);
+    // A group's members the app doesn't model go with it.
+    if (moves.length) for (const u of extras ?? []) moves.push({ uuid: u, dx: moves[0]!.dx, dy: moves[0]!.dy });
     if (moves.length) onEdit([{ op: "boardArrange", file, label: "Position Relative", moves }]);
     onClose();
   };
