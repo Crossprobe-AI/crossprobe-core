@@ -364,6 +364,18 @@ islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads e
 from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
 of properties into the zones of three demo boards, and pcbnew reads each one back.
 
+## Groups
+
+`scripts/e2e-groups.mjs` box-selects 33 items on pic_programmer's board and groups them with
+Ctrl+G. KiCad's pcbnew reads the group back with its 33 members. Then:
+1. One click on R1 selects the whole group, and a drag moves all six footprints by the same
+   amount.
+2. L locks the group: pcbnew reads it as locked, and a drag moves nothing.
+3. Ctrl+Shift+G ungroups it: pcbnew finds no groups, and a click selects R1 alone again.
+
+`test/board-group.test.ts` reads the demo's own groups, then nests, locks, ungroups and prunes
+groups. pcbnew reads each step back the same.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
