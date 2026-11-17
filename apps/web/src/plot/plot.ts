@@ -75,7 +75,15 @@ function strokeText(p: Extract<Prim, { t: "text" }>, color: string): string {
     x += g.width * size;
   }
   if (!d) return "";
-  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${n(size * (p.bold ? 0.2 : 0.12))}"${p.angle ? ` transform="rotate(${-p.angle} ${n(p.x)} ${n(p.y)})"` : ""}/>`;
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${n(size * (p.bold ? 0.2 : 0.12))}"${transformAttr(p)}/>`;
+}
+
+/** A text's rotation, and its squeeze when narrowed to fit (about its anchor point), as an attribute. */
+function transformAttr(p: Extract<Prim, { t: "text" }>): string {
+  const parts = [];
+  if (p.angle) parts.push(`rotate(${-p.angle} ${n(p.x)} ${n(p.y)})`);
+  if (p.xScale && p.xScale !== 1) parts.push(`translate(${n(p.x)} ${n(p.y)}) scale(${n(p.xScale)} 1) translate(${n(-p.x)} ${n(-p.y)})`);
+  return parts.length ? ` transform="${parts.join(" ")}"` : "";
 }
 
 function prim(p: Prim, color: (r: Role) => string, strokes = false): string {
@@ -95,7 +103,7 @@ function prim(p: Prim, color: (r: Role) => string, strokes = false): string {
     case "text": {
       if (strokes) return strokeText(p, color(p.role));
       const y = p.baseline === "bottom" ? p.y - p.size * 0.12 : p.y;
-      return `<text x="${n(p.x)}" y="${n(y)}" font-size="${n(p.size * 1.36)}" letter-spacing="${n(p.size * 0.08)}" text-anchor="${p.anchor}" dominant-baseline="${BASELINE[p.baseline]}"${p.angle ? ` transform="rotate(${-p.angle} ${n(p.x)} ${n(p.y)})"` : ""} fill="${color(p.role)}"${p.bold ? ` font-weight="700"` : ""}${p.italic ? ` font-style="italic"` : ""}>${markup(p.text)}</text>`;
+      return `<text x="${n(p.x)}" y="${n(y)}" font-size="${n(p.size * 1.36)}" letter-spacing="${n(p.size * 0.08)}" text-anchor="${p.anchor}" dominant-baseline="${BASELINE[p.baseline]}"${transformAttr(p)} fill="${color(p.role)}"${p.bold ? ` font-weight="700"` : ""}${p.italic ? ` font-style="italic"` : ""}>${markup(p.text)}</text>`;
     }
   }
 }

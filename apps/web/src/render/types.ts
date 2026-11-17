@@ -44,6 +44,8 @@ export type Prim =
       role: Role;
       bold?: boolean;
       italic?: boolean;
+      /** Width over height, where a text is squeezed to fit (a drawing sheet's maxlen); 1 when absent. */
+      xScale?: number;
     }
   | { t: "image"; x: number; y: number; w: number; h: number; href: string };
 
