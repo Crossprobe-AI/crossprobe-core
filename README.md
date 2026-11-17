@@ -182,7 +182,7 @@ completes a feature.
 | Groups | Works | Group (Ctrl+G) and Ungroup (Ctrl+Shift+G), nested groups; a click selects a part's whole group, which moves, locks (L) and deletes together; deleted items leave their groups and empty groups go. KiCad reads the groups back as made. Copies (duplicate, paste, array) are not grouped; no entering a group to edit one part |
 | Text boxes | Works | Drawn with the text box tool (two corners, then the text), shown, plotted and wrapped as KiCad wraps them; turned, moved, aligned, and their text, size and layer edited. Plots match kicad-cli's (wrapping, every justification, turned, mirrored, with and without a border). Stroke font only; no knockout, margin or border editing |
 | Images, tables | No | |
-| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap, holes in another part's courtyard; overlapping zones of one net and priority; footprint type against its pads; starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, footprint library mismatches, length and skew, invalid outline. Severities are read from the project |
+| DRC | Partly | Clearance and shorts; copper to edge and to hole; hole size, annular width, hole to hole; track width, via size; dangling tracks and vias; courtyard overlap, holes in another part's courtyard; overlapping zones of one net and priority; footprint type against its pads; footprints against their library copies (from the board toolbar's "Libraries"); starved thermals; silkscreen overlap and clipping; solder mask bridges; text size; keepouts (tracks and vias). Not checked: connection width, copper slivers, missing courtyards, length and skew, invalid outline. Severities are read from the project |
 | DRC exclusions | Partly | KiCad honours ours only where the marker position equals its own |
 | Net inspector | Works | Lengths per layer, vias, CSV. Lengths follow KiCad 10.0; KiCad 10.0.5 measures a few nets up to 0.2 mm shorter |
 | Selection filter, layer visibility, flip view, measure tool | Works | No layer colours, presets or net colours |
@@ -210,7 +210,7 @@ completes a feature.
 | Footprints: mask and paste overrides, paste windows | Works | |
 | Footprints: graphics on silkscreen, fab and courtyard; automatic courtyard | Works | No free text, fields only |
 | Footprints: 3D model with offset, rotation, scale and a preview | Works | |
-| Footprints: update placed footprints from the library | Works | |
+| Footprints: update placed footprints from the library | Works | Board toolbar's "Libraries" compares every footprint with its library copy as KiCad's DRC does (lib_footprint_mismatch): on KiCad's demos it flags exactly the footprints KiCad flags, and after updating them KiCad flags none |
 | Symbol and footprint checks | Partly | Their own lists, not KiCad's checkers |
 | Editing KiCad's own libraries, library management | No | A library part is copied into the project's library first |
 
