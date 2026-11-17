@@ -14,7 +14,7 @@
  *  - unconnected_wire_endpoint
  *  - endpoint_off_grid     wire ends / pins off the connection grid
  *  - multiple_net_names    differently named labels on the same wire
- *  - similar_labels        labels differing only by case
+ *  - similar_labels, similar_label_and_power, similar_power: names differing only by case
  *  - duplicate_reference   the same designator on two symbols
  *
  * Library checks (lib_symbol_issues, footprint_link_issues) need the symbol
@@ -51,6 +51,10 @@ export type ErcType =
   | "duplicate_sheet_names"
   | "same_local_global_label"
   | "unresolved_variable"
+  | "single_global_label"
+  | "field_name_whitespace"
+  | "similar_label_and_power"
+  | "similar_power"
   | "duplicate_reference";
 
 export interface ErcItem {
@@ -110,6 +114,12 @@ const TYPE_LABEL: Record<PinType, string> = {
   power_out: "Power output", open_collector: "Open collector", open_emitter: "Open emitter", no_connect: "Unconnected",
 };
 
+/** KiCad's names for pin shapes, as its ERC items describe pins. */
+const SHAPE_LABEL: Record<string, string> = {
+  line: "Line", inverted: "Inverted", clock: "Clock", inverted_clock: "Inverted clock", input_low: "Input low",
+  clock_low: "Clock low", output_low: "Output low", edge_clock_high: "Falling edge clock", non_logic: "NonLogic",
+};
+
 const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   pin_to_pin: "warning", pin_not_driven: "error", power_pin_not_driven: "error", pin_not_connected: "error",
   no_connect_connected: "warning", no_connect_dangling: "warning", label_dangling: "error", isolated_pin_label: "warning",
@@ -117,6 +127,7 @@ const DEFAULT_SEVERITY: Record<ErcType, "error" | "warning"> = {
   multiple_net_names: "warning", similar_labels: "warning", duplicate_reference: "error", hier_label_mismatch: "error",
   missing_unit: "warning", missing_input_pin: "warning", missing_bidi_pin: "warning", missing_power_pin: "error", different_unit_footprint: "error",
   duplicate_sheet_names: "error", same_local_global_label: "warning", unresolved_variable: "error",
+  single_global_label: "warning", field_name_whitespace: "warning", similar_label_and_power: "warning", similar_power: "warning",
 };
 
 /** ERC settings from a .kicad_pro: rule severities, pin map, connection grid. */
@@ -141,7 +152,7 @@ const DRIVEN: PinType[] = ["input", "power_in"];
 const DRIVING: PinType[] = ["output", "power_out", "passive", "tri_state", "bidirectional"];
 
 const pinDesc = (p: SchematicPin) =>
-  `Symbol ${p.reference} ${p.hidden ? "Hidden pin" : "Pin"} ${p.number} [${p.name && p.name !== "~" ? `${p.name}, ` : ""}${TYPE_LABEL[p.type]}]`;
+  `Symbol ${p.reference} ${p.hidden ? "Hidden pin" : "Pin"} ${p.number} [${p.name && p.name !== "~" ? `${p.name}, ` : ""}${TYPE_LABEL[p.type]}, ${SHAPE_LABEL[p.shape] ?? "Line"}]`;
 const pinItem = (p: SchematicPin): ErcItem => ({ description: pinDesc(p), at: p.at, reference: p.reference, pin: p.number });
 /** Stacked pins (same symbol, position and type) count as one. */
 const stacked = (a: SchematicPin, b: SchematicPin) =>
@@ -181,10 +192,12 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
     const asRoot: Report = (type, sheet, message, items, severity) => report(type, sheet, message, items, severity, schematic.root);
     checkSheetGeometry(sheet, schematic, options.gridMm ?? 1.27, asRoot);
   }
-  checkLabelsAcrossDesign(schematic, report);
   checkSheetPins(schematic, report);
   checkUnits(schematic, report);
   checkSheetContents(schematic, report);
+  checkSingleGlobalLabels(schematic, report);
+  checkSimilarNames(schematic, netlist, report);
+  checkFieldNames(schematic, report);
   checkDuplicateReferences(schematic, report);
   return out;
 }
@@ -442,17 +455,6 @@ function checkDanglingWires(netlist: Netlist, report: Report) {
 // Design-wide checks
 // ---------------------------------------------------------------------------
 
-function checkLabelsAcrossDesign(schematic: Schematic, report: Report) {
-  const seen = new Map<string, string>();
-  for (const sheet of schematic.sheets) {
-    for (const l of sheet.data.labels) {
-      const key = l.text.toLowerCase();
-      const first = seen.get(key);
-      if (first === undefined) seen.set(key, l.text);
-      else if (first !== l.text) report("similar_labels", sheet, "Labels are similar (lower/upper case difference only)", [{ description: `Label '${l.text}'`, at: l.at }]);
-    }
-  }
-}
 
 /** A sheet symbol's pins and the hierarchical labels inside its sheet go in pairs, by name. */
 function checkSheetPins(schematic: Schematic, report: Report) {
@@ -526,6 +528,77 @@ function checkSheetContents(schematic: Schematic, report: Report) {
     for (const t of sheet.data.texts) {
       const shown = shownText(t.text, sheet, schematic);
       if (/\$\{[^{}]+\}/.test(shown)) report("unresolved_variable", sheet, "Unresolved text variable", [{ description: `Graphic Text '${shown}'`, at: t.at }]);
+    }
+  }
+}
+
+/** A global label with no other of its name. */
+function checkSingleGlobalLabels(schematic: Schematic, report: Report) {
+  const count = new Map<string, number>();
+  for (const sheet of schematic.sheets) for (const l of sheet.data.labels) if (l.kind === "global") count.set(shownText(l.text, sheet, schematic), (count.get(shownText(l.text, sheet, schematic)) ?? 0) + 1);
+  const files = new Set<string>();
+  for (const sheet of schematic.sheets) {
+    if (files.has(sheet.file)) continue;
+    files.add(sheet.file);
+    for (const l of sheet.data.labels) {
+      if (l.kind === "global" && count.get(shownText(l.text, sheet, schematic)) === 1) report("single_global_label", sheet, "Global label only appears once in the schematic", [{ description: `Global Label '${l.text}'`, at: l.at }]);
+    }
+  }
+}
+
+/**
+ * Names that differ only in case, as KiCad finds them in one pass: every label and power pin on
+ * a net, grouped by its name in lower case and ordered by sheet path and UUID; each pair with
+ * different spellings is reported once (two local labels on different sheets are fine) as
+ * similar labels, a similar label and power net, or similar power nets.
+ */
+function checkSimilarNames(schematic: Schematic, netlist: Netlist, report: Report) {
+  type Entry = { text: string; sheet: SheetInstance; uuid: string; item: ErcItem; kind: "label" | "local" | "power" };
+  const groups = new Map<string, Entry[]>();
+  const add = (e: Entry) => groups.set(e.text.toLowerCase(), [...(groups.get(e.text.toLowerCase()) ?? []), e]);
+  for (const group of netlist.detail!.groups) {
+    for (const sg of group.subgraphs) {
+      for (const i of sg.labels) {
+        const l = sg.sheet.data.labels[i]!;
+        const text = shownText(l.text, sg.sheet, schematic);
+        const kind = l.kind === "global" ? "Global Label" : l.kind === "hierarchical" ? "Hierarchical Label" : "Label";
+        add({ text, sheet: sg.sheet, uuid: l.uuid ?? "", item: { description: `${kind} '${l.text}'`, at: l.at }, kind: l.kind === "local" ? "local" : "label" });
+      }
+      for (const p of sg.pins) if (p.powerName !== undefined) add({ text: p.powerName, sheet: sg.sheet, uuid: p.uuid ?? "", item: pinItem(p), kind: "power" });
+    }
+  }
+  for (const key of [...groups.keys()].sort()) {
+    const entries = groups.get(key)!.sort((a, b) => (a.sheet.path !== b.sheet.path ? (a.sheet.path < b.sheet.path ? -1 : 1) : a.uuid < b.uuid ? -1 : a.uuid > b.uuid ? 1 : 0));
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const a = entries[i]!;
+        const b = entries[j]!;
+        if (a.text === b.text) continue;
+        if (a.kind === "local" && b.kind === "local" && a.sheet !== b.sheet) continue;
+        const powers = Number(a.kind === "power") + Number(b.kind === "power");
+        if (powers === 2) report("similar_power", a.sheet, "Power pins are similar (lower/upper case difference only)", [a.item, b.item]);
+        else if (powers === 1) report("similar_label_and_power", a.sheet, "Power pin and label are similar (lower/upper case difference only)", [a.item, b.item]);
+        else report("similar_labels", a.sheet, "Labels are similar (lower/upper case difference only)", [a.item, b.item]);
+      }
+    }
+  }
+}
+
+/** Field names with spaces before or after them. */
+function checkFieldNames(schematic: Schematic, report: Report) {
+  const files = new Set<string>();
+  for (const sheet of schematic.sheets) {
+    if (files.has(sheet.file)) continue;
+    files.add(sheet.file);
+    for (const pl of schematic.placements.filter((p) => p.sheet === sheet)) {
+      for (const name of Object.keys(pl.symbol.properties)) {
+        if (name === name.trim()) continue;
+        const value = pl.symbol.properties[name]!;
+        report("field_name_whitespace", sheet, `Field name has leading or trailing whitespace: '${name}'`, [
+          { description: `Symbol ${pl.reference} [${pl.symbol.libId.slice(pl.symbol.libId.indexOf(":") + 1)}]`, at: pl.symbol.at, reference: pl.reference },
+          { description: `Field ${name} '${value}'`, at: pl.symbol.fieldAt[name] ?? pl.symbol.at },
+        ]);
+      }
     }
   }
 }

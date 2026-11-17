@@ -103,6 +103,10 @@ export interface SchematicPin {
   number: string;
   name: string;
   type: PinType;
+  /** Graphic shape (line, inverted, clock…). */
+  shape: string;
+  /** The pin's UUID in its placed symbol. */
+  uuid?: string;
   hidden: boolean;
   /** Sheet position (mm). */
   at: Point;
@@ -378,8 +382,10 @@ function sheetSubgraphs(sheet: SheetInstance, schematic: Schematic, warnings: st
         erc: {
           reference: pl.reference,
           number: pin.number,
-          name: pin.name,
+          name: alternate !== undefined && pin.alternates?.[alternate] ? alternate : pin.name,
           type,
+          shape: (alternate !== undefined && pin.alternateShapes?.[alternate]) || pin.shape,
+          uuid: symbol.pinUuids[pin.number],
           hidden: pin.hidden,
           at,
           symbolUuid: symbol.uuid,
