@@ -52,4 +52,5 @@ export * from "./arrange.js";
 export * from "./board-array.js";
 export * from "./board-group.js";
 export * from "./textbox.js";
+export * from "./drc-length.js";
 export * from "./library-parity.js";

@@ -7,7 +7,7 @@
  * Supported in conditions: == != (strings compare with * and ? wildcards),
  * < > <= >=, && || !, parentheses; properties Type, NetClass, NetName,
  * Layer, Reference; functions intersectsArea / insideArea / enclosedByArea,
- * inDiffPair, hasNetclass, existsOnLayer, isPlated. Anything else is
+ * inDiffPair, hasNetclass, existsOnLayer, isPlated, fromTo. Anything else is
  * undefined, and (as in KiCad) comparisons with undefined are false.
  */
 import { arg, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
@@ -42,6 +42,8 @@ export interface RuleItem {
   intersectsArea: (name: string) => boolean;
   /** Is there a net of this name on the board (inDiffPair needs the partner net to exist)? */
   hasNet?: (name: string) => boolean;
+  /** Is the item on a from-to path (fromTo('U1-*', 'U2-*'))? */
+  fromTo?: (from: string, to: string) => boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +265,10 @@ export function evalExpr(e: Expr, A: RuleItem, B?: RuleItem): Val {
           return typeof a0 === "string" ? [...it.layers].some((l) => wildcard(a0, l)) : undefined;
         case "isPlated":
           return it.plated;
+        case "fromTo": {
+          const a1 = e.args[1] ? evalExpr(e.args[1], A, B) : undefined;
+          return typeof a0 === "string" && typeof a1 === "string" && it.fromTo ? it.fromTo(a0, a1) : undefined;
+        }
         default:
           return undefined;
       }

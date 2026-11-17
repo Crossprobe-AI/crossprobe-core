@@ -46,6 +46,8 @@ export interface Pad {
   thermalWidth?: number;
   /** Thermal spoke angle (degrees). */
   thermalAngle?: number;
+  /** Pad to die length (mm): added to a net's length by KiCad's length checks. */
+  dieLength?: number;
   /** Fabrication property, e.g. "heatsink" (pad_prop_heatsink). */
   property?: string;
   /** Unused-layer removal: copper only where something connects (plus end layers if kept). */
@@ -666,6 +668,7 @@ function parseFootprint(node: List, outline: OutlineShape[]): Footprint {
       net: netOf(p),
       pinFunction: findChild(p, "pinfunction") ? str(findChild(p, "pinfunction")) : undefined,
       pinType: findChild(p, "pintype") ? str(findChild(p, "pintype")) : undefined,
+      dieLength: numOf(p, "die_length"),
     };
   });
 
