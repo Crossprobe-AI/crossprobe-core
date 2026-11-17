@@ -1,5 +1,5 @@
 // The README's demo GIF (docs/media/demo.gif): a board in progress, driven in the real app.
-// It opens a half-finished project, selects a part in the schematic, shows it on the board among
+// It opens a half-finished project from the start screen, selects a part in the schematic, shows it on the board among
 // the unrouted connections, routes one by hand, lets "Route all" do the rest and turns the 3D view.
 //
 // The project is the USB-C microcontroller board of scripts/e2e-usb.mjs, stopped once its parts
@@ -69,6 +69,8 @@ const press = async (sel, what) => {
 const frame = async (ms = 80) => frames.push({ png: await page.screenshot({ type: "png" }), ms });
 const hold = (ms) => frame(ms);
 // Headless Chromium draws no pointer: an arrow that follows the mouse stands in for it.
+/** The view's box on the page, once a project is open. */
+let area;
 let mouse = { x: VIEW.width / 2, y: VIEW.height / 2 };
 const addPointer = () =>
   page.evaluate(() => {
@@ -95,7 +97,7 @@ const caption = (text) =>
       el.style.display = text ? "" : "none";
     },
     text,
-    area.x + area.w / 2,
+    area ? area.x + area.w / 2 : VIEW.width / 2,
   );
 /** Move the pointer there in a few frames, slowing at the end. */
 async function glide(to, n = 8, ms = 60) {
@@ -131,12 +133,23 @@ await page.evaluate(async (files) => {
   }
   window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle("demo");
 }, files);
-await page.evaluate(() => [...document.querySelectorAll(".welcome button")].find((b) => b.textContent.includes("Choose folder"))?.click());
+await addPointer();
+await page.mouse.move(mouse.x, mouse.y);
+await caption("1 · Open a KiCad project folder");
+await hold(1500);
+const choose = await page.evaluate(() => {
+  const r = [...document.querySelectorAll(".welcome button")].find((b) => b.textContent.includes("Choose folder"))?.getBoundingClientRect();
+  return r && { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+});
+if (!choose) await fail("no Choose folder button on the start screen");
+await glide(choose);
+await hold(500);
+await click();
 await page.waitForFunction(() => window.__crossprobe?.project, { timeout: 60000 });
 await page.waitForSelector(".viewport.schematic svg", { timeout: 60000 });
 await idle();
-await addPointer();
-await page.mouse.move(mouse.x, mouse.y);
+await wait(500);
+await hold(1300);
 
 step("schematic: zoom to the circuit, select the microcontroller");
 const items = await page.evaluate(() => window.__crossprobe.sheet.items.map((i) => ({ kind: i.kind, ref: i.ref, bbox: i.bbox })));
@@ -146,11 +159,11 @@ const x0 = Math.min(...parts.map((i) => i.bbox.x));
 const x1 = Math.max(...parts.map((i) => i.bbox.x + i.bbox.w));
 const y0 = Math.min(...parts.map((i) => i.bbox.y));
 const y1 = Math.max(...parts.map((i) => i.bbox.y + i.bbox.h));
-const area = await page.evaluate(() => {
+area = await page.evaluate(() => {
   const r = document.querySelector(".viewport.schematic").getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height };
 });
-await caption("1 · Select a part in the schematic");
+await caption("2 · Select a part in the schematic");
 await hold(900);
 // Wheel in on the circuit's middle until it fills most of the view.
 for (let k = 0; k < 12; k++) {
@@ -173,7 +186,7 @@ await page.keyboard.press("b");
 await page.waitForSelector(".viewport.board", { timeout: 20000 });
 await idle();
 await wait(600);
-await caption("2 · The same part on the board, among what is left to route");
+await caption("3 · The same part on the board, among what is left to route");
 await hold(1800);
 
 step("board: route one connection by hand");
@@ -191,7 +204,7 @@ console.log(`   ${link.net}: ${link.a.description} → ${link.b.description}, ${
 const m = 9;
 await page.evaluate((b) => window.__boardView.frame(b), { x: Math.min(link.a.at.x, link.b.at.x) - m * 1.6, y: Math.min(link.a.at.y, link.b.at.y) - m, w: Math.abs(link.a.at.x - link.b.at.x) + m * 3.2, h: Math.abs(link.a.at.y - link.b.at.y) + m * 2 });
 await wait(400);
-await caption("3 · Route a track by hand");
+await caption("4 · Route a track by hand");
 await hold(900);
 await page.keyboard.press("x");
 await glide(await brd(link.a.at));
@@ -213,7 +226,7 @@ if (left >= p.unconnected.length) await fail(`${link.net} was not routed (${left
 step("board: Route all");
 await press(".view-tools button", "Fit");
 await wait(400);
-await caption("4 · Route all does the rest");
+await caption("5 · Route all does the rest");
 await hold(900);
 const routeAll = await page.evaluate(() => {
   const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes("Route all") || x.title?.startsWith("Route all"));
@@ -237,7 +250,7 @@ await page.evaluate(() => [...document.querySelectorAll(".segmented button")].fi
 await page.waitForSelector(".viewport.board3d canvas", { timeout: 30000 }).catch(() => fail("the 3D view did not open"));
 await page.waitForFunction(() => !document.body.textContent.includes("Loading 3D models"), { timeout: 120000 }).catch(() => fail("the 3D models did not load"));
 await wait(1200);
-await caption("5 · See the board in 3D");
+await caption("6 · See the board in 3D");
 await hold(900);
 const c = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
 await glide(c, 4);
