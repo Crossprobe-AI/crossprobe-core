@@ -515,7 +515,8 @@ export function SchematicView({
       const id = it?.dataset.uuid;
       // Double-click a label or text to change what it says.
       if (e.detail >= 2 && id && it && (it.classList.contains("i-label") || it.classList.contains("i-text"))) {
-        const now = it.textContent ?? "";
+        // The text as written: what is drawn has its ${VARIABLES} replaced.
+        const now = sheet.items.find((i) => i.uuid === id)?.text ?? it.textContent ?? "";
         const text = window.prompt("Text", now);
         if (text && text !== now) onEdit?.([{ op: "setText", file: sheet.file, uuid: id, text }]);
         return;

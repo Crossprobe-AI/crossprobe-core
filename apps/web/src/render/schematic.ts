@@ -13,6 +13,7 @@ import {
   type Point,
   type Schematic,
   type SheetInstance,
+  shownText,
 } from "@crossprobe/kicad-model";
 import type { Prim, Role, SchItem, SheetView } from "./types";
 
@@ -343,12 +344,12 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
 // Labels and sheets
 // ---------------------------------------------------------------------------
 
-function labelPrims(node: List, kind: "local" | "global" | "hierarchical"): Prim[] {
+function labelPrims(node: List, kind: "local" | "global" | "hierarchical", shown: string): Prim[] {
   const e = effectsOf(node);
   const at = findChild(node, "at");
   const p = pt(at);
   const angle = Number(arg(at, 2) ?? 0);
-  const s = str(node, 0);
+  const s = shown;
   const u = dir(angle);
   const size = e.size;
   const role: Role = kind === "local" ? "labelLocal" : kind === "global" ? "labelGlobal" : "labelHier";
@@ -538,7 +539,7 @@ function imagePrim(node: List): Prim | undefined {
 }
 
 /** KiCad 7+ text box: a rectangle with word-wrapped text inside its margins. */
-function textBoxPrims(node: List): Prim[] {
+function textBoxPrims(node: List, shown: string): Prim[] {
   const out: Prim[] = [];
   const at = findChild(node, "at");
   const start = findChild(node, "start");
@@ -556,7 +557,7 @@ function textBoxPrims(node: List): Prim[] {
   const m = margins ? Number(arg(margins, 0)) : e.size * 0.6;
   const maxChars = Math.max(4, Math.floor((w - 2 * m) / (e.size * CHAR_W)));
   const lines: string[] = [];
-  for (const para of str(node, 0).split("\n")) {
+  for (const para of shown.split("\n")) {
     let line = "";
     for (const word of para.split(" ")) {
       if (line && (line + " " + word).length > maxChars) {
@@ -590,9 +591,11 @@ export function renderSheet(
   let [w, h] = paperName === "User" ? [Number(arg(paperNode, 1)), Number(arg(paperNode, 2))] : (PAPER[paperName] ?? PAPER["A4"]!);
   if (paperNode?.children.some((c) => isAtom(c) && c.raw === "portrait")) [w, h] = [h, w];
   const paper = { w, h };
+  /** A text as KiCad shows it: its variables (${REVISION}, ${REFERENCE}, ${R1:VALUE}…) replaced. */
+  const shown = (s: string, of?: (typeof placements)[number]) => (s.includes("${") ? shownText(s, sheet, schematic, of) : s);
   const title: Record<string, string> = {};
   const tb = findChild(root, "title_block");
-  for (const c of tb?.children ?? []) if (isList(c)) title[headOf(c) === "comment" ? `comment${arg(c, 0)}` : headOf(c)!] = str(c, headOf(c) === "comment" ? 1 : 0);
+  for (const c of tb?.children ?? []) if (isList(c)) title[headOf(c) === "comment" ? `comment${arg(c, 0)}` : headOf(c)!] = shown(str(c, headOf(c) === "comment" ? 1 : 0));
   items.push({ kind: "graphic", prims: frame(paper, title, sheet.namePath, sheet.file) });
 
   let wireIndex = 0;
@@ -637,14 +640,14 @@ export function renderSheet(
       case "global_label":
       case "hierarchical_label": {
         const kind = headOf(node) === "label" ? "local" : headOf(node) === "global_label" ? "global" : "hierarchical";
-        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
+        items.push({ kind: "label", net: nets?.labels[labelIndex++], points: [pt(findChild(node, "at"))], prims: labelPrims(node, kind, shown(str(node, 0))), text: str(node, 0), shape: kind === "local" ? undefined : str(findChild(node, "shape")) || "input" });
         break;
       }
       case "text": {
         const e = effectsOf(node);
         const at = findChild(node, "at");
         const p = pt(at);
-        const lines = str(node, 0).split("\n");
+        const lines = shown(str(node, 0)).split("\n");
         const angle = Number(arg(at, 2) ?? 0);
         const step = e.size * 1.6;
         // Lines stack "down" the text: along +y for horizontal text, +x for vertical.
@@ -655,7 +658,7 @@ export function renderSheet(
           const k = (first + i) * step;
           return text(r.angle === 90 ? p.x + k : p.x, r.angle === 90 ? p.y : p.y + k, line, e, angle, "note");
         });
-        items.push({ kind: "text", prims });
+        items.push({ kind: "text", prims, text: str(node, 0) });
         break;
       }
       case "image": {
@@ -664,7 +667,7 @@ export function renderSheet(
         break;
       }
       case "text_box": {
-        items.push({ kind: "text", prims: textBoxPrims(node) });
+        items.push({ kind: "text", prims: textBoxPrims(node, shown(str(node, 0))), text: str(node, 0) });
         break;
       }
       case "polyline":
@@ -701,7 +704,7 @@ export function renderSheet(
         }
         for (const prop of findChildren(node, "property")) {
           const key = str(prop, 0);
-          const value = key === "Reference" ? shownRef : str(prop, 1);
+          const value = key === "Reference" ? shownRef : shown(str(prop, 1), placement);
           const role: Role = key === "Reference" ? "reference" : key === "Value" ? (isPower ? "labelPower" : "value") : "field";
           const p = fieldPrim(value, prop, o, sym.at, role);
           if (p) prims.push(p);
