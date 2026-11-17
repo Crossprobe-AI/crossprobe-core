@@ -549,7 +549,8 @@ export function resolveText(text: string, sheet: SheetInstance, schematic: Schem
       case "##":
         return String(schematic.sheets.length);
       case "SHEETNAME":
-        return sheet.ref?.name ?? "";
+        // The root sheet is named after the project.
+        return sheet.ref?.name ?? schematic.root.file.split("/").pop()!.replace(/\.kicad_sch$/, "");
       case "SHEETPATH":
         return sheet.namePath;
       case "SHEETFILE":
@@ -568,6 +569,92 @@ export function resolveText(text: string, sheet: SheetInstance, schematic: Schem
     if (vars && Object.hasOwn(vars, key)) return String(vars[key]);
     return all;
   });
+}
+
+/** The placed symbol a text belongs to, for the variables that name its fields. */
+type SymbolScope = Schematic["placements"][number];
+
+/** A text variable that names something of a placed symbol: a field, or what KiCad derives from it. */
+function symbolVariable(key: string, pl: SymbolScope): string | undefined {
+  const { symbol } = pl;
+  const fields = symbol.properties;
+  const footprint = fields["Footprint"] ?? "";
+  const colon = symbol.libId.indexOf(":");
+  const flag = (on: boolean, text: string) => (on ? text : "");
+  switch (key) {
+    case "REFERENCE":
+      return pl.reference;
+    case "VALUE":
+      return pl.value ?? fields["Value"] ?? "";
+    case "FOOTPRINT":
+      return footprint;
+    case "DATASHEET":
+      return fields["Datasheet"] ?? "";
+    case "DESCRIPTION":
+      return fields["Description"] ?? "";
+    case "FOOTPRINT_LIBRARY":
+      return footprint.includes(":") ? footprint.slice(0, footprint.indexOf(":")) : "";
+    case "FOOTPRINT_NAME":
+      return footprint.slice(footprint.indexOf(":") + 1);
+    case "UNIT":
+      return unitLetter(pl.unit);
+    case "SYMBOL_LIBRARY":
+      return colon < 0 ? "" : symbol.libId.slice(0, colon);
+    case "SYMBOL_NAME":
+      return symbol.libId.slice(colon + 1);
+    case "SYMBOL_DESCRIPTION":
+      return pl.lib?.properties["Description"] ?? "";
+    case "SYMBOL_KEYWORDS":
+      return pl.lib?.properties["ki_keywords"] ?? "";
+    case "EXCLUDE_FROM_BOM":
+      return flag(!symbol.inBom, "Excluded from BOM");
+    case "EXCLUDE_FROM_BOARD":
+      return flag(!symbol.onBoard, "Excluded from board");
+    case "EXCLUDE_FROM_SIM":
+      return flag(symbol.excludeFromSim, "Excluded from simulation");
+    case "DNP":
+      return flag(symbol.dnp, "DNP");
+  }
+  if (Object.hasOwn(fields, key)) return fields[key]!;
+  // Field names match whatever their case.
+  const name = Object.keys(fields).find((k) => k.toUpperCase() === key.toUpperCase());
+  return name === undefined ? undefined : fields[name]!;
+}
+
+/** The title block's variables, as KiCad names them. */
+const TITLE_VARIABLES: Record<string, string> = { TITLE: "title", ISSUE_DATE: "date", REVISION: "rev", COMPANY: "company" };
+
+/**
+ * A text as KiCad shows and plots it, with its variables replaced: everything
+ * resolveText knows, the title block (${TITLE}, ${REVISION}, ${ISSUE_DATE}, ${COMPANY},
+ * ${COMMENT1}…), the fields of the symbol the text belongs to (${REFERENCE}, ${VALUE},
+ * any field by name, ${UNIT}, ${SYMBOL_NAME}…) and another part's by reference
+ * (${R1:VALUE}). A variable's value may use variables in turn. Unknown ones stay as written.
+ */
+export function shownText(text: string, sheet: SheetInstance, schematic: Schematic, symbol?: SymbolScope, depth = 0): string {
+  if (!text.includes("${") || depth > 6) return text;
+  const again = (value: string, of?: SymbolScope) => shownText(value, of?.sheet ?? sheet, schematic, of ?? symbol, depth + 1);
+  const replaced = text.replace(/\$\{([^{}]+)\}/g, (all, key: string) => {
+    const colon = key.indexOf(":");
+    if (colon > 0) {
+      // Another part's field: by reference (with or without the unit letter), or by the symbol's UUID.
+      const ref = key.slice(0, colon);
+      const other = schematic.placements.find((p) => p.reference === ref || p.symbol.uuid === ref || p.reference + unitLetter(p.unit) === ref);
+      const value = other ? symbolVariable(key.slice(colon + 1), other) : undefined;
+      // KiCad says which part of the reference it could not find.
+      return value === undefined ? `<Unresolved: ${other ? key : ref}>` : again(value, other);
+    }
+    if (symbol) {
+      const value = symbolVariable(key, symbol);
+      // A field that names itself (Value "${VALUE}") is left alone.
+      if (value !== undefined) return value.includes(all) ? value : again(value);
+    }
+    const title = sheet.data.titleBlock;
+    if (TITLE_VARIABLES[key]) return again(title[TITLE_VARIABLES[key]!] ?? "");
+    if (/^COMMENT[1-9]$/.test(key)) return again(title[`comment${key.slice(7)}`] ?? "");
+    return all;
+  });
+  return resolveText(replaced, sheet, schematic);
 }
 
 /** KiCad's net-name escaping: "/" is the hierarchy separator, so it is spelled {slash}. */

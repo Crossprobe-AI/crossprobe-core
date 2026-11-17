@@ -61,6 +61,8 @@ export interface SchItem {
   bbox?: { x: number; y: number; w: number; h: number };
   /** UUID of the file node this came from (pins: their symbol's), for editing. */
   uuid?: string;
+  /** Labels, texts and text boxes: the text as the file has it (what is drawn has its variables replaced). */
+  text?: string;
   /** Global and hierarchical labels: the shape (input, output, bidirectional, tri_state, passive). */
   shape?: string;
   /** Symbols: the reference as stored (also for power symbols). */

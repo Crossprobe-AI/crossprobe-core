@@ -110,7 +110,7 @@ completes a feature.
 | KiCad's installed libraries (symbols, footprints, 3D models) | Partly | Served by the dev server or the Docker image; your own path variables are not resolved |
 | Library tables | Partly | Project tables with `${KIPRJMOD}` entries; no table editor |
 | Custom design rules (`.kicad_dru`) | Partly | Read and applied for some constraints (see PCB editor); no editor |
-| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | Partly | Resolved where they name nets (labels, power symbols, sheet pins): sheet number, name and path, file and project names, the sheet symbol's fields, project variables. Shown and plotted as written |
+| Text variables (`${REVISION}`, `${REFERENCE}`, project variables) | Partly | In the schematic, shown, plotted and netlisted as KiCad resolves them: the title block, sheet and project variables, a part's own fields, another part's (`${R1:VALUE}`). Not the net, pin and simulation variables (`${NET_NAME(1)}`, `${OP}`); on the board they are shown as written. No editor for project variables |
 | Custom drawing sheets (`.kicad_wks`) | No | A default frame is drawn |
 | Legacy formats (`.sch`, `.brd`, `.lib`), importers (Eagle, Altium, EasyEDA, …) | No | |
 | Design variants, jobsets, embedded files, project templates and archives | No | |

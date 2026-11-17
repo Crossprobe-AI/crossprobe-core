@@ -145,6 +145,8 @@ export interface SheetFile {
   labels: Label[];
   sheets: SheetRef[];
   busAliases: Map<string, string[]>;
+  /** The title block: title, date, rev, company, comment1 … comment9. */
+  titleBlock: Record<string, string>;
   /**
    * KiCad 6 files: the root sheet's `symbol_instances`, keyed by the symbol's path below the root
    * ("/<sheet uuid>…/<symbol uuid>"). Later versions keep this in each symbol's `instances`.
@@ -305,6 +307,7 @@ export function parseSheetFile(source: string): SheetFile {
     noConnects: [],
     labels: [],
     sheets: [],
+    titleBlock: {},
     busAliases: new Map(),
     legacyInstances: new Map(),
   };
@@ -314,6 +317,14 @@ export function parseSheetFile(source: string): SheetFile {
   for (const node of forms) {
     if (!isList(node)) continue;
     switch (headOf(node)) {
+      case "title_block":
+        for (const c of node.children) {
+          if (!isList(c)) continue;
+          const head = headOf(c);
+          if (head === "comment") sheet.titleBlock[`comment${arg(c, 0)}`] = text(c, 1);
+          else if (head) sheet.titleBlock[head] = text(c, 0);
+        }
+        break;
       case "lib_symbols":
         for (const s of findChildren(node, "symbol")) {
           const lib = parseLibSymbol(s);
