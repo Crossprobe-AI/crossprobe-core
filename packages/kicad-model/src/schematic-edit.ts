@@ -921,3 +921,25 @@ export function addTable(root: List, at: Point, rows: number, cols: number, text
   insertTopLevel(root, node);
   return id;
 }
+
+/** A text's or label's link (KiCad's href: a web address, or "#2" for page 2); undefined takes it off. */
+export function setHyperlink(node: List, href: string | undefined): void {
+  let effects = findChild(node, "effects");
+  if (!effects) {
+    if (!href) return;
+    effects = list("effects", list("font", list("size", 1.27, 1.27)));
+    const uuid = findChild(node, "uuid");
+    insertAt(node, uuid ? node.children.indexOf(uuid) : node.children.length, effects);
+  }
+  const old = findChild(effects, "href");
+  if (!href) {
+    if (old) removeChild(effects, old);
+  } else if (old) setArg(old, 0, str(href));
+  else insertAt(effects, effects.children.length, list("href", str(href)));
+}
+
+/** A text's or label's link, if it has one. */
+export function hyperlinkOf(node: List): string | undefined {
+  const h = findChild(findChild(node, "effects") ?? node, "href");
+  return h ? String(arg(h, 0) ?? "") : undefined;
+}

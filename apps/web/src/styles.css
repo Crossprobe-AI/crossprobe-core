@@ -761,6 +761,13 @@ button.link:hover {
 .r-directive { stroke: var(--sch-directive); }
 .schematic text.r-directive { fill: var(--sch-directive); }
 .r-ruleArea { stroke: var(--sch-rule-area); }
+/* Texts with a link: underlined, and a click opens it when not editing. */
+.schematic g.has-link text {
+  text-decoration: underline;
+}
+.viewport.schematic:not(.editing) g.has-link {
+  cursor: pointer;
+}
 /* A table cell's click area: not drawn. */
 .r-cellHit.fill { fill: transparent; stroke: none; }
 .r-body { stroke: var(--sch-body); --w: 0.254px; }

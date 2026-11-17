@@ -897,6 +897,9 @@ export function renderSheet(
         break;
       }
     }
+    // A text or label with a link (KiCad's href).
+    const href = arg(findChild(findChild(node, "effects") ?? node, "href"), 0);
+    if (href !== undefined && items.length > start) items[start]!.href = String(href);
     // Tag what this node produced with its UUID (pins get their symbol's), for editing.
     const id = str(findChild(node, "uuid"));
     if (id) for (let k = start; k < items.length; k++) items[k]!.uuid ??= id;
@@ -909,7 +912,7 @@ export function renderSheet(
     namePath: sheet.namePath,
     name: sheet.ref?.name ?? "Root",
     file: sheet.file,
-    page: undefined,
+    page: sheet.pageNumber ?? String(sheetsByPage(schematic).indexOf(sheet) + 1),
     paper,
     title,
     items,
