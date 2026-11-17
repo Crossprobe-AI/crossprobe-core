@@ -368,7 +368,7 @@ export type EditOp =
    * Save items of the sheet `file` as a design block in the project's block library: `dir` is the
    * project folder ("" or "name/"), the block goes in `<lib>.kicad_blocks/<name>.kicad_block/`.
    */
-  | { op: "saveBlock"; file: string; uuids: string[]; dir: string; lib: string; name: string; description: string; keywords: string[]; projectName: string }
+  | { op: "saveBlock"; file: string; uuids: string[]; dir: string; lib: string; name: string; description: string; keywords: string[]; projectName: string; sheetPath?: string }
   /** One footprint editor action on a .kicad_mod file (see footprint-edit.ts). */
   | { op: "footprint"; file: string; edit: FootprintEdit }
   /** Write a symbol library (a new symbol, or one copied in to edit) and list it in sym-lib-table. */
@@ -719,7 +719,7 @@ export class Editor {
       if (op.op === "saveBlock") {
         const source = sheetRoot(load(op.file).doc);
         const base = `${op.dir}${op.lib}.kicad_blocks/${op.name}.kicad_block/${op.name}`;
-        changed[`${base}.kicad_sch`] = blockFromSelection(source, op.uuids, op.projectName);
+        changed[`${base}.kicad_sch`] = blockFromSelection(source, op.uuids, op.projectName, op.sheetPath);
         changed[`${base}.json`] = blockMetadataJson(op.description, op.keywords);
         const tableFile = `${op.dir}design-block-lib-table`;
         const table = changed[tableFile] ?? files[tableFile];

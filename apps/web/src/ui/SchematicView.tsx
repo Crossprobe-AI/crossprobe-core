@@ -136,6 +136,8 @@ export interface EditContext {
   netClasses?: string[];
   /** The project's folder ("" or "name/"), for files saved next to it (design blocks). */
   projectDir?: string;
+  /** Is there a design block of this name in the project's library already? */
+  blockExists?: (lib: string, name: string) => boolean;
   /** Names of the hierarchical labels inside a sheet instance. */
   hierLabelsOf: (sheetPath: string) => string[];
   /** Is a project-relative file name taken? */
@@ -1054,7 +1056,8 @@ export function SchematicView({
                   if (!name) return;
                   const description = window.prompt("Description (optional)", "") ?? "";
                   const lib = (ctx.projectName || "project").replace(/[\\/:*?"<>|]+/g, "_");
-                  onEdit?.([{ op: "saveBlock", file: sheet.file, uuids: nodesOf([...picked]), dir: ctx.projectDir ?? "", lib, name, description, keywords: [], projectName: ctx.projectName }]);
+                  if (ctx.blockExists?.(lib, name) && !window.confirm(`A design block named ${name} already exists in ${lib}. Replace it?`)) return;
+                  onEdit?.([{ op: "saveBlock", file: sheet.file, uuids: nodesOf([...picked]), dir: ctx.projectDir ?? "", lib, name, description, keywords: [], projectName: ctx.projectName, sheetPath: sheet.path }]);
                 }}
               >
                 Save as block
