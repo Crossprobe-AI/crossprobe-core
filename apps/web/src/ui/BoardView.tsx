@@ -270,6 +270,9 @@ export function BoardView({
     const ids = new Set([...board.footprints, ...board.tracks, ...board.vias].filter((x) => x.locked).map((x) => x.uuid));
     // Everything in a locked group is locked too (KiCad's IsLocked).
     for (const g of board.groups) if (g.locked) for (const u of groupItems(board, g.uuid)) ids.add(u);
+    // Items locked in the file that aren't modelled here (images, tables…), as group members.
+    // (Items modelled here are left to their own lock handling, which L can undo.)
+    for (const u of board.lockedItems ?? []) if (!boardItemOf(board, u)) ids.add(u);
     return ids;
   }, [board]);
   /**
@@ -522,6 +525,13 @@ export function BoardView({
     return snap(c, edit!.grid);
   };
 
+  /** A group's position as KiCad gives it: the centre of its members' box (those the app models). */
+  const groupCenter = (g: string): Point | undefined => {
+    const boxes = groupItems(board, g).map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
+    if (!boxes.length) return undefined;
+    return { x: (Math.min(...boxes.map((b) => b.x0)) + Math.max(...boxes.map((b) => b.x1))) / 2, y: (Math.min(...boxes.map((b) => b.y0)) + Math.max(...boxes.map((b) => b.y1))) / 2 };
+  };
+
   const finishRoute = (r: Route | null, end?: Point, pairEnds?: { endP: Point; endN: Point; escape: Point }): "crossed" | void => {
     if (!r || !edit) return setRoute(null);
     const runs = r.runs.map((run) => ({ ...run, points: [...run.points] }));
@@ -725,8 +735,12 @@ export function BoardView({
         if (picked.length && (key === "r" || key === "f" || e.key === "Delete" || e.key === "Backspace" || e.key.startsWith("Arrow"))) setNote("Locked: unlock with L to change it");
         else if (key === "f") vp.fit(mirror(scene.bbox));
       } else if (key === "r") {
-        const single = picked.length === 1 && picked[0]!.kind === "footprint";
-        ed.onEdit([{ op: "boardRotate", file: ed.file, uuids, deg: e.shiftKey ? -90 : 90, center: single ? undefined : selectionCenter() }]);
+        // As KiCad: one item turns about its own position (a footprint's anchor, a group's box
+        // centre, unsnapped); more, about their centre snapped to the grid.
+        const single = picked.length === 1 && picked[0]!.kind === "footprint" && uuids.length === 1;
+        const group = pickedGroups();
+        const oneGroup = group.length === 1 && picked.every((p) => topGroup(board, p.kind === "fptext" ? p.footprint : p.uuid)?.uuid === group[0]);
+        ed.onEdit([{ op: "boardRotate", file: ed.file, uuids, deg: e.shiftKey ? -90 : 90, center: single ? undefined : oneGroup ? groupCenter(group[0]!) : selectionCenter() }]);
       } else if (key === "f") {
         const fps = picked.filter((p) => p.kind === "footprint" && !lockedIds.has(p.uuid)).map((p) => p.uuid);
         if (fps.length) ed.onEdit([{ op: "boardFlip", file: ed.file, uuids: fps, centerX: fps.length > 1 ? selectionCenter().x : undefined }]);
@@ -1538,10 +1552,10 @@ export function BoardView({
     if (uuids.length) setArrayFor({ uuids, origin: selectionCenter() });
   };
   /** Position Relative To: the items it moves, its reference, and what a click on the board picks for it. */
-  const [posRel, setPosRel] = useState<{ items: Array<{ uuid: string; locked?: boolean }>; reference?: RelativeReference; picking?: "item" | "point" } | null>(null);
+  const [posRel, setPosRel] = useState<{ items: Array<{ uuid: string; locked?: boolean }>; extras?: string[]; reference?: RelativeReference; picking?: "item" | "point" } | null>(null);
   const openPosRel = () => {
     const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
-    if (uuids.length) setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })) });
+    if (uuids.length) setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })), extras: withGroupExtras(uuids).filter((u) => !uuids.includes(u)) });
   };
   const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
   /** Menu entries: [label, shortcut, action], a separator, or a submenu. */
@@ -1553,13 +1567,27 @@ export function BoardView({
    */
   const arrange = (how: { align: AlignMode } | { distribute: DistributeMode }, label: string, at?: Point) => {
     const uuids = [...new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid))];
-    const items = uuids.flatMap((uuid) => {
-      const box = boardItemBox(board, uuid);
-      return box ? [{ uuid, box, locked: lockedIds.has(uuid) }] : [];
-    });
+    // A whole group is one item, as in KiCad: its box, moved together (members the app doesn't model too).
+    const groups = pickedGroups();
+    const members = new Map(groups.map((g) => [g, groupItems(board, g)]));
+    const inGroups = new Set([...members.values()].flat());
+    const items = [
+      ...groups.flatMap((g) => {
+        const boxes = members.get(g)!.map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
+        if (!boxes.length) return [];
+        const box = { x0: Math.min(...boxes.map((b) => b.x0)), y0: Math.min(...boxes.map((b) => b.y0)), x1: Math.max(...boxes.map((b) => b.x1)), y1: Math.max(...boxes.map((b) => b.y1)) };
+        return [{ uuid: g, box, locked: !!board.groups.find((x) => x.uuid === g)?.locked }];
+      }),
+      ...uuids.filter((u) => !inGroups.has(u)).flatMap((uuid) => {
+        const box = boardItemBox(board, uuid);
+        return box ? [{ uuid, box, locked: lockedIds.has(uuid) }] : [];
+      }),
+    ];
     // A mirrored view shows left and right swapped: KiCad swaps the two commands.
     const swap: Partial<Record<AlignMode, AlignMode>> = { left: "right", right: "left" };
-    const moves = "align" in how ? alignMoves(items, (flipped && swap[how.align]) || how.align, at) : distributeMoves(items, how.distribute);
+    const moves = ("align" in how ? alignMoves(items, (flipped && swap[how.align]) || how.align, at) : distributeMoves(items, how.distribute)).flatMap((m) =>
+      members.has(m.uuid) ? members.get(m.uuid)!.filter((u) => !lockedIds.has(u)).map((u) => ({ uuid: u, dx: m.dx, dy: m.dy })) : [m],
+    );
     if (moves.length) edit!.onEdit([{ op: "boardArrange", file: edit!.file, label, moves }]);
   };
   const arrangeMenu = (at?: Point): MenuEntry => {
@@ -1826,6 +1854,7 @@ export function BoardView({
           board={board}
           file={edit!.file}
           items={posRel.items}
+          extras={posRel.extras}
           reference={posRel.reference}
           picking={posRel.picking}
           onPick={(what) => setPosRel({ ...posRel, picking: posRel.picking === what ? undefined : what })}
