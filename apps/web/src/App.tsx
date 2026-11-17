@@ -225,8 +225,8 @@ export function App() {
   const [zonesStale, setZonesStale] = useState(false);
   // The board's page frame: its drawing sheet, else the default one, with its title block.
   const boardPageFrame = useMemo(
-    () => (project?.board?.page ? boardFrame(project.board.page, (project.boardFile ?? "").split("/").pop() ?? "", project.boardDrawingSheet) : undefined),
-    [project?.board?.page, project?.boardFile, project?.boardDrawingSheet],
+    () => (project?.board?.page ? boardFrame(project.board.page, (project.boardFile ?? "").split("/").pop() ?? "", project.boardDrawingSheet, { variables: project.textVariables }) : undefined),
+    [project?.board?.page, project?.boardFile, project?.boardDrawingSheet, project?.textVariables],
   );
   /** Take a fresh analysis from the worker, keeping the user's place. */
   const applyState = useCallback((st: SessionState) => {
