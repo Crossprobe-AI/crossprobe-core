@@ -487,7 +487,11 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
   // than linearly with polygon size, so this makes big boards practical.
   const TILE = 8;
   const half = zone.minThickness / 2 - 0.0001;
-  const tileMargin = zone.minThickness + 0.5;
+  // A hatched zone's tiles also hold their whole holes, with the deflation around them.
+  // (Holes reaching into a tile come from up to a hole's diagonal away, and are cut whole.)
+  const holeReach = zone.hatch ? Math.SQRT2 * (zone.hatch.gap + zone.minThickness) : 0;
+  const tileMargin = zone.minThickness + 0.5 + (zone.hatch ? 2 * holeReach + zone.hatch.thickness : 0);
+  const hatchOutline = zone.hatch ? offset(union([toPath(zone.outline)]), -zone.minThickness) : [];
   const bounds = (paths: Paths) => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of paths) for (const q of p) {
@@ -554,12 +558,115 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
     if (tileSpokes.length) fill = union([...fill, ...difference(intersection(tileSpokes, intersection(area, [t.grown])), nearBox(iHoles, gx0, gy0, gx1, gy1))]);
     const tileDrills = nearBox(iDrills, gx0, gy0, gx1, gy1);
     if (tileDrills.length) fill = difference(fill, tileDrills);
-    // Remove copper narrower than the minimum thickness (the margin keeps tile edges exact).
-    if (half > 0) fill = offset(offset(fill, -half), half);
+    // Remove copper narrower than the minimum thickness (the margin keeps tile edges exact),
+    // cutting a hatched zone's holes while it is deflated (as KiCad does).
+    if (half > 0) fill = offset(fill, -half);
+    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, nearBox(iCuts, gx0, gy0, gx1, gy1));
+    if (half > 0) fill = offset(fill, half);
     pieces.push(...intersection(fill, [t.rect]));
   }
   const fill = union(pieces);
   return removeIslands(fill, zone, anchors);
+}
+
+type Hatch = NonNullable<Zone["hatch"]>;
+
+/** KiCad's RotatePoint (counter-clockwise on screen, y down), degrees. */
+function rotKi(p: Point, deg: number): Point {
+  if (!deg) return p;
+  const r = (deg * Math.PI) / 180;
+  const c = Math.cos(r), s = Math.sin(r);
+  return { x: p.x * c + p.y * s, y: p.y * c - p.x * s };
+}
+
+/**
+ * One hatch hole at the origin, as KiCad builds it (ZONE_FILLER::addHatchFillTypeOnZone): a
+ * square of the gap plus the minimum thickness (the fill is deflated by half of that when holes
+ * are cut), its corners chamfered or rounded by the smoothing settings. Also the error its
+ * rounded corners allow, mm.
+ */
+function hatchHoleBase(h: Hatch, minThickness: number): { pts: Point[]; size: number } {
+  const size = h.gap + minThickness;
+  const square = [{ x: 0, y: 0 }, { x: size, y: 0 }, { x: size, y: size }, { x: 0, y: size }];
+  let smooth = Math.round((h.gap * h.smoothingValue * 1e6) / 2) / 1e6;
+  let level = h.smoothingLevel;
+  if (level <= 0 || smooth <= 0.02) return { pts: square, size };
+  if (smooth < 0.04 && level > 1) level = 1;
+  smooth = Math.min(smooth + minThickness / 2, h.gap / 2);
+  let err = Math.max(ARC_ERROR * 2, smooth / 20);
+  if (h.smoothingLevel > 2) err /= 2;
+  // Corners in order, with the directions of their two edges.
+  const corners = [
+    { c: square[0]!, a: { x: 0, y: 1 }, b: { x: 1, y: 0 } },
+    { c: square[1]!, a: { x: -1, y: 0 }, b: { x: 0, y: 1 } },
+    { c: square[2]!, a: { x: 0, y: -1 }, b: { x: -1, y: 0 } },
+    { c: square[3]!, a: { x: 1, y: 0 }, b: { x: 0, y: -1 } },
+  ];
+  const pts: Point[] = [];
+  for (const { c, a, b } of corners) {
+    const from = { x: c.x + a.x * smooth, y: c.y + a.y * smooth }, to = { x: c.x + b.x * smooth, y: c.y + b.y * smooth };
+    if (level === 1) pts.push(from, to);
+    else {
+      // A quarter circle from `from` to `to` around the corner's inset centre.
+      const centre = { x: c.x + (a.x + b.x) * smooth, y: c.y + (a.y + b.y) * smooth };
+      const n = Math.max(2, Math.ceil((Math.PI / 2) / (2 * Math.acos(Math.max(-1, 1 - err / smooth)))));
+      const a0 = Math.atan2(from.y - centre.y, from.x - centre.x), a1 = Math.atan2(to.y - centre.y, to.x - centre.x);
+      let d = a1 - a0;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      for (let i = 0; i <= n; i++) pts.push({ x: centre.x + smooth * Math.cos(a0 + (d * i) / n), y: centre.y + smooth * Math.sin(a0 + (d * i) / n) });
+    }
+  }
+  return { pts, size };
+}
+
+/**
+ * The hatch holes whose grid corner falls in the rectangle [x0, x1) × [y0, y1) (mm). KiCad's
+ * grid sits on multiples of (thickness + gap) in the hatch's own rotated frame, so each tile
+ * can take its own holes.
+ */
+function hatchHoles(h: Hatch, minThickness: number, x0: number, y0: number, x1: number, y1: number): Point[][] {
+  const thickness = Math.max(h.thickness, minThickness + 0.001);
+  const grid = thickness + h.gap;
+  const base = hatchHoleBase(h, minThickness).pts;
+  // The tile in the hatch's frame: where its grid corners can be.
+  const local = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }].map((p) => rotKi(p, -h.orientation));
+  const lx0 = Math.min(...local.map((p) => p.x)), lx1 = Math.max(...local.map((p) => p.x));
+  const ly0 = Math.min(...local.map((p) => p.y)), ly1 = Math.max(...local.map((p) => p.y));
+  const out: Point[][] = [];
+  for (let i = Math.floor(lx0 / grid) - 1; i * grid <= lx1 + grid; i++)
+    for (let j = Math.floor(ly0 / grid) - 1; j * grid <= ly1 + grid; j++) {
+      const corner = rotKi({ x: i * grid, y: j * grid }, h.orientation);
+      if (corner.x < x0 || corner.x >= x1 || corner.y < y0 || corner.y >= y1) continue;
+      out.push(base.map((p) => rotKi({ x: p.x + i * grid, y: p.y + j * grid }, h.orientation)));
+    }
+  return out;
+}
+
+/**
+ * Cut the hatch into a (deflated) fill, as KiCad does: the holes are clipped to the fill
+ * deflated by the hatch thickness beyond the minimum, and to the zone outline deflated by the
+ * minimum thickness; holes left smaller than the minimum hole area go, and so do holes that
+ * would wholly enclose a pad's relief or another net's clearance (keeping it connected).
+ */
+function cutHatch(fill: Paths, holes: Point[][], h: Hatch, minThickness: number, outline: Paths, rings: Paths): Paths {
+  if (!holes.length || !fill.length) return fill;
+  const size = hatchHoleBase(h, minThickness).size;
+  const minArea = size * size * h.holeMinArea * S * S;
+  const deflated = offset(fill, -Math.max(h.thickness - minThickness, ARC_ERROR * 2));
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(intersection(holes.map(toPath), deflated), ClipperLib.PolyType.ptSubject, true);
+  c.AddPaths(outline, ClipperLib.PolyType.ptClip, true);
+  const tree = new ClipperLib.PolyTree();
+  c.Execute(ClipperLib.ClipType.ctIntersection, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const kept: Paths = [];
+  for (const piece of ClipperLib.JS.PolyTreeToExPolygons(tree)) {
+    if (Math.abs(ClipperLib.Clipper.Area(piece.outer)) < minArea) continue;
+    const encloses = rings.some((r) => r.length && r.every((q) => ClipperLib.Clipper.PointInPolygon(q, piece.outer) === 1));
+    if (encloses) continue;
+    kept.push(piece.outer, ...piece.holes);
+  }
+  return kept.length ? difference(fill, kept) : fill;
 }
 
 /** Points just outside a thermal pad's relief, where its spokes meet the fill (found by stepping outwards). */
@@ -639,11 +746,7 @@ export function fillZones(board: Board, rules: DesignRules): ZoneFill[] {
   for (const z of board.zones.filter((z) => z.teardrop)) {
     for (const f of z.fills) ctx.done.push({ zone: z, layer: f.layer, paths: union([toPath(f.points)]) });
   }
-  // Hatched zones keep KiCad's fills too (not supported yet), and count as obstacles like teardrops.
-  for (const z of board.zones.filter((z) => z.hatched && !z.teardrop)) {
-    for (const f of z.fills) ctx.done.push({ zone: z, layer: f.layer, paths: union([toPath(f.points)]) });
-  }
-  const zones = board.zones.filter((z) => !z.keepout && !z.teardrop && !z.hatched && z.outline.length >= 3).sort((a, b) => b.priority - a.priority);
+  const zones = board.zones.filter((z) => !z.keepout && !z.teardrop && z.outline.length >= 3).sort((a, b) => b.priority - a.priority);
   const out: ZoneFill[] = [];
   for (const zone of zones) {
     for (const layer of expandLayers(zone.layers, copper)) {
