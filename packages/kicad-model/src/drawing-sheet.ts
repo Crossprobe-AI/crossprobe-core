@@ -6,7 +6,7 @@
  * %-codes (%T, %C0…) mean the same.
  */
 import { atomText, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
-import { base64Bytes, bitmapInfo, bitmapSizeMm } from "./bitmap.js";
+import { bitmapInfoBase64, bitmapSizeMm } from "./bitmap.js";
 import type { Point } from "./geometry.js";
 import { strokeAdvance } from "./stroke-font.js";
 
@@ -78,8 +78,8 @@ export type DrawingSheetPrim =
   | { kind: "rect"; a: Point; b: Point; width: number }
   | { kind: "polygon"; points: Point[]; width: number }
   | { kind: "text"; at: Point; text: string; size: { x: number; y: number }; width: number; bold: boolean; italic: boolean; h: "left" | "center" | "right"; v: "top" | "center" | "bottom"; angle: number }
-  /** A picture: its top-left corner, size in mm, and PNG bytes as base64. */
-  | { kind: "bitmap"; at: Point; w: number; h: number; png: string };
+  /** A picture: its top-left corner, size in mm, and its bytes as base64 (`png`, though a JPEG's are its own). */
+  | { kind: "bitmap"; at: Point; w: number; h: number; png: string; mime: "image/png" | "image/jpeg" };
 
 const num = (n: List | undefined, i: number, d = 0) => {
   const v = n?.children[i + 1];
@@ -312,14 +312,15 @@ export function drawingSheetPrims(ds: DrawingSheet, width: number, height: numbe
         out.push({ kind: "text", at, text, size, width: item.lineWidth || ds.textLineWidth, bold: item.bold, italic: item.italic, h: item.h, v: item.v, angle: item.rotate });
       }
     } else if (item.kind === "bitmap") {
-      const info = bitmapInfo(base64Bytes(item.png, 1 << 16));
+      // Malformed data (KiCad refuses such a file too) leaves the picture out, not the frame.
+      const info = bitmapInfoBase64(item.png);
       if (!info) continue;
       const { w, h } = bitmapSizeMm(info, item.scale);
       const first = place(item.pos, 0, item.incrx, item.incry);
       for (let i = 0; i < item.repeat; i++) {
         const at = place(item.pos, i, item.incrx, item.incry);
         if (i > 0 && !inside([at], [first])) continue;
-        out.push({ kind: "bitmap", at: { x: at.x - w / 2, y: at.y - h / 2 }, w, h, png: item.png });
+        out.push({ kind: "bitmap", at: { x: at.x - w / 2, y: at.y - h / 2 }, w, h, png: item.png, mime: info.mime });
       }
     } else if (item.kind === "polygon") {
       const first = place(item.pos, 0, item.incrx, item.incry);
