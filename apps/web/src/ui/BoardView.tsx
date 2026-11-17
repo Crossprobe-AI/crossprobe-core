@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { copperItems, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type Board, type ClearanceViolation, type DesignRules } from "@crossprobe/kicad-model";
+import { alignMoves, boardItemBox, copperItems, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
 import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, layerColor, padPath, type BoardScene } from "../render/board";
 import { attachedTrackEnds, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
@@ -1329,7 +1329,38 @@ export function BoardView({
   };
 
   // ---- Context menu (right click), KiCad's actions for what's under the cursor ----
-  const [menu, setMenu] = useState<{ x: number; y: number; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
+  /** Menu entries: [label, shortcut, action], a separator, or a submenu. */
+  type MenuEntry = [string, string, () => void] | "-" | { label: string; items: Array<[string, string, () => void] | "-"> };
+  /**
+   * Align or distribute the selection, as KiCad's Align/Distribute tool: by
+   * bounding boxes (footprints without their text); locked items stay put.
+   * `at`: the cursor, whose item is the alignment target.
+   */
+  const arrange = (how: { align: AlignMode } | { distribute: DistributeMode }, label: string, at?: Point) => {
+    const uuids = [...new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid))];
+    const items = uuids.flatMap((uuid) => {
+      const box = boardItemBox(board, uuid);
+      return box ? [{ uuid, box, locked: lockedIds.has(uuid) }] : [];
+    });
+    // A mirrored view shows left and right swapped: KiCad swaps the two commands.
+    const swap: Partial<Record<AlignMode, AlignMode>> = { left: "right", right: "left" };
+    const moves = "align" in how ? alignMoves(items, (flipped && swap[how.align]) || how.align, at) : distributeMoves(items, how.distribute);
+    if (moves.length) edit!.onEdit([{ op: "boardArrange", file: edit!.file, label, moves }]);
+  };
+  const arrangeMenu = (at?: Point): MenuEntry => {
+    const n = new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size;
+    const a = (mode: AlignMode, label: string): [string, string, () => void] => [label, "", () => arrange({ align: mode }, label, at)];
+    const d = (mode: DistributeMode, label: string): [string, string, () => void] => [label, "", () => arrange({ distribute: mode }, label)];
+    return {
+      label: "Align/Distribute",
+      items: [
+        a("left", "Align to Left"), a("centerX", "Align to Horizontal Center"), a("right", "Align to Right"), "-",
+        a("top", "Align to Top"), a("centerY", "Align to Vertical Center"), a("bottom", "Align to Bottom"),
+        ...(n > 2 ? (["-", d("centersX", "Distribute Horizontally by Centers"), d("gapsX", "Distribute Horizontally with Even Gaps"), d("centersY", "Distribute Vertically by Centers"), d("gapsY", "Distribute Vertically with Even Gaps")] as const) : []),
+      ],
+    };
+  };
   /** How an item reads in the "which one?" list. */
   const describe = (it: BoardItem): string => {
     if (it.kind === "footprint") {
@@ -1367,7 +1398,7 @@ export function BoardView({
       else if ("net" in hit && hit.net) onSelect({ kind: "net", name: hit.net });
     }
     const r = vp.ref.current!.getBoundingClientRect();
-    setMenu({ x: e.clientX - r.left, y: e.clientY - r.top, hit: hit ?? undefined });
+    setMenu({ x: e.clientX - r.left, y: e.clientY - r.top, at: p, hit: hit ?? undefined });
   };
   useEffect(() => {
     if (!menu) return;
@@ -1383,7 +1414,7 @@ export function BoardView({
       window.removeEventListener("keydown", close);
     };
   }, [menu]);
-  const menuItems = (): Array<[string, string, () => void] | "-"> => {
+  const menuItems = (): MenuEntry[] => {
     // Alt+click on overlapping items: KiCad's "clarify selection".
     if (menu?.choices) return menu.choices.map((it) => [describe(it), "", () => choose(it)]);
     const hit = menu?.hit;
@@ -1397,7 +1428,9 @@ export function BoardView({
         ["Zoom to fit", "Home", () => vp.fit(mirror(scene.bbox))],
       ];
     const ed = edit!;
-    const out: Array<[string, string, () => void] | "-"> = [];
+    const out: MenuEntry[] = [];
+    // KiCad offers Align/Distribute once more than one item is selected.
+    if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at), "-");
     if (hit?.kind === "footprint") {
       if (pad?.net) out.push([`Select net ${shortName(pad.net)}`, "", () => selectNet(pad.net)], "-");
       out.push(["Rotate", "R", () => press("r")], ["Flip to other side", "F", () => press("f")]);
@@ -1497,6 +1530,30 @@ export function BoardView({
           {menuItems().map((m, i) =>
             m === "-" ? (
               <hr key={i} />
+            ) : "items" in m ? (
+              <div key={i} className="context-sub">
+                <button>
+                  <span>{m.label}</span>
+                  <kbd>▸</kbd>
+                </button>
+                <div className="context-menu">
+                  {m.items.map((s, j) =>
+                    s === "-" ? (
+                      <hr key={j} />
+                    ) : (
+                      <button
+                        key={j}
+                        onClick={() => {
+                          setMenu(null);
+                          s[2]();
+                        }}
+                      >
+                        <span>{s[0]}</span>
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
             ) : (
               <button
                 key={i}

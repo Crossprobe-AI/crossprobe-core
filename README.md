@@ -8,6 +8,8 @@ what KiCad itself does with the same projects.
 
 Website: <https://crossprobe.dev>
 
+![A board in progress in Crossprobe: a part selected in the schematic is shown on the board among the unrouted connections, one track is routed by hand, Route all finishes the rest, and the 3D view turns the result](docs/media/demo.gif)
+
 ## What it does
 
 - Schematic, PCB and 3D views, with cross-probing between them.
@@ -183,7 +185,8 @@ completes a feature.
 | Cleanup tracks and vias, geographic reannotation, board statistics | Works | |
 | Pad properties | Partly | Size, shape, drill and net; not margins or zone connection |
 | Logo footprint from a bitmap | Works | No smoothing |
-| Arrays, align and distribute, position relative | No | |
+| Align and distribute | Works | KiCad's ten commands, from the right-click menu: by bounding boxes (footprints without their text), locked items stay put and set the target, else the item under the cursor. Boxes compared with KiCad's on its demos; TrueType text is measured by its outlines |
+| Arrays, position relative | No | |
 | DXF and SVG import, footprint wizard, component classes, repeated layout | No | |
 | Python scripting, action plugins, the IPC API | No | |
 
