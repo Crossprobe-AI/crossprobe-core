@@ -690,3 +690,73 @@ export function addSheetPin(sheet: List, name: string, shape: string, at: Point)
   insertAt(sheet, after ? sheet.children.indexOf(after) + 1 : sheet.children.length, pin);
   return pos;
 }
+
+/** A sheet symbol's field, by its current or its older name ("Sheetname" / "Sheet name"). */
+function sheetField(sheet: List, name: "Sheetname" | "Sheetfile"): List | undefined {
+  const old = name === "Sheetname" ? "Sheet name" : "Sheet file";
+  return findChildren(sheet, "property").find((p) => arg(p, 0) === name || arg(p, 0) === old);
+}
+
+/** Rename a sheet symbol (its Sheetname field). */
+export function setSheetName(sheet: List, name: string): void {
+  const field = sheetField(sheet, "Sheetname");
+  if (field) setArg(field, 1, str(name));
+}
+
+/** The page number of one instance of a sheet symbol: `path` is the instance path of the sheet it is drawn on. */
+export function setSheetPage(sheet: List, path: string, page: string): void {
+  for (const project of findChildren(findChild(sheet, "instances") ?? sheet, "project")) {
+    for (const p of findChildren(project, "path")) {
+      if (arg(p, 0) !== path) continue;
+      const node = findChild(p, "page");
+      if (node) setArg(node, 0, str(page));
+      else insertAt(p, p.children.length, list("page", str(page)));
+    }
+  }
+}
+
+/**
+ * What a sheet symbol and the sheet it shows disagree on: hierarchical labels inside
+ * with no pin on the symbol, and pins with no label inside (KiCad's Synchronize Sheet Pins).
+ */
+export function sheetPinMismatch(sheet: List, childRoot: List): { labels: Array<{ name: string; shape: LabelShape }>; pins: Array<{ name: string; shape: LabelShape }> } {
+  const labels = new Map<string, LabelShape>();
+  for (const l of findChildren(childRoot, "hierarchical_label")) labels.set(String(arg(l, 0)), String(arg(findChild(l, "shape"), 0) ?? "input") as LabelShape);
+  const pins = new Map<string, LabelShape>();
+  for (const p of findChildren(sheet, "pin")) pins.set(String(arg(p, 0)), String(arg(p, 1) ?? "input") as LabelShape);
+  return {
+    labels: [...labels].filter(([n]) => !pins.has(n)).map(([name, shape]) => ({ name, shape })),
+    pins: [...pins].filter(([n]) => !labels.has(n)).map(([name, shape]) => ({ name, shape })),
+  };
+}
+
+/**
+ * Bring a sheet symbol and its sheet in line: a pin for every hierarchical label that has none
+ * (down the symbol's left edge, which grows if it must), and a label inside for every pin that
+ * has none (down the sheet's left margin). Returns what was added.
+ */
+export function syncSheetPins(sheet: List, childRoot: List): { pins: string[]; labels: string[] } {
+  const missing = sheetPinMismatch(sheet, childRoot);
+  const at = findChild(sheet, "at")!;
+  const size = findChild(sheet, "size")!;
+  const x0 = Number(arg(at, 0));
+  const y0 = Number(arg(at, 1));
+  const key = (y: number) => Math.round(y * 1e4);
+  const taken = new Set(findChildren(sheet, "pin").filter((p) => Math.abs(Number(arg(findChild(p, "at"), 0)) - x0) < 1e-6).map((p) => key(Number(arg(findChild(p, "at"), 1)))));
+  let y = snapIU(Math.ceil((y0 + 2.54) / 1.27 - 1e-9) * 1.27);
+  for (const l of missing.labels) {
+    while (taken.has(key(y))) y = snapIU(y + 2.54);
+    // The symbol grows to hold the pin.
+    if (y > y0 + Number(arg(size, 1)) - 1.27) setArg(size, 1, snapIU(y - y0 + 2.54));
+    addSheetPin(sheet, l.name, l.shape, { x: x0, y });
+    taken.add(key(y));
+  }
+  // The file field sits under the symbol: keep it there if the symbol grew.
+  const fileField = sheetField(sheet, "Sheetfile");
+  const fileAt = fileField && findChild(fileField, "at");
+  const bottom = y0 + Number(arg(size, 1));
+  if (fileAt && Number(arg(fileAt, 1)) < bottom) setArg(fileAt, 1, snapIU(bottom + 0.5846));
+  let count = findChildren(childRoot, "hierarchical_label").length;
+  for (const p of missing.pins) addLabel(childRoot, "hierarchical_label", p.name, { x: 25.4, y: 25.4 + 5.08 * count++ }, 180, p.shape);
+  return { pins: missing.labels.map((l) => l.name), labels: missing.pins.map((p) => p.name) };
+}

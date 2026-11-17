@@ -13,6 +13,7 @@ const SCH: Record<Role, string> = {
   bus: "#0000c8",
   junction: "#009600",
   noconnect: "#0000ff",
+  dnp: "#dc090d",
   body: "#840000",
   bodyFill: "#ffffc2",
   pin: "#840000",

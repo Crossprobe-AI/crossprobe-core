@@ -81,6 +81,7 @@ await wait(300);
 u1 = await component("U1");
 expect(u1.pinAlternates.find((a) => a.pin === alt.pin).current === "SDA", "the pin is switched to SDA");
 expect(u1.dnp && u1.hiddenFields.includes("Value"), "do not populate, Value hidden");
+expect(await page.evaluate(() => !!document.querySelector('.viewport.schematic g.i-symbol[data-ref="U1"] path.r-dnp')), "the part is crossed out");
 expect(await page.evaluate(() => [...document.querySelectorAll('.viewport.schematic g.i-pin[data-ref="U1"] text, .viewport.schematic g[data-ref="U1"] text')].some((t) => t.textContent === "SDA")), "the sheet draws the pin as SDA");
 
 console.log("-- a global label, and its shape");
