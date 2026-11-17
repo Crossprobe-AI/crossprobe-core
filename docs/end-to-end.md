@@ -356,6 +356,14 @@ and the right-click menu:
 KiCad's pcbnew reads the saved board's outline as exactly those corners. Four undos restore it.
 `apps/web/test/point-edit.test.ts` covers the handles of every shape kind.
 
+## Zone properties
+
+`scripts/e2e-zone-props.mjs` selects pic_programmer's copper zone. In its properties panel it sets a
+name, priority 2, clearance 0.3, minimum width 0.2, thermal gap 0.6, spoke width 0.4, and removing
+islands below 5 mm². The zone refills after each change. KiCad's pcbnew reads every property back
+from the saved board as set, and eight undos restore them. `test/zone-props.test.ts` writes two sets
+of properties into the zones of three demo boards, and pcbnew reads each one back.
+
 ## Cleanup tracks & vias
 
 `scripts/e2e-cleanup.mjs` runs Cleanup on pic_programmer's board. It finds 5 collinear merges
