@@ -272,6 +272,29 @@ export function BoardView({
     for (const g of board.groups) if (g.locked) for (const u of groupItems(board, g.uuid)) ids.add(u);
     return ids;
   }, [board]);
+  /**
+   * A group's members the app can pick (KiCad files can group items it doesn't model:
+   * hidden texts, images, tables…): a group counts as picked whole when all of these are.
+   */
+  const pickableMembers = (g: string, counts: (it: BoardItem) => boolean = () => true) =>
+    groupItems(board, g).filter((u) => {
+      const it = boardItemOf(board, u);
+      return !!it && counts(it);
+    });
+  const pickedWhole = (g: string, ids: Set<string>, counts?: (it: BoardItem) => boolean) => {
+    const m = pickableMembers(g, counts);
+    return m.length > 0 && m.every((u) => ids.has(u));
+  };
+  /** The uuids, with the unmodelled members of the top-level groups the selection covers whole (so those move with them). */
+  const withGroupExtras = (uuids: string[]): string[] => {
+    const ids = new Set(uuids);
+    const out = [...uuids];
+    for (const g of board.groups) {
+      if (topGroup(board, g.uuid) || !pickedWhole(g.uuid, pickedIds)) continue;
+      for (const u of groupItems(board, g.uuid)) if (!ids.has(u) && !boardItemOf(board, u) && !lockedIds.has(u)) (ids.add(u), out.push(u));
+    }
+    return out;
+  };
   const [drag, setDrag] = useState<{ from: Point; d: Point; committed?: Board } | null>(null);
   const [box, setBox] = useState<{ a: Point; b: Point } | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
@@ -597,7 +620,7 @@ export function BoardView({
       }
       const ed = edit!;
       // What keys move, rotate, flip or delete: everything picked but locked items.
-      const uuids = picked.map((p) => p.uuid).filter((u) => !lockedIds.has(u));
+      const uuids = withGroupExtras(picked.map((p) => p.uuid).filter((u) => !lockedIds.has(u)));
       const key = e.key.toLowerCase();
       if (shape && (e.key === "Enter" || e.key === "Escape")) {
         if ((tool === "zone" || (tool === "outline" && ed.outlineMode === "poly")) && e.key === "Enter") finishZone(shape);
@@ -682,7 +705,9 @@ export function BoardView({
         const inGroups = new Set(groups.flatMap((g) => groupItems(board, g)));
         const lockable = [...groups, ...picked.filter((p) => !inGroups.has(p.uuid) && (p.kind === "footprint" || p.kind === "track" || p.kind === "via")).map((p) => p.uuid)];
         const anyUnlocked = lockable.some((u) => (board.groups.some((g) => g.uuid === u) ? !board.groups.find((g) => g.uuid === u)!.locked : !lockedIds.has(u)));
-        if (lockable.length) ed.onEdit([{ op: "setLocked", file: ed.file, uuids: lockable, locked: anyUnlocked }]);
+        // Unlocking a group also unlocks the footprints, tracks and vias in it locked on their own.
+        const own = anyUnlocked ? [] : [...board.footprints, ...board.tracks, ...board.vias].filter((x) => x.locked && inGroups.has(x.uuid)).map((x) => x.uuid);
+        if (lockable.length) ed.onEdit([{ op: "setLocked", file: ed.file, uuids: [...lockable, ...own], locked: anyUnlocked }]);
         setNote(anyUnlocked ? "Locked" : "Unlocked");
       }
       else if (e.key === "Backspace" && route) {
@@ -1002,7 +1027,7 @@ export function BoardView({
           const ids = new Set(picked.map((p) => p.uuid));
           for (const g of board.groups) {
             const items = groupItems(board, g.uuid);
-            if (!items.length || topGroup(board, g.uuid) || !items.every((u) => ids.has(u))) continue;
+            if (!items.length || topGroup(board, g.uuid) || !pickedWhole(g.uuid, ids)) continue;
             const boxes = items.map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
             if (!boxes.length) continue;
             const d = drag ? drag.d : { x: 0, y: 0 };
@@ -1236,7 +1261,7 @@ export function BoardView({
         const ed = edit!;
         // Locked items in the selection stay where they are.
         const ids = new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid).filter((u) => !lockedIds.has(u)));
-        const ops: EditOp[] = ids.size ? [{ op: "boardMove", file: ed.file, uuids: [...ids], dx, dy }] : [];
+        const ops: EditOp[] = ids.size ? [{ op: "boardMove", file: ed.file, uuids: withGroupExtras([...ids]), dx, dy }] : [];
         // A footprint's text moves on its own (unless its footprint moves too).
         for (const t of picked) if (t.kind === "fptext" && !ids.has(t.footprint)) ops.push({ op: "moveFootprintText", file: ed.file, footprint: t.footprint, text: t.uuid, dx, dy });
         // Tracks attached to what moved stretch along (KiCad's drag).
@@ -1257,7 +1282,8 @@ export function BoardView({
       // A group is picked only when all of it is in the box.
       const inBox = itemsInBox(board, b).map(allowed).filter((x): x is BoardItem => !!x);
       const ids = new Set(inBox.map((x) => x.uuid));
-      select(inBox.filter((x) => { const g = topGroup(board, x.uuid); return !g || groupItems(board, g.uuid).every((u) => ids.has(u)); }), true);
+      // Members the selection filter leaves out don't count.
+      select(inBox.filter((x) => { const g = topGroup(board, x.uuid); return !g || pickedWhole(g.uuid, ids, (it) => !!allowed(it)); }), true);
       return;
     }
     vp.handlers.onPointerUp();
@@ -1477,7 +1503,7 @@ export function BoardView({
   /** The top-level groups the selection covers whole. */
   const pickedGroups = (): string[] => {
     const ids = new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)));
-    return [...new Set([...ids].map((u) => topGroup(board, u)?.uuid).filter((g): g is string => !!g))].filter((g) => groupItems(board, g).every((u) => ids.has(u)));
+    return [...new Set([...ids].map((u) => topGroup(board, u)?.uuid).filter((g): g is string => !!g))].filter((g) => pickedWhole(g, ids));
   };
   /** Group the selection: its whole groups and loose items become one new group. */
   const groupSelection = () => {
