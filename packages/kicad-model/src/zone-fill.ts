@@ -505,10 +505,23 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
   const indexed = (paths: Paths) => paths.map((p) => ({ p, b: bounds([p]) }));
   const iHoles = indexed(holes);
   const iCuts = indexed([...holes, ...reliefs]);
+  // A hatched zone puts a ring of copper, a spoke wide, around each thermal relief, for the
+  // hatch to meet (KiCad's buildHatchZoneThermalRings); other nets' clearances still cut it.
+  const rings: Paths = [];
+  if (zone.hatch)
+    for (const t of thermal) {
+      const width = Math.min(t.width, t.pad.size.x, t.pad.size.y);
+      if (width < zone.minThickness) continue;
+      rings.push(...difference(padPaths(t.pad, t.gap + width), padPaths(t.pad, t.gap)));
+    }
+  const iRings = indexed(rings);
+  const iHoleCuts = indexed(holes);
+  const iReliefs = indexed(reliefs);
   const iDrills = indexed(drills);
   const ab = bounds(area);
   const tiles: Array<{ rect: Path; grown: Path; base: Paths; inBase: (p: Point) => boolean; x0: number; y0: number }> = [];
-  const T = TILE * S;
+  // Hatched zones have wide margins (whole holes): bigger tiles keep the overlap in proportion.
+  const T = (zone.hatch ? Math.max(TILE, 2 * tileMargin) : TILE) * S;
   const M = tileMargin * S;
   const rectPath = (x0: number, y0: number, x1: number, y1: number): Path => [
     { X: x0, Y: y0 },
@@ -523,7 +536,11 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
       const grown = rectPath(tx - M, ty - M, tx + T + M, ty + T + M);
       const tileArea = intersection(area, [grown]);
       if (!tileArea.length) continue;
-      const base = difference(tileArea, nearBox(iCuts, tx - M, ty - M, tx + T + M, ty + T + M));
+      const box = [tx - M, ty - M, tx + T + M, ty + T + M] as const;
+      const tileRings = nearBox(iRings, ...box);
+      const base = tileRings.length
+        ? difference(union([...difference(tileArea, nearBox(iReliefs, ...box)), ...intersection(tileRings, tileArea)]), nearBox(iHoleCuts, ...box))
+        : difference(tileArea, nearBox(iCuts, ...box));
       tiles.push({ rect: rectPath(tx, ty, tx + T, ty + T), grown, base, inBase: pointTester(base), x0: tx, y0: ty });
     }
   }
@@ -561,7 +578,7 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
     // Remove copper narrower than the minimum thickness (the margin keeps tile edges exact),
     // cutting a hatched zone's holes while it is deflated (as KiCad does).
     if (half > 0) fill = offset(fill, -half);
-    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, nearBox(iCuts, gx0, gy0, gx1, gy1));
+    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, [...nearBox(iCuts, gx0, gy0, gx1, gy1), ...nearBox(iRings, gx0, gy0, gx1, gy1)]);
     if (half > 0) fill = offset(fill, half);
     pieces.push(...intersection(fill, [t.rect]));
   }
@@ -767,34 +784,75 @@ export function fracture(paths: Paths): Point[][] {
   c.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
   const tree = new ClipperLib.PolyTree();
   c.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-  const out: Point[][] = [];
-  for (const poly of ClipperLib.JS.PolyTreeToExPolygons(tree)) {
-    let outline = fromPath(poly.outer);
-    // Holes in order of their leftmost point: a ray to the left from one can only hit
-    // the outline or holes already merged into it.
-    const holes = poly.holes.map(fromPath).map((h) => {
-      let i = 0;
-      h.forEach((p, k) => (p.x < h[i]!.x ? (i = k) : 0));
-      return { h, i };
-    });
-    holes.sort((a, b) => a.h[a.i]!.x - b.h[b.i]!.x);
-    for (const { h, i } of holes) {
-      const p = h[i]!;
-      let best: { k: number; x: number } | undefined;
-      for (let k = 0; k < outline.length; k++) {
-        const a = outline[k]!;
-        const b = outline[(k + 1) % outline.length]!;
-        if ((a.y > p.y) === (b.y > p.y)) continue;
-        const x = a.x + ((p.y - a.y) * (b.x - a.x)) / (b.y - a.y);
-        if (x <= p.x && (!best || x > best.x)) best = { k, x };
-      }
-      if (!best) continue; // shouldn't happen for a hole inside its outline
-      const bridge = { x: best.x, y: p.y };
-      const ring = [...h.slice(i), ...h.slice(0, i), p];
-      outline = [...outline.slice(0, best.k + 1), bridge, ...ring, bridge, ...outline.slice(best.k + 1)];
-    }
-    out.push(outline);
+  return ClipperLib.JS.PolyTreeToExPolygons(tree).map((poly) => fractureOne(fromPath(poly.outer), poly.holes.map(fromPath)));
+}
+
+/**
+ * One outline with its holes as a single loop. Holes go in order of their leftmost point: a ray
+ * to the left from it can only meet the outline or a hole before it, so every hole is joined to
+ * the nearest edge it meets there, by a cut along the ray (out and back). The loop is then
+ * written in one walk, each hole (with the holes joined to it) inserted after its edge.
+ */
+function fractureOne(outer: Point[], holePts: Point[][]): Point[] {
+  const rings: Point[][] = [outer];
+  const start: number[] = [0];
+  const holes = holePts.map((h) => {
+    let i = 0;
+    h.forEach((p, k) => (p.x < h[i]!.x ? (i = k) : 0));
+    return { h, i };
+  });
+  holes.sort((a, b) => a.h[a.i]!.x - b.h[b.i]!.x);
+  for (const { h, i } of holes) {
+    rings.push(h);
+    start.push(i);
   }
+  // Edges by 1 mm rows of y, for the ray tests.
+  const ROW = 1;
+  const rows = new Map<number, Array<{ r: number; k: number }>>();
+  rings.forEach((ring, r) =>
+    ring.forEach((a, k) => {
+      const b = ring[(k + 1) % ring.length]!;
+      if (a.y === b.y) return;
+      for (let y = Math.floor(Math.min(a.y, b.y) / ROW); y <= Math.floor(Math.max(a.y, b.y) / ROW); y++) (rows.get(y) ?? rows.set(y, []).get(y)!).push({ r, k });
+    }),
+  );
+  // What each edge has joined to it: [hole ring, where along the edge, the cut's end on the edge].
+  const joined = new Map<string, Array<{ ring: number; t: number; at: Point }>>();
+  for (let r = 1; r < rings.length; r++) {
+    const p = rings[r]![start[r]!]!;
+    let best: { r: number; k: number; x: number } | undefined;
+    for (const { r: er, k } of rows.get(Math.floor(p.y / ROW)) ?? []) {
+      if (er >= r) continue; // the hole itself and later holes (all right of it)
+      const ring = rings[er]!;
+      const a = ring[k]!, b = ring[(k + 1) % ring.length]!;
+      if ((a.y > p.y) === (b.y > p.y)) continue;
+      const x = a.x + ((p.y - a.y) * (b.x - a.x)) / (b.y - a.y);
+      if (x <= p.x && (!best || x > best.x)) best = { r: er, k, x };
+    }
+    if (!best) continue; // shouldn't happen for a hole inside its outline
+    const ring = rings[best.r]!;
+    const a = ring[best.k]!;
+    const key = `${best.r}:${best.k}`;
+    (joined.get(key) ?? joined.set(key, []).get(key)!).push({ ring: r, t: Math.hypot(best.x - a.x, p.y - a.y), at: { x: best.x, y: p.y } });
+  }
+  const out: Point[] = [];
+  // Write ring r from point `from` once round (a hole also back to its first point), with what is joined to each edge.
+  const write = (r: number, from: number) => {
+    const ring = rings[r]!;
+    for (let n = 0; n < ring.length; n++) {
+      const k = (from + n) % ring.length;
+      out.push(ring[k]!);
+      const js = joined.get(`${r}:${k}`);
+      if (!js) continue;
+      for (const j of js.sort((x, y) => x.t - y.t)) {
+        out.push(j.at);
+        write(j.ring, start[j.ring]!);
+        out.push(j.at);
+      }
+    }
+    if (r > 0) out.push(ring[from]!);
+  };
+  write(0, 0);
   return out;
 }
 
