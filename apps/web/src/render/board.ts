@@ -586,6 +586,8 @@ export const SHEET_COLOR = "#c872ab";
 
 /** Drawing sheet bitmaps, decoded once (by their data). */
 const sheetImages = new Map<string, HTMLImageElement>();
+/** Redraws waiting for a logo to load. */
+const imageWaiters = new WeakMap<HTMLImageElement, Set<() => void>>();
 
 /**
  * The page frame (drawing sheet primitives, page mm = board mm), texts in KiCad's stroke font,
@@ -614,13 +616,17 @@ export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim
     } else if (p.kind === "bitmap") {
       let img = sheetImages.get(p.png);
       if (!img) {
+        const waiting = new Set<() => void>();
         img = new Image();
-        img.onload = () => onImage?.();
-        // PNG unless the sheet says otherwise (KiCad also embeds JPEG).
-        img.src = `data:${(p as { mime?: string }).mime ?? "image/png"};base64,${p.png}`;
+        // Every view that drew it while it loaded redraws (a remounted one too, not only the first).
+        img.onload = () => (waiting.forEach((f) => f()), waiting.clear());
+        img.onerror = () => waiting.clear();
+        imageWaiters.set(img, waiting);
+        img.src = `data:${p.mime};base64,${p.png}`;
         sheetImages.set(p.png, img);
       }
       if (img.complete && img.naturalWidth) ctx.drawImage(img, p.at.x, p.at.y, p.w, p.h);
+      else if (onImage) imageWaiters.get(img)?.add(onImage);
     } else if (p.kind !== "text") {
       continue;
     } else {
