@@ -698,6 +698,13 @@ export function duplicateItems(
     const node = findItem(source, id);
     if (!node) continue;
     const copy = cloneNode(node);
+    if (headOf(copy) === "table") {
+      requireSheetVersion(target, "table");
+      // A sheet from before KiCad 10 can't hold a table's own UUID: the copy is named by its first cell.
+      const own = findChild(copy, "uuid");
+      const v = sheetVersion(target);
+      if (own && v && v < TABLE_UUID_VERSION) removeChild(copy, own);
+    }
     const fresh = renewUuids(copy);
     moveItem(copy, dx, dy);
     if (headOf(copy) === "symbol") {

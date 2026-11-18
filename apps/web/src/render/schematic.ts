@@ -740,7 +740,16 @@ export function renderSheet(
         const cellList = findChildren(findChild(node, "cells") ?? node, "table_cell");
         const tableId = str(findChild(node, "uuid")) || (cellList[0] ? `${TABLE_BY_CELL}${str(findChild(cellList[0], "uuid"))}` : "");
         const lines = tablePrims(node, (t) => shown(t)).filter((p) => p.t !== "text");
-        items.push({ kind: "graphic", prims: lines, uuid: tableId || undefined, bbox: lines.length ? bboxOf(lines) : undefined });
+        // The cells' extent, so a table drawn with no lines still has a box to select.
+        let box: { x: number; y: number; w: number; h: number } | undefined;
+        for (const c of cellList) {
+          const p = pt(findChild(c, "at"));
+          const s = findChild(c, "size");
+          const [x1, y1] = [p.x + Number(arg(s, 0) ?? 0), p.y + Number(arg(s, 1) ?? 0)];
+          const [x0, y0] = [Math.min(p.x, box?.x ?? Infinity), Math.min(p.y, box?.y ?? Infinity)];
+          box = { x: x0, y: y0, w: Math.max(x1, box ? box.x + box.w : -Infinity) - x0, h: Math.max(y1, box ? box.y + box.h : -Infinity) - y0 };
+        }
+        items.push({ kind: "graphic", prims: lines, uuid: tableId || undefined, bbox: box ?? (lines.length ? bboxOf(lines) : undefined) });
         for (const c of cellList) {
           if (Number(arg(findChild(c, "span"), 0) ?? 1) <= 0) continue;
           const p = pt(findChild(c, "at"));
