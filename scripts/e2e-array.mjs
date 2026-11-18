@@ -89,6 +89,15 @@ await wait(200);
 await page.evaluate(() => [...document.querySelectorAll(".context-menu button")].find((x) => x.textContent.startsWith("Create Array")).click());
 await page.waitForSelector(".create-array", { timeout: 3000 });
 expect(await page.evaluate(() => !document.querySelector(".library-check")), "and Create Array closes Libraries");
+// With the board focused, the Ctrl keys it claims don't reach the browser while the dialog is open.
+const held = await page.evaluate(() =>
+  ["d", "t", "v", "g"].map((key) => {
+    const ev = new KeyboardEvent("keydown", { key, ctrlKey: true, bubbles: true, cancelable: true });
+    document.querySelector(".viewport").dispatchEvent(ev);
+    return ev.defaultPrevented;
+  }),
+);
+expect(held.every(Boolean), `Ctrl+D/T/V/G kept from the browser (${held})`);
 expect(await setField("Columns", 3), "columns");
 expect(await setField("Rows", 1), "rows");
 expect(await setField("Column spacing", 30), "spacing");

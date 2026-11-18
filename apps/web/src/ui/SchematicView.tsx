@@ -779,8 +779,10 @@ export function SchematicView({
       const name = window.prompt("Sheet name");
       if (!name) return;
       let base = name.replace(/[^A-Za-z0-9_-]+/g, "_").toLowerCase() || "sheet";
-      let newFile = `${base}.kicad_sch`;
-      for (let i = 2; ctx?.fileExists(newFile); i++) newFile = `${base}_${i}.kicad_sch`;
+      // KiCad looks for a sub-sheet's file next to the sheet that uses it.
+      const dir = sheet.file.slice(0, sheet.file.lastIndexOf("/") + 1);
+      let newFile = `${dir}${base}.kicad_sch`;
+      for (let i = 2; ctx?.fileExists(newFile); i++) newFile = `${dir}${base}_${i}.kicad_sch`;
       onEdit?.([
         {
           op: "addSheet",
