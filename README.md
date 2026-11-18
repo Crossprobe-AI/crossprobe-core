@@ -78,6 +78,13 @@ KiCad): run `npm test` with the demos before changing the model, the checks or
 the exports. The browser scripts in `scripts/e2e-*.mjs` drive the app end to
 end ([docs/end-to-end.md](docs/end-to-end.md)).
 
+The editor's shared controls (the top bar's menus, the inspector's tab bar,
+Save) have component tests in `apps/web/test/ui/*.test.tsx`. They run in
+headless Chromium with the app's stylesheet (Vitest's browser mode), so layout,
+focus, keyboard and clicks are the real ones. `npm test` runs them with the rest;
+the first time, install the browser with `npx playwright install chromium`.
+`npx vitest --project ui` runs only them.
+
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org)
 (`fix:`, `feat:`, `feat!:` for a breaking change, and `docs:`, `test:`, `ci:`
 for the rest). Releases are made from them: each push to `main` updates a release

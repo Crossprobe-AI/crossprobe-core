@@ -37,6 +37,9 @@ jobs:
       - name: Type-check the web app
         run: npm run typecheck
 
+      - name: Chromium, for the component tests
+        run: npx playwright install --with-deps chromium
+
       - name: Tests
         run: npm test
 

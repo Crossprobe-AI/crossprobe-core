@@ -18,8 +18,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@vitest/browser-playwright": "^4.1.12",
+    "playwright": "^1.63.0",
     "puppeteer-core": "^25.16.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "vitest-browser-react": "^2.3.0"
   }
 }
