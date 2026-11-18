@@ -28,6 +28,11 @@ describe("board frame text variables", () => {
     const texts = boardFrame(page, "x.kicad_pcb", sheet, { variables: VARS }).filter((p) => p.kind === "text").map((p) => (p as { text: string }).text);
     expect(texts).toContain(SHOWN);
   });
+  it("the default frame (no sheet) shows title block fields with the project's variables", () => {
+    const page = { paper: "A4", title: "Board ${BOARD_REV}", date: "", rev: "${BOARD_REV}", company: "${AUTHOR}", comments: [] };
+    const texts = boardFrame(page, "x.kicad_pcb", undefined, { variables: VARS }).filter((p) => p.kind === "text").map((p) => (p as { text: string }).text);
+    expect(texts).toEqual(expect.arrayContaining(["Title: Board C.7", "Rev: C.7", "A. Tester"]));
+  });
 });
 
 describe.skipIf(!existsSync(DEMO) || !existsSync(KICAD_CLI))("board frame text variables as KiCad plots them", () => {

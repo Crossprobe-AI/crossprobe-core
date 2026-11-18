@@ -5,7 +5,7 @@
  * a title block at the bottom right). Both come as drawing-sheet primitives in
  * page millimetres.
  */
-import { drawingSheetPrims, type DrawingSheet, type DrawingSheetInfo, type DrawingSheetPrim } from "./drawing-sheet.js";
+import { drawingSheetPrims, drawingSheetText, type DrawingSheet, type DrawingSheetInfo, type DrawingSheetPrim } from "./drawing-sheet.js";
 import type { Point } from "./geometry.js";
 import { PAPER_SIZES, type PageSettings } from "./page-settings.js";
 
@@ -69,7 +69,9 @@ export function boardFrame(page: PageSettings, file: string, sheet?: DrawingShee
   const paper = paperSize(page);
   const title: Record<string, string> = { title: page.title, date: page.date, rev: page.rev, company: page.company };
   page.comments.forEach((c, i) => c && (title[`comment${i + 1}`] = c));
-  if (!sheet) return defaultFrame(paper, title, "", file);
   const info: DrawingSheetInfo = { titleBlock: title, paper: page.paper, page: "1", pages: 1, sheetName: "", sheetPath: "/", fileName: file, layer: o.layer, variables: o.variables, generator: "Crossprobe" };
-  return drawingSheetPrims(sheet, paper.w, paper.h, info, true);
+  if (sheet) return drawingSheetPrims(sheet, paper.w, paper.h, info, true);
+  // The default frame shows the title block's fields with their variables filled in, as KiCad's default sheet does.
+  const shown = Object.fromEntries(Object.entries(title).map(([k, v]) => [k, v.includes("${") ? drawingSheetText(v, info) : v]));
+  return defaultFrame(paper, shown, "", file);
 }
