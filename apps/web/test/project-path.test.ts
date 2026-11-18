@@ -69,6 +69,8 @@ describe("project paths", () => {
     expect(resolveProjectPath("sheets/none.kicad_wks", dir, files)).toEqual({
       missing: "sheets/none.kicad_wks",
     });
+    // Out of the project folder and back in: missing, not outside.
+    expect(resolveProjectPath("../board/none.kicad_wks", dir, files)).toEqual({ missing: "../board/none.kicad_wks" });
   });
 });
 
