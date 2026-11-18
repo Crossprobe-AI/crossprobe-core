@@ -1402,7 +1402,7 @@ export function App() {
                         {schN > 0 && updateSch}
                         {pcbN > 0 && updatePcb}
                         <Menu className="tools-menu" label="Tools" title="Board setup, routing helpers, renumbering, cleanup, libraries, page settings, nets and updates" summary={<><Icon name="tools" /> <span className="tl">Tools</span></>}>
-                          {editing && (
+                          {editing && (zones || project.unconnected.length > 0 || project.board!.tracks.length > 0) && (
                             <>
                               <span className="menu-label">Routing</span>
                               {zones && (
