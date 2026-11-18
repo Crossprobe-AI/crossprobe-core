@@ -139,6 +139,9 @@ button {
   color: inherit;
   cursor: pointer;
 }
+button:disabled {
+  cursor: default;
+}
 .mono {
   font-family: var(--mono);
   font-size: 12px;
@@ -933,7 +936,9 @@ g.hl text {
   display: flex;
   gap: 4px;
 }
-.edit-actions button {
+/* Save (in .project-control) is styled as the edit actions beside it. */
+.edit-actions button,
+.project-control > .save {
   border: 1px solid var(--border-control);
   background: var(--panel);
   border-radius: 2px;
@@ -941,11 +946,13 @@ g.hl text {
   font-size: 12px;
   height: 28px;
 }
-.edit-actions button:disabled {
+.edit-actions button:disabled,
+.project-control > .save:disabled {
   opacity: 0.45;
   cursor: default;
 }
-.edit-actions .save.dirty {
+.edit-actions .save.dirty,
+.project-control > .save.dirty {
   border-color: var(--ink);
   color: var(--text);
   font-weight: 500;
@@ -2721,6 +2728,10 @@ button.sb-checks:hover {
   font-weight: 500;
   white-space: nowrap;
 }
+/* A tab with padding of its own (.tabs button.ai) is measured with it. */
+.tabs-measure > span.ai {
+  padding: 9px 12px;
+}
 .tabs-more {
   position: relative;
   flex: none;
@@ -3315,6 +3326,7 @@ button.sb-checks:hover {
 }
 .menu-items button:disabled {
   color: var(--muted);
+  background: transparent;
 }
 .menu-items .kbd {
   margin-left: auto;
