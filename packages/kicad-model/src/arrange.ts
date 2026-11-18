@@ -155,10 +155,23 @@ export function itemsBox(board: Board, uuids: string[]): Box4 | undefined {
   return out.empty ? undefined : out.result();
 }
 
-/** A group's box as KiCad gives it (PCB_GROUP::GetBoundingBox), from its items (groupItems): their box, 0.25 mm larger all round. */
-export function groupBox(board: Board, items: string[]): Box4 | undefined {
-  const b = itemsBox(board, items);
-  return b && { x0: b.x0 - 0.25, y0: b.y0 - 0.25, x1: b.x1 + 0.25, y1: b.y1 + 0.25 };
+/**
+ * A group's box as KiCad gives it (PCB_GROUP::GetBoundingBox): its members' box, 0.25 mm larger
+ * all round. A member group brings its own box, already larger, so each level of nesting adds
+ * 0.25 mm.
+ */
+export function groupBox(board: Board, groupUuid: string, seen = new Set<string>()): Box4 | undefined {
+  const g = board.groups.find((x) => x.uuid === groupUuid);
+  if (!g || seen.has(groupUuid)) return undefined;
+  seen.add(groupUuid);
+  const out = new Bounds();
+  for (const m of g.members) {
+    const b = board.groups.some((x) => x.uuid === m) ? groupBox(board, m, seen) : itemsBox(board, [m]);
+    if (b) out.box(b);
+  }
+  if (out.empty) return undefined;
+  const b = out.result();
+  return { x0: b.x0 - 0.25, y0: b.y0 - 0.25, x1: b.x1 + 0.25, y1: b.y1 + 0.25 };
 }
 
 type Indexed =

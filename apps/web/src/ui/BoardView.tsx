@@ -528,7 +528,7 @@ export function BoardView({
 
   /** A group's position as KiCad gives it: the centre of its box (footprints with their texts, members the app doesn't model too). */
   const groupCenter = (g: string): Point | undefined => {
-    const b = groupBox(board, groupItems(board, g));
+    const b = groupBox(board, g);
     return b && { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 };
   };
 
@@ -1591,7 +1591,7 @@ export function BoardView({
     const inGroups = new Set([...members.values()].flat());
     const items = [
       ...groups.flatMap((g) => {
-        const box = groupBox(board, members.get(g)!);
+        const box = groupBox(board, g);
         return box ? [{ uuid: g, box, locked: !!board.groups.find((x) => x.uuid === g)?.locked }] : [];
       }),
       ...uuids.filter((u) => !inGroups.has(u)).flatMap((uuid) => {
