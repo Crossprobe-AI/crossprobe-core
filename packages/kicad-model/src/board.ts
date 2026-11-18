@@ -578,7 +578,6 @@ function graphicOf(node: List, kind: Graphic["kind"], transform: (p: Point) => P
   };
 }
 
-/** KiCad's lock: (locked yes), or a bare `locked` token in older files. */
 /**
  * The box KiCad gives an item this model doesn't hold: a target's square of its size around its
  * position (PCB_TARGET), a reference image's picture size centred on it (REFERENCE_IMAGE), a
@@ -614,6 +613,7 @@ function otherBox(node: List): { x0: number; y0: number; x1: number; y1: number 
   return { x0: Math.min(...pts.map((p) => p.x)), y0: Math.min(...pts.map((p) => p.y)), x1: Math.max(...pts.map((p) => p.x)), y1: Math.max(...pts.map((p) => p.y)) };
 }
 
+/** KiCad's lock: (locked yes), or a bare `locked` token in older files. */
 function isLocked(node: List): boolean {
   return node.children.some((c) => (isAtom(c) && c.raw === "locked") || (headOf(c) === "locked" && arg(c as List, 0) !== "no"));
 }

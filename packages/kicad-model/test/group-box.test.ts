@@ -1,6 +1,7 @@
 /**
  * Group boxes against KiCad's: pic_programmer with three groups that hold items this model doesn't
- * (a layer alignment target, a reference image, a table) beside footprints. KiCad's pcbnew gives
+ * (a layer alignment target, a reference image, a table) beside footprints, one of them inside a
+ * fourth group. KiCad's pcbnew gives
  * each group's box (its position is the centre) and each footprint's box with its texts.
  * Env: KICAD_DEMOS, KICAD_PYTHON.
  */
@@ -10,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { footprintBoxWithText, groupBox, groupItems, parseBoard } from "../src/index.js";
+import { footprintBoxWithText, groupBox, parseBoard } from "../src/index.js";
 
 const DEMOS = process.env.KICAD_DEMOS!;
 const PY = process.env.KICAD_PYTHON ?? "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3";
@@ -45,9 +46,9 @@ const cell = (x: number, y: number, w: number, h: number) =>
 describe.skipIf(!existsSync(PCB) || !existsSync(PY))("group boxes as KiCad's", () => {
   it("groups with a target, an image and a table; footprints with their texts", () => {
     let text = readFileSync(PCB, "utf8");
-    const [r1, r2, r3, c2, u1] = ["R1", "R2", "R3", "C2", "U1"].map((r) => uuidOf(text, r));
+    const [r1, r2, r3, c2, u1, r4] = ["R1", "R2", "R3", "C2", "U1", "R4"].map((r) => uuidOf(text, r));
     const ids = { target: "7a26e5f1-0000-4000-8000-0000000000b1", image: "7a26e5f1-0000-4000-8000-0000000000b2", table: "7a26e5f1-0000-4000-8000-0000000000b3" };
-    const groups = ["7a26e5f1-0000-4000-8000-0000000000c1", "7a26e5f1-0000-4000-8000-0000000000c2", "7a26e5f1-0000-4000-8000-0000000000c3"];
+    const groups = ["7a26e5f1-0000-4000-8000-0000000000c1", "7a26e5f1-0000-4000-8000-0000000000c2", "7a26e5f1-0000-4000-8000-0000000000c3", "7a26e5f1-0000-4000-8000-0000000000c4"];
     const end = text.lastIndexOf(")");
     text =
       text.slice(0, end) +
@@ -58,6 +59,8 @@ describe.skipIf(!existsSync(PCB) || !existsSync(PY))("group boxes as KiCad's", (
       `\t(group "a" (uuid "${groups[0]}") (members "${r1}" "${r2}" "${ids.target}"))\n` +
       `\t(group "b" (uuid "${groups[1]}") (members "${c2}" "${ids.image}"))\n` +
       `\t(group "c" (uuid "${groups[2]}") (members "${r3}" "${u1}" "${ids.table}"))\n` +
+      // Nested: group a inside d, its box (0.25 mm larger) merged as it is.
+      `\t(group "d" (uuid "${groups[3]}") (members "${groups[0]}" "${r4}"))\n` +
       text.slice(end);
     const dir = mkdtempSync(join(tmpdir(), "crossprobe-groupbox-"));
     writeFileSync(join(dir, "in.kicad_pcb"), text);
@@ -74,7 +77,7 @@ describe.skipIf(!existsSync(PCB) || !existsSync(PY))("group boxes as KiCad's", (
       const d = Math.max(...[ours!.x0, ours!.y0, ours!.x1, ours!.y1].map((v, i) => Math.abs(v - k![i]!)));
       expect(d, `${what}: ours ${JSON.stringify(ours)}, KiCad ${k!.join(" ")}`).toBeLessThan(0.01);
     };
-    for (const g of groups) near(groupBox(board, groupItems(board, g)), theirs.get(g), `group ${g}`);
+    for (const g of groups) near(groupBox(board, g), theirs.get(g), `group ${g}`);
     let fps = 0;
     for (const f of board.footprints) {
       if (!theirs.has(f.uuid)) continue;
