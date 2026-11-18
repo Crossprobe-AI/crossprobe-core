@@ -1213,6 +1213,8 @@ export function App() {
                   {editing && (
                     <button
                       className={missingFootprints ? "attention" : ""}
+                      aria-haspopup="dialog"
+                      aria-expanded={showAssign}
                       onClick={() => openPanel("assign")}
                       title={missingFootprints ? `Assign footprints (${missingFootprints} parts have none)` : "Assign footprints"}
                     >
@@ -1220,7 +1222,7 @@ export function App() {
                       {missingFootprints > 0 && <span className="count">{missingFootprints}</span>}
                     </button>
                   )}
-                  <button className={showFind ? "on" : ""} onClick={() => openPanel("find")} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
+                  <button aria-haspopup="dialog" aria-expanded={showFind} onClick={() => openPanel("find")} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
                     <Icon name="search" /> <span className="tl">Find</span>
                   </button>
                   <Menu className="tools-menu" label="Tools" title="Annotate, the netlist, the fields table and page settings" summary={<><Icon name="tools" /> <span className="tl">Tools</span></>}>
@@ -1377,13 +1379,13 @@ export function App() {
                     const schN = project.schematicUpdate?.updates.length ?? 0;
                     const pcbN = project.boardUpdate ? project.boardUpdate.updates.length + project.boardUpdate.missing.length : 0;
                     const updateSch = project.schematicUpdate && (
-                      <button className={showUpdateSch ? "on" : ""} onClick={() => openPanel("updateSch")} title="Update schematic from PCB: references, values, footprints and fields changed on the board">
+                      <button aria-haspopup="dialog" aria-expanded={showUpdateSch} onClick={() => openPanel("updateSch")} title="Update schematic from PCB: references, values, footprints and fields changed on the board">
                         <Icon name="schematic" /> <span className="tl">Update schematic</span>
                         {schN > 0 && <span className="count">{schN}</span>}
                       </button>
                     );
                     const updatePcb = project.boardUpdate && (
-                      <button className={showUpdate ? "on" : ""} onClick={() => openPanel("update")} title="Update PCB from schematic (F8)">
+                      <button aria-haspopup="dialog" aria-expanded={showUpdate} onClick={() => openPanel("update")} title="Update PCB from schematic (F8)">
                         <Icon name="sync" /> <span className="tl">Update PCB</span>
                         {pcbN > 0 && <span className="count">{pcbN}</span>}
                       </button>
