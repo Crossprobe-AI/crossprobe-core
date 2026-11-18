@@ -9,7 +9,8 @@
  * Keyboard, as for a tab list: the selected tab is the one stop in the Tab
  * order, and the arrow keys (Home, End) move to and select the others shown.
  * The "⋯" menu opens with the focus on its first item, moves with the arrows,
- * and Escape closes it and gives the focus back to "⋯".
+ * and Escape closes it and gives the focus back to "⋯"; picking a tab there moves the focus to
+ * that tab in the bar.
  *
  * The copy is inert spans, not buttons: only the real tabs are buttons with
  * role="tab", which is what tests and scripts should select (`.tabs [role=tab]`).
@@ -102,10 +103,22 @@ export function OverflowTabs<T extends string>({ items, active, onSelect }: { it
     if (open) more.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
   }, [open]);
 
+  /** A tab picked from the menu: the focus goes to it once it is shown in the bar. */
+  const focusPicked = useRef<T | null>(null);
+
   const activeIndex = items.findIndex((t) => t.id === active);
   const keep = room && room.widths.length === items.length ? splitTabs(room.widths, room.avail, activeIndex) : new Set(items.map((_, i) => i));
   const shown = items.filter((_, i) => keep.has(i));
   const hidden = items.filter((_, i) => !keep.has(i));
+
+  useEffect(() => {
+    const id = focusPicked.current;
+    if (id === null) return;
+    const i = shown.findIndex((t) => t.id === id);
+    if (i < 0) return;
+    focusPicked.current = null;
+    bar.current?.querySelectorAll<HTMLElement>(":scope > [role=tab]")[i]?.focus();
+  });
 
   // Arrow keys move along the shown tabs and select the one they land on.
   const onTabKey = (e: ReactKeyboardEvent<HTMLButtonElement>, i: number) => {
@@ -178,6 +191,8 @@ export function OverflowTabs<T extends string>({ items, active, onSelect }: { it
                   role="menuitem"
                   title={t.title}
                   onClick={() => {
+                    // The menu goes away: the keyboard carries on from the tab it opened.
+                    focusPicked.current = t.id;
                     onSelect(t.id);
                     setOpen(false);
                   }}

@@ -49,7 +49,7 @@ npm run dev         # the app at http://localhost:5173
 
 ```sh
 npm run build       # @crossprobe/kicad-sexpr and @crossprobe/kicad-model
-npm run typecheck   # the app
+npm run typecheck   # the app and its UI component tests
 npm test
 ```
 
