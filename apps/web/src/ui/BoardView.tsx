@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { alignMoves, boardItemBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode, type DrawingSheetPrim } from "@crossprobe/kicad-model";
+import { alignMoves, boardItemBox, groupBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode, type DrawingSheetPrim } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
 import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, drawFrame, layerColor, padPath, type BoardScene } from "../render/board";
 import { attachedTrackEnds, boardItemOf, connectedTrace, footprintBox, graphicPath, itemsInBox, padAt, pickAll, pickItem, route45, snap, textCorners, type BoardItem } from "../render/board-edit";
@@ -525,11 +525,10 @@ export function BoardView({
     return snap(c, edit!.grid);
   };
 
-  /** A group's position as KiCad gives it: the centre of its members' box (those the app models). */
+  /** A group's position as KiCad gives it: the centre of its box (footprints with their texts, members the app doesn't model too). */
   const groupCenter = (g: string): Point | undefined => {
-    const boxes = groupItems(board, g).map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
-    if (!boxes.length) return undefined;
-    return { x: (Math.min(...boxes.map((b) => b.x0)) + Math.max(...boxes.map((b) => b.x1))) / 2, y: (Math.min(...boxes.map((b) => b.y0)) + Math.max(...boxes.map((b) => b.y1))) / 2 };
+    const b = groupBox(board, groupItems(board, g));
+    return b && { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 };
   };
 
   const finishRoute = (r: Route | null, end?: Point, pairEnds?: { endP: Point; endN: Point; escape: Point }): "crossed" | void => {
@@ -1573,10 +1572,8 @@ export function BoardView({
     const inGroups = new Set([...members.values()].flat());
     const items = [
       ...groups.flatMap((g) => {
-        const boxes = members.get(g)!.map((u) => boardItemBox(board, u)).filter((b): b is NonNullable<typeof b> => !!b);
-        if (!boxes.length) return [];
-        const box = { x0: Math.min(...boxes.map((b) => b.x0)), y0: Math.min(...boxes.map((b) => b.y0)), x1: Math.max(...boxes.map((b) => b.x1)), y1: Math.max(...boxes.map((b) => b.y1)) };
-        return [{ uuid: g, box, locked: !!board.groups.find((x) => x.uuid === g)?.locked }];
+        const box = groupBox(board, members.get(g)!);
+        return box ? [{ uuid: g, box, locked: !!board.groups.find((x) => x.uuid === g)?.locked }] : [];
       }),
       ...uuids.filter((u) => !inGroups.has(u)).flatMap((uuid) => {
         const box = boardItemBox(board, uuid);
