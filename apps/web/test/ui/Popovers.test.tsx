@@ -136,6 +136,53 @@ describe("a toolbar menu's items", () => {
   });
 });
 
+describe("controls in a bar", () => {
+  it("are one height and one shape, whether a button or a menu's opener", async () => {
+    const screen = await render(
+      <>
+        <header className="topbar">
+          <div className="segmented">
+            <button className="on">Schematic</button>
+            <button>PCB</button>
+          </div>
+          <div className="edit-actions">
+            <button>Undo</button>
+          </div>
+          <button>Plot</button>
+          <Menu className="account-menu" label="Account" summary="Account">
+            <button>Sign out</button>
+          </Menu>
+        </header>
+        <main className="canvas" style={{ position: "relative", width: 900, height: 400 }}>
+          <div className="edit-toolbar">
+            <button className="on">Editing</button>
+            <button aria-haspopup="dialog" aria-expanded="true">
+              Find
+            </button>
+            <Menu className="tools-menu" label="Tools" summary="Tools">
+              <button>Page settings…</button>
+            </Menu>
+          </div>
+          <div className="view-tools">
+            <button>Fit</button>
+          </div>
+        </main>
+      </>,
+    );
+    await screen.getByLabelText("Tools").click();
+    const controls = [...document.querySelectorAll<HTMLElement>(":is(.topbar, .edit-toolbar, .view-tools) :is(button, .menu > summary)")].filter((e) => !e.closest(".menu-items"));
+    expect(controls.length).toBe(9);
+    for (const c of controls) expect(box(c).height, c.textContent!).toBe(28);
+    // One set of corners (the segmented control's buttons sit inside its own rounded box).
+    const radii = new Set(controls.filter((c) => !c.closest(".segmented")).map((c) => getComputedStyle(c).borderTopLeftRadius));
+    expect([...radii]).toEqual(["3px"]);
+    // In the canvas's toolbar, the menu and the panel button side by side are the same box.
+    const find = box(screen.getByRole("button", { name: "Find" }).element());
+    const tools = box(document.querySelector(".tools-menu summary")!);
+    expect([tools.top, tools.height]).toEqual([find.top, find.height]);
+  });
+});
+
 describe("a button whose menu or panel is open", () => {
   it("looks the same for a panel, a menu, the inspector's ⋯ and a rail flyout; a mode that is on looks different", async () => {
     const screen = await render(
