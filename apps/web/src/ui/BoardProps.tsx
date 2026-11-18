@@ -3,7 +3,7 @@
  * layer, via size and drill, a footprint's position, rotation and side.
  * Each change is one undoable edit.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { diffPartnerOnBoard, displayName, netLength, type Board } from "@crossprobe/kicad-model";
 import type { EditOp } from "../edit/ops";
 import type { BoardItem } from "../render/board-edit";
@@ -42,21 +42,24 @@ function NumField({ label, value, onCommit, step = 0.01, unit = "mm" }: { label:
 }
 
 /** A text field that commits on Enter or blur. */
-function TextField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+/**
+ * A text's content. Board texts and text boxes can have several lines: a text area keeps
+ * them (an input would drop the line breaks). Enter commits, Shift+Enter starts a new line.
+ */
+function TextField({ value, onCommit, multiline }: { value: string; onCommit: (v: string) => void; multiline?: boolean }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
-  return (
-    <input
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => text !== value && onCommit(text)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        if (e.key === "Escape") setText(value);
-        e.stopPropagation();
-      }}
-    />
-  );
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !(multiline && e.shiftKey)) {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+    if (e.key === "Escape") setText(value);
+    e.stopPropagation();
+  };
+  if (multiline)
+    return <textarea value={text} rows={Math.min(6, Math.max(2, text.split("\n").length))} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onCommit(text)} onKeyDown={onKeyDown} />;
+  return <input value={text} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onCommit(text)} onKeyDown={onKeyDown} />;
 }
 
 /**
@@ -267,7 +270,7 @@ export function BoardProps({ board, picked, file, onEdit }: { board: Board; pick
           {texts.length === 1 && (
             <label className="prop">
               <span>Text</span>
-              <TextField value={texts[0]!.text} onCommit={(text) => text && onEdit([{ op: "setBoardText", file, uuids: textIds, text }])} />
+              <TextField multiline value={texts[0]!.text} onCommit={(text) => text && onEdit([{ op: "setBoardText", file, uuids: textIds, text }])} />
             </label>
           )}
           <NumField label="Size" value={common(texts.map((t) => t.size.y))} onCommit={(size) => size > 0 && onEdit([{ op: "setBoardText", file, uuids: textIds, size }])} />

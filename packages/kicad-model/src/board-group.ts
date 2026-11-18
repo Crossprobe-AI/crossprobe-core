@@ -15,7 +15,10 @@ import { arg, findChild, findChildren, format, headOf, insertAt, isAtom, isList,
 import type { Board, BoardGroup } from "./board.js";
 import { newBoardUuid } from "./board-edit.js";
 
-const uuidOf = (n: List) => String(arg(findChild(n, "uuid"), 0) ?? "");
+// KiCad 6 and 7 write a group's UUID as `(id …)`.
+const uuidOf = (n: List) => String(arg(findChild(n, "uuid") ?? findChild(n, "id"), 0) ?? "");
+/** A board from before KiCad 8: its items have `(tstamp …)`, its groups `(id …)` and a bare `locked`. */
+const preV8 = (root: List) => root.children.some((c) => isList(c) && ((headOf(c) === "group" && !!findChild(c, "id")) || (!!findChild(c, "tstamp") && !findChild(c, "uuid"))));
 const membersOf = (g: List) => (findChild(g, "members")?.children.slice(1) ?? []).filter(isAtom).map(atomText);
 
 /** The group (top-level `group` node) that lists `uuid` as a member. */
@@ -42,7 +45,7 @@ export function addGroup(root: List, members: string[], name = "", uuid = newBoa
   // KiCad groups what is selected at the top level; the new group joins the parent they shared.
   const parents = new Set(members.map((m) => parentNode(root, m)).filter((g): g is List => !!g));
   for (const p of parents) setMembers(p, membersOf(p).filter((m) => !members.includes(m)));
-  const g = list("group", str(name), list("uuid", str(uuid)), list("members", ...members.map((m) => str(m))));
+  const g = list("group", str(name), list(preV8(root) ? "id" : "uuid", str(uuid)), list("members", ...members.map((m) => str(m))));
   // After the last group, else after the zones, before generated items and embedded fonts.
   let at = -1;
   root.children.forEach((c, i) => {
@@ -96,7 +99,7 @@ export function setGroupLocked(root: List, uuid: string, locked: boolean): void 
   if (!g) return;
   const l = findChild(g, "locked") ?? g.children.find((c) => isAtom(c) && c.raw === "locked");
   if (l) removeChild(g, l);
-  if (locked) insertAt(g, 2, list("locked", sym("yes")));
+  if (locked) insertAt(g, 2, preV8(root) ? sym("locked") : list("locked", sym("yes")));
 }
 
 /** The outermost group an item belongs to (itself if it is a top-level group), if any. */

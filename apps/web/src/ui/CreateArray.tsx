@@ -19,7 +19,7 @@ function Num({ label, value, onChange, step = 0.01, min, title }: { label: strin
   );
 }
 
-export function CreateArray({ file, uuids, origin, onEdit, onClose }: { file: string; uuids: string[]; origin: Point; onEdit: (ops: EditOp[]) => void; onClose: () => void }) {
+export function CreateArray({ file, uuids, arrangeable = uuids, origin, onEdit, onClose }: { file: string; uuids: string[]; /** What "Arrange" may move: not locked, not in a group. */ arrangeable?: string[]; origin: Point; onEdit: (ops: EditOp[]) => void; onClose: () => void }) {
   const [kind, setKind] = useState<"grid" | "circular">("grid");
   // KiCad's defaults: a 5 × 5 grid at 2.54 mm; four copies 90° apart, clockwise.
   const [grid, setGrid] = useState({ nx: 5, ny: 5, dx: 2.54, dy: 2.54, offsetX: 0, offsetY: 0, stagger: 1, staggerRows: true, horizontalFirst: true, reverseAlternate: false, centred: false });
@@ -33,11 +33,12 @@ export function CreateArray({ file, uuids, origin, onEdit, onClose }: { file: st
   const size = arraySize(options);
   const valid = size >= 1 && Number.isInteger(size) && (kind === "circular" || (grid.nx >= 1 && grid.ny >= 1));
   const apply = () => {
-    if (valid) onEdit([{ op: "boardArray", file, uuids, options, reannotate, arrange }]);
+    const items = arrange ? arrangeable : uuids;
+    if (valid && items.length) onEdit([{ op: "boardArray", file, uuids: items, options, reannotate, arrange }]);
     onClose();
   };
   return (
-    <div className="update-pcb create-array" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div className="update-pcb create-array" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && onClose())}>
       <div className="update-head">
         <strong>Create array</strong>
         <button className="icon-btn" onClick={onClose} title="Close">
@@ -94,7 +95,7 @@ export function CreateArray({ file, uuids, origin, onEdit, onClose }: { file: st
             <input type="radio" checked={!arrange} onChange={() => setArrange(false)} /> Duplicate the selection
           </label>
           <label>
-            <input type="radio" checked={arrange} onChange={() => setArrange(true)} /> Arrange the selection itself
+            <input type="radio" checked={arrange} disabled={!arrangeable.length} onChange={() => setArrange(true)} /> Arrange the selection itself
           </label>
           {!arrange && (
             <label title="Otherwise the copies keep the references of what they copy">
@@ -103,7 +104,9 @@ export function CreateArray({ file, uuids, origin, onEdit, onClose }: { file: st
           )}
         </div>
         <p className="muted small">
-          {arrange ? `Up to ${size} selected items, one per cell.` : `${size} cells: ${Math.max(0, size - 1)} copies of the ${uuids.length} selected item${uuids.length > 1 ? "s" : ""}.`}
+          {arrange
+            ? `Up to ${size} of the ${arrangeable.length} selected item${arrangeable.length === 1 ? "" : "s"}, one per cell.${arrangeable.length < uuids.length ? " Locked and grouped items stay where they are." : ""}`
+            : `${size} cells: ${Math.max(0, size - 1)} copies of the ${uuids.length} selected item${uuids.length > 1 ? "s" : ""}.`}
         </p>
       </div>
       <div className="update-actions">

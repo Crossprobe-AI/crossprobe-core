@@ -382,7 +382,8 @@ function zoneConnectOf(n: List): ZoneConnection | undefined {
   const v = numOf(n, "zone_connect");
   return v === 0 ? "none" : v === 1 ? "thermal" : v === 2 ? "solid" : v === 3 ? "tht" : undefined;
 }
-const itemUuid = (n: List) => String(arg(findChild(n, "uuid") ?? findChild(n, "tstamp"), 0) ?? "");
+// KiCad 6 and 7 name a group by `(id …)`, other items by `(tstamp …)`; KiCad 8 and later write `(uuid …)` for all.
+const itemUuid = (n: List) => String(arg(findChild(n, "uuid") ?? findChild(n, "tstamp") ?? findChild(n, "id"), 0) ?? "");
 const pt = (n: List | undefined): Point => ({ x: Number(arg(n, 0) ?? 0), y: Number(arg(n, 1) ?? 0) });
 const str = (n: List | undefined, i = 0): string => String(arg(n, i) ?? "");
 
