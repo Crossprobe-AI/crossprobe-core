@@ -127,6 +127,40 @@ export function footprintBoxNoText(fp: Footprint): Box4 {
   return out.result();
 }
 
+/**
+ * A footprint's box with its texts, as KiCad's group and selection boxes take it
+ * (FOOTPRINT::GetBoundingBox(true)): its position (0.25 mm all round), all its graphics, its
+ * pads and its visible texts.
+ */
+export function footprintBoxWithText(fp: Footprint): Box4 {
+  const out = new Bounds();
+  out.point(fp.at, 0.25);
+  for (const g of fp.graphics) out.box(graphicBox(g));
+  for (const p of fp.pads) out.box(padBox(p));
+  for (const t of fp.texts) out.box(textBox(t));
+  return out.result();
+}
+
+/**
+ * The box around items, as KiCad's group (PCB_GROUP::GetBoundingBox) and selection boxes take it:
+ * footprints with their texts, and the items this model doesn't hold (`Board.otherBoxes`).
+ */
+export function itemsBox(board: Board, uuids: string[]): Box4 | undefined {
+  const out = new Bounds();
+  for (const u of uuids) {
+    const it = indexOf(board).get(u);
+    const b = it?.kind === "footprint" ? footprintBoxWithText(it.item) : (boardItemBox(board, u) ?? board.otherBoxes?.[u]);
+    if (b) out.box(b);
+  }
+  return out.empty ? undefined : out.result();
+}
+
+/** A group's box as KiCad gives it (PCB_GROUP::GetBoundingBox), from its items (groupItems): their box, 0.25 mm larger all round. */
+export function groupBox(board: Board, items: string[]): Box4 | undefined {
+  const b = itemsBox(board, items);
+  return b && { x0: b.x0 - 0.25, y0: b.y0 - 0.25, x1: b.x1 + 0.25, y1: b.y1 + 0.25 };
+}
+
 type Indexed =
   | { kind: "footprint"; item: Footprint }
   | { kind: "track"; item: Board["tracks"][number] }
