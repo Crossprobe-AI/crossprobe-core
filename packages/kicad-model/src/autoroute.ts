@@ -812,7 +812,8 @@ export function autorouteAll(board: Board, rules: DesignRules, connections: Arra
     if (routes[i]) return;
     // One that cannot be made on an empty board (a pad shut inside a keep-out) is not helped by
     // lifting other routes: say so at once, without trying.
-    if (!autorouteConnection(board, rules, c, base, false)) return;
+    // (Through any pad of its two pieces, as it would be routed: the nearest pair may be shut in.)
+    if (!autorouteConnection(board, rules, c, base)) return;
     const others = [...made.keys()].sort((a, b) => Math.min(near(routes[a]!, c.from), near(routes[a]!, c.to)) - Math.min(near(routes[b]!, c.from), near(routes[b]!, c.to))).slice(0, 4);
     for (const j of others) {
       const lifted = made.get(j)!;
@@ -820,7 +821,9 @@ export function autorouteAll(board: Board, rules: DesignRules, connections: Arra
       const ri = autorouteConnection(board, rules, c, all());
       if (ri) {
         made.set(i, itemsOf(ri, c.net));
-        const rj = autorouteConnection(board, rules, connections[j]!, all(), false);
+        // The lifted one may join its net through any of its pads (as at first): the way it went
+        // is now taken.
+        const rj = autorouteConnection(board, rules, connections[j]!, all());
         if (rj) {
           routes[i] = ri;
           routes[j] = rj;
