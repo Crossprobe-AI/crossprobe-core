@@ -1320,9 +1320,11 @@ g.hl text {
   font-size: 11px;
   color: var(--muted);
 }
-.rail-flyout button {
+/* Icon and name at the left, keys at the right (beats button:has(> .icon)'s centring). */
+.tool-rail .rail-flyout button {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   padding: 5px 8px;
   border: 0;
@@ -1384,6 +1386,13 @@ g.hl text {
 }
 .tool-rail.viewing .rail-tool:hover {
   opacity: 1;
+}
+/* The toolbar's View only button: a state more than an action, so quieter than Editing. */
+.edit-toolbar button.view-only {
+  color: var(--muted);
+}
+.edit-toolbar button.view-only:hover {
+  color: var(--text);
 }
 /* With the rail at the left, the breadcrumb lines up with it. */
 .canvas:has(.tool-rail) .breadcrumb {
@@ -1946,7 +1955,8 @@ button:has(> .icon),
 .board-props {
   position: absolute;
   top: 52px;
-  left: 12px;
+  /* Clear of the tool rail (left 30px, 38px wide). */
+  left: 76px;
   z-index: 4;
   width: 230px;
   background: var(--panel);

@@ -158,6 +158,66 @@ describe("ToolRail", () => {
   });
 });
 
+describe("ToolRail with an editor around it", () => {
+  it("keeps its arrow keys to itself: the editor's window listener (nudging the selection) never sees them", async () => {
+    const seen: string[] = [];
+    const nudge = (e: KeyboardEvent) => e.key.startsWith("Arrow") && seen.push(e.key);
+    window.addEventListener("keydown", nudge);
+    try {
+      await render(<Fixture />);
+      railButtons()[0]!.focus();
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}");
+      railButtons()[2]!.focus();
+      await userEvent.keyboard("{ArrowRight}");
+      expect(flyout("Labels").hidden).toBe(false);
+      await userEvent.keyboard("{ArrowDown}{ArrowUp}{ArrowRight}{ArrowLeft}");
+      railButtons()[1]!.focus();
+      await userEvent.keyboard("{ArrowLeft}{ArrowRight}");
+      expect(seen).toEqual([]);
+    } finally {
+      window.removeEventListener("keydown", nudge);
+    }
+  });
+
+  it("is one Tab stop, on the tool in use (a roving tabindex)", async () => {
+    const screen = await render(<Fixture />);
+    const stops = () => railButtons().filter((b) => b.tabIndex === 0);
+    expect(stops()).toEqual([railButtons()[0]]);
+    await screen.getByRole("button", { name: "Wire" }).click();
+    expect(stops()).toEqual([railButtons()[1]]);
+    // A tool in a group: the group's button.
+    document.querySelector<HTMLButtonElement>('button[data-tool="hlabel"]')!.click();
+    await expect.element(document.querySelector("p")!).toHaveTextContent("Tool: hlabel");
+    expect(stops()).toEqual([railButtons()[2]]);
+    // Tab goes past the rail in one step.
+    railButtons()[2]!.focus();
+    await userEvent.keyboard("{Tab}");
+    expect(document.activeElement?.closest(".tool-rail")).toBeNull();
+  });
+
+  it("lines a flyout's items up at the left, keys at the right", async () => {
+    await render(<Fixture />);
+    group("Graphics").querySelector<HTMLElement>(".rail-open")!.click();
+    await vi.waitFor(() => expect(flyout("Graphics").hidden).toBe(false));
+    const items = [...flyout("Graphics").querySelectorAll<HTMLButtonElement>("button")];
+    const lefts = items.map((b) => Math.round(box(b.querySelector(".icon")!).left - box(b).left));
+    expect(new Set(lefts).size, `icon offsets ${lefts.join(", ")}`).toBe(1);
+    expect(lefts[0], `icon offsets ${lefts.join(", ")}`).toBeLessThan(12);
+  });
+
+  it("is clear of the board's properties panel, which shows beside it", async () => {
+    await render(
+      <main className="canvas" style={{ position: "relative", width: 900, height: 600 }}>
+        <ToolRail<T> items={ITEMS} active="select" editing onChoose={() => {}} onEdit={() => {}} />
+        <div className="board-props">Properties</div>
+      </main>,
+    );
+    const r = box(rail());
+    const p = box(document.querySelector(".board-props")!);
+    expect(p.left).toBeGreaterThanOrEqual(r.right);
+  });
+});
+
 describe("ToolRail while viewing", () => {
   it("says the design is view only, and dims the tools", async () => {
     const screen = await render(<Fixture initialEditing={false} />);

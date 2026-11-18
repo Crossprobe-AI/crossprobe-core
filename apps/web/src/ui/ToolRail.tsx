@@ -59,6 +59,16 @@ export function ToolRail<T extends string>({
   /** Where the open flyout goes: beside its button (fixed, so the rail's scrolling doesn't clip it). */
   const [at, setAt] = useState<{ left: number; top: number }>();
 
+  /** The rail's one Tab stop (a toolbar's roving tabindex): the item with the tool in use, else the first. */
+  const tabStop: string | undefined = (() => {
+    for (const i of items) {
+      if (i === "|") continue;
+      if (isGroup(i) ? i.tools.some((t) => t.id === active) : i.id === active) return isGroup(i) ? i.group : i.id;
+    }
+    const first = items.find((i): i is RailTool<T> | RailGroup<T> => i !== "|");
+    return first && (isGroup(first) ? first.group : first.id);
+  })();
+
   const choose = (t: T, group?: string) => {
     if (group) setLast((l) => ({ ...l, [group]: t }));
     setOpen(undefined);
@@ -86,8 +96,19 @@ export function ToolRail<T extends string>({
   // Opened, it goes beside its button, and the focus to its current tool.
   useLayoutEffect(() => {
     if (!open) return setAt(undefined);
-    const r = rail.current?.querySelector(`[data-group="${CSS.escape(open)}"] > .rail-tool`)?.getBoundingClientRect();
-    if (r) setAt({ left: Math.round(r.right + 8), top: Math.round(r.top - 4) });
+    const place = () => {
+      const r = rail.current?.querySelector(`[data-group="${CSS.escape(open)}"] > .rail-tool`)?.getBoundingClientRect();
+      if (r) setAt({ left: Math.round(r.right + 8), top: Math.round(r.top - 4) });
+    };
+    place();
+    // It follows its button when the window is resized or the rail scrolls.
+    const el = rail.current;
+    window.addEventListener("resize", place);
+    el?.addEventListener("scroll", place);
+    return () => {
+      window.removeEventListener("resize", place);
+      el?.removeEventListener("scroll", place);
+    };
   }, [open]);
   useEffect(() => {
     if (!open || !at) return;
@@ -102,7 +123,9 @@ export function ToolRail<T extends string>({
     const list = [...e.currentTarget.querySelectorAll<HTMLElement>(":scope > .rail-item > .rail-tool")];
     const i = list.indexOf(document.activeElement as HTMLElement);
     if (i < 0) return;
+    // Handled here: the editors' own arrow keys (nudging the selection) must not see it.
     e.preventDefault();
+    e.stopPropagation();
     list[(i + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
   };
   const onFlyKey = (e: ReactKeyboardEvent<HTMLDivElement>, group: string) => {
@@ -110,9 +133,12 @@ export function ToolRail<T extends string>({
     const i = list.indexOf(document.activeElement as HTMLElement);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       list[(i + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
-    } else if (e.key === "ArrowLeft") {
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "ArrowRight") return;
       setOpen(undefined);
       rail.current?.querySelector<HTMLElement>(`[data-group="${CSS.escape(group)}"] > .rail-tool`)?.focus();
     }
@@ -128,7 +154,14 @@ export function ToolRail<T extends string>({
       data-tool={t.id}
       onClick={() => choose(t.id, group)}
       onContextMenu={group ? (e) => (e.preventDefault(), setOpen(group)) : undefined}
-      onKeyDown={group ? (e) => e.key === "ArrowRight" && (e.preventDefault(), setOpen(group)) : undefined}
+      onKeyDown={(e) => {
+        // Left and right are the rail's too (into a flyout), not the editor's.
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (group && e.key === "ArrowRight") setOpen(group);
+      }}
+      tabIndex={tabStop === t.id || (group !== undefined && tabStop === group) ? 0 : -1}
       aria-haspopup={group ? "menu" : undefined}
       aria-expanded={group ? open === group : undefined}
     >
@@ -142,7 +175,7 @@ export function ToolRail<T extends string>({
     <div className={`tool-rail${editing ? "" : " viewing"}`} ref={rail} role="toolbar" aria-orientation="vertical" aria-label={label} onKeyDown={onRailKey}>
       {!editing && (
         <button type="button" className="rail-view-only" onClick={onEdit} title="View only: the design can't be changed. Click, or press E, to edit">
-          <Icon name="edit" size={14} />
+          <Icon name="eye" size={14} />
           <span>View only</span>
         </button>
       )}

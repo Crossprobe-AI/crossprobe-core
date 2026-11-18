@@ -81,7 +81,7 @@ const opened = await page.evaluate(() => {
 expect(opened, "menu: Create Array…");
 await page.waitForSelector(".create-array", { timeout: 3000 });
 // One floating panel at a time: Libraries closes the dialog, and the dialog closes Libraries.
-await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Libraries").click());
+await page.evaluate(() => document.querySelector('button[title^="Compare every footprint"]').click());
 await wait(300);
 expect(await page.evaluate(() => !!document.querySelector(".library-check") && !document.querySelector(".create-array")), "Libraries closes Create Array");
 await page.mouse.click(c.x, c.y, { button: "right" });
