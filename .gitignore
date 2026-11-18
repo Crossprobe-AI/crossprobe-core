@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 e2e-out/
+# Vitest browser mode: failure screenshots and attachments
+__screenshots__/
+.vitest-attachments/
