@@ -1,0 +1,5 @@
+{
+  // The app and its browser component tests (test/ui), for `npm run typecheck`.
+  "extends": "./tsconfig.json",
+  "include": ["src", "server", "test/ui"]
+}

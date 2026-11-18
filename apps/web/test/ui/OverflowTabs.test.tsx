@@ -93,6 +93,8 @@ describe("OverflowTabs", () => {
     await expect.element(screen.getByText("Showing review")).toBeVisible();
     expect(document.querySelector(".tabs-menu")).toBeNull();
     await vi.waitFor(() => expect(shownIds()).toContain("Review"));
+    // The keyboard carries on from the chosen tab, not from the page.
+    await vi.waitFor(() => expect((document.activeElement as HTMLElement | null)?.title).toBe("Review"));
     expectNoOverflow();
   });
 
