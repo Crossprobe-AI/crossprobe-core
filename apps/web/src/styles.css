@@ -180,11 +180,20 @@ button:disabled {
 :where(select) {
   padding-right: 4px;
 }
+/* One line of the app's 13px text and the padding: as tall as a button, whatever the
+   field's own text size and however the platform draws it (a select on Linux comes out
+   1px short without it). */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select) {
+  height: calc(13px * 1.4 + 14px);
+}
 /* Compact in the floating panels (Renumber, Find, Board setup, …): 26px controls, still
    one height for buttons and fields. */
 :where(.update-pcb) :where(button, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select) {
   padding-top: 3px;
   padding-bottom: 3px;
+}
+:where(.update-pcb) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select) {
+  height: calc(13px * 1.4 + 8px);
 }
 /* A value to copy (ui/CopyField.tsx): label, then the field and Copy on one centred row. */
 .copy-field {
@@ -202,8 +211,6 @@ button:disabled {
   min-width: 0;
   font-family: var(--mono);
   font-size: 12px;
-  /* As tall as the button beside it, whose text is 13px. */
-  line-height: calc(13px * 1.4);
 }
 .copy-row button {
   flex: none;
