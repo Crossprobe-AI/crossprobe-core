@@ -57,6 +57,10 @@ export interface DesignRules {
   minViaAnnular?: number;
   minHoleToHole?: number;
   minTrackWidth?: number;
+  /** Narrowest copper neck allowed (min_connection); 0 = not checked. */
+  minConnection?: number;
+  /** Largest arc approximation error (max_error), mm. */
+  maxError?: number;
   minViaDiameter?: number;
   minResolvedSpokes?: number;
   minTextHeight?: number;
@@ -104,6 +108,8 @@ export function projectDesignRules(proText?: string): DesignRules {
     rules.minViaAnnular = num(r?.min_via_annular_width, 0.1);
     rules.minHoleToHole = num(r?.min_hole_to_hole, 0.25);
     rules.minTrackWidth = num(r?.min_track_width, 0);
+    rules.minConnection = num(r?.min_connection, 0);
+    rules.maxError = num(r?.max_error, 0.005);
     rules.minViaDiameter = num(r?.min_via_diameter, 0.5);
     rules.minResolvedSpokes = num(r?.min_resolved_spokes, 2);
     rules.minTextHeight = num(r?.min_text_height, 0.8);

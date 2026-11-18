@@ -89,7 +89,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     }
   }
   // Custom constraints this DRC doesn't check yet (it applies clearance rules).
-  const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width", "track_width", "via_diameter", "length", "skew", "diff_pair_gap", "diff_pair_uncoupled"].includes(t)))];
+  const unsupportedRules = [...new Set((rules.custom ?? []).flatMap((r) => r.constraints.map((c) => c.type)).filter((t) => !["clearance", "hole_size", "annular_width", "track_width", "via_diameter", "length", "skew", "diff_pair_gap", "diff_pair_uncoupled", "connection_width"].includes(t)))];
   let rootSheet: string | undefined;
   // Design blocks saved in the project's own block libraries (<lib>.kicad_blocks/<name>.kicad_block/).
   const projectBlocks: ProjectView["projectBlocks"] = [];
