@@ -626,7 +626,8 @@ export function drawFrame(ctx: CanvasRenderingContext2D, prims: DrawingSheetPrim
         sheetImages.set(p.png, img);
       }
       if (img.complete && img.naturalWidth) ctx.drawImage(img, p.at.x, p.at.y, p.w, p.h);
-      else if (onImage) imageWaiters.get(img)?.add(onImage);
+      // Only while it loads: a picture that failed to decode is complete and never calls back.
+      else if (onImage && !img.complete) imageWaiters.get(img)?.add(onImage);
     } else if (p.kind !== "text") {
       continue;
     } else {

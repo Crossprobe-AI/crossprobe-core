@@ -39,18 +39,18 @@ export function resolveProjectPath(
     return { outside: raw };
   }
   // Relative: from the project folder, "." and ".." taken out.
-  const out: string[] = dir.split("/").filter(Boolean);
-  const base = out.length;
-  let above = false;
+  const project = dir.split("/").filter(Boolean);
+  const out = [...project];
   for (const seg of p.split("/")) {
     if (!seg || seg === ".") continue;
     if (seg === "..") {
-      if (out.length <= base) above = true;
-      if (out.length) out.pop();
-      else return { outside: raw };
+      if (!out.length) return { outside: raw };
+      out.pop();
     } else out.push(seg);
   }
   const file = out.join("/");
   if (files[file] !== undefined) return { file };
-  return above ? { outside: raw } : { missing: raw };
+  // Where it ends up decides: back inside the project folder (../<project>/x) is just missing.
+  const inside = out.length > project.length && project.every((seg, i) => out[i] === seg);
+  return inside ? { missing: raw } : { outside: raw };
 }
