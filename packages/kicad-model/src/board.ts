@@ -11,6 +11,7 @@ import { arcPoints } from "./drc.js";
 import { arg, atomText, findChild, findChildren, headOf, isAtom, isList, parse, type List } from "@crossprobe/kicad-sexpr";
 import type { Point } from "./geometry.js";
 import { pageSettings, type PageSettings } from "./page-settings.js";
+import { bitmapInfoBase64, bitmapSizeMm } from "./bitmap.js";
 
 export interface BoardLayer {
   id: number;
@@ -311,6 +312,8 @@ export interface Board {
   tuningPatternMembers?: string[];
   /** Every top-level item locked in the file (KiCad's L), by UUID: those not modelled here too (images, tables, targets…). */
   lockedItems?: string[];
+  /** Boxes of top-level items not modelled here, by UUID (targets, reference images, tables), as KiCad bounds them: for group boxes. */
+  otherBoxes?: Record<string, { x0: number; y0: number; x1: number; y1: number }>;
   /** Board text boxes (gr_text_box): text wrapped inside a box, with an optional border. */
   textBoxes: TextBox[];
   /** Board setup for fabrication outputs: mask and paste margins, via tenting. */
@@ -575,6 +578,41 @@ function graphicOf(node: List, kind: Graphic["kind"], transform: (p: Point) => P
 }
 
 /** KiCad's lock: (locked yes), or a bare `locked` token in older files. */
+/**
+ * The box KiCad gives an item this model doesn't hold: a target's square of its size around its
+ * position (PCB_TARGET), a reference image's picture size centred on it (REFERENCE_IMAGE), a
+ * table's first and last cells (PCB_TABLE).
+ */
+function otherBox(node: List): { x0: number; y0: number; x1: number; y1: number } | undefined {
+  const xy = (n: List | undefined): Point | undefined => (n ? { x: Number(arg(n, 0)), y: Number(arg(n, 1)) } : undefined);
+  const head = headOf(node);
+  if (head === "target") {
+    const at = xy(findChild(node, "at"));
+    const size = Number(arg(findChild(node, "size"), 0) ?? 0);
+    return at && { x0: at.x - size / 2, y0: at.y - size / 2, x1: at.x + size / 2, y1: at.y + size / 2 };
+  }
+  if (head === "image") {
+    const at = xy(findChild(node, "at"));
+    const data = (findChild(node, "data")?.children.slice(1) ?? []).filter(isAtom).map(atomText).join("");
+    const info = data ? bitmapInfoBase64(data) : undefined;
+    if (!at || !info) return at && { x0: at.x, y0: at.y, x1: at.x, y1: at.y };
+    const { w, h } = bitmapSizeMm(info, Number(arg(findChild(node, "scale"), 0) ?? 1));
+    return { x0: at.x - w / 2, y0: at.y - h / 2, x1: at.x + w / 2, y1: at.y + h / 2 };
+  }
+  const cells = findChildren(findChild(node, "cells") ?? node, "table_cell");
+  const pts: Point[] = [];
+  for (const c of [cells[0], cells.at(-1)]) {
+    if (!c) continue;
+    for (const k of ["start", "end"]) {
+      const p = xy(findChild(c, k));
+      if (p) pts.push(p);
+    }
+    for (const p of findChild(c, "pts")?.children ?? []) if (isList(p) && headOf(p) === "xy") pts.push(xy(p)!);
+  }
+  if (!pts.length) return undefined;
+  return { x0: Math.min(...pts.map((p) => p.x)), y0: Math.min(...pts.map((p) => p.y)), x1: Math.max(...pts.map((p) => p.x)), y1: Math.max(...pts.map((p) => p.y)) };
+}
+
 function isLocked(node: List): boolean {
   return node.children.some((c) => (isAtom(c) && c.raw === "locked") || (headOf(c) === "locked" && arg(c as List, 0) !== "no"));
 }
@@ -1007,6 +1045,14 @@ export function parseBoard(source: string): Board {
           borderWidth,
           knockout: arg(findChild(node, "knockout"), 0) === "yes" || undefined,
         });
+        break;
+      }
+      case "target":
+      case "image":
+      case "table": {
+        const u = itemUuid(node);
+        const b = u && otherBox(node);
+        if (u && b) (board.otherBoxes ??= {})[u] = b;
         break;
       }
       case "generated":
