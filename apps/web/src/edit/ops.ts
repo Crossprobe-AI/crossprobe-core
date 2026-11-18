@@ -401,12 +401,20 @@ export type EditOp =
 /**
  * Whether the zone fills are out of date after `ops`, given whether they were before.
  * A refill makes them current; any other edit to the board makes them stale, except
- * those that can't change copper (silkscreen text, dimensions, locking, fields).
+ * those that can't change copper (silkscreen text, dimensions, locking, fields, groups).
  */
 export function zonesStaleAfter(ops: EditOp[], stale: boolean): boolean {
   if (ops.some((o) => o.op === "refillZones")) return false;
   const copperNeutral = (o: EditOp) =>
-    (o.op === "addBoardText" && !o.text.layer.endsWith(".Cu")) || o.op === "moveFootprintText" || o.op === "addDimension" || o.op === "setLocked" || o.op === "setFootprintField";
+    (o.op === "addBoardText" && !o.text.layer.endsWith(".Cu")) ||
+    (o.op === "addTextBox" && !o.box.layer.endsWith(".Cu")) ||
+    o.op === "moveFootprintText" ||
+    o.op === "addDimension" ||
+    o.op === "setLocked" ||
+    o.op === "setFootprintField" ||
+    // Grouping changes no geometry.
+    o.op === "boardGroup" ||
+    o.op === "boardUngroup";
   return stale || ops.some((o) => o.file.endsWith(".kicad_pcb") && !copperNeutral(o));
 }
 

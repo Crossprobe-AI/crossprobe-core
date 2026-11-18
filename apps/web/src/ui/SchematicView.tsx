@@ -5,6 +5,7 @@ import { arcThrough, type LabelShape, bitmapInfo } from "@crossprobe/kicad-model
 import type { Selection } from "./selection";
 import { Icon } from "./icons";
 import { fromOverlay, useViewport } from "./viewport";
+import { isTyping } from "./keys";
 
 /** Render KiCad text markup: ~{overbar}, _{subscript}, ^{superscript}. */
 function markup(text: string): ReactNode {
@@ -426,7 +427,7 @@ export function SchematicView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isTyping(e.target)) return;
       // The symbol or footprint editor open over the sheet has its own keys.
       if (document.querySelector(".fp-editor")) return;
       const uuids = nodesOf([...picked]);
@@ -445,7 +446,11 @@ export function SchematicView({
         } else if (k === "d" && uuids.length) {
           paste(sheet.file, uuids, 5.08, 5.08);
         } else if (k === "a") {
-          setPicked(new Set(nodesOf([...byUuid.keys()])));
+          // Tables are taken whole, as box selection takes them: a cell moved, copied or rotated alone leaves the table's grid.
+          setPicked(new Set(nodesOf([...byUuid.keys()]).filter((u) => byUuid.get(u)?.every((i) => i.kind !== "cell"))));
+        } else if (k === "l") {
+          // KiCad's Ctrl+L (global label), where the browser hands it over.
+          onTool?.("glabel");
         } else return;
         e.preventDefault();
         return;
@@ -465,11 +470,7 @@ export function SchematicView({
       else if (k === "b" && !e.shiftKey) onTool?.("bus");
       else if (k === "z") onTool?.("busentry");
       else if (k === "r" && tool === "busentry") setEntry((n) => (n + 1) % 4);
-      else if (k === "l" && (e.ctrlKey || e.metaKey)) {
-        // KiCad's Ctrl+L, where the browser hands it over.
-        e.preventDefault();
-        onTool?.("glabel");
-      } else if (k === "l") onTool?.("label");
+      else if (k === "l") onTool?.("label");
       else if (k === "h") onTool?.("hlabel");
       else if (k === "s" && e.shiftKey) onTool?.("sheet");
       else if (k === "j") onTool?.("junction");
@@ -697,8 +698,9 @@ export function SchematicView({
         return new Set([id]);
       });
     }
-    // Not editing: a linked text opens its link (a web address, or "#<page>" for that page).
-    if (!editing) {
+    // Not editing: a linked text opens its link (a web address, or "#<page>" for that page), once:
+    // this handler also gets the double-click's second click and the dblclick itself.
+    if (!editing && e.type === "click" && e.detail <= 1) {
       const linked = itemAt(under);
       const href = linked && sheet.items.find((i) => i.uuid === linked.dataset.uuid && i.href)?.href;
       if (href) {
@@ -1017,7 +1019,7 @@ export function SchematicView({
           {tool === "select" && pickedImage && (
             <label className="hint-option">
               {" · size "}
-              <select defaultValue="" onChange={(e) => e.target.value && onEdit?.([{ op: "setImageScale", file: sheet.file, uuid: pickedImage.uuid!, scale: Number(e.target.value) }])}>
+              <select value="" onChange={(e) => e.target.value && onEdit?.([{ op: "setImageScale", file: sheet.file, uuid: pickedImage.uuid!, scale: Number(e.target.value) }])}>
                 <option value="">…</option>
                 {[0.25, 0.5, 1, 2, 4].map((s) => (
                   <option key={s} value={s}>{s * 100}%</option>

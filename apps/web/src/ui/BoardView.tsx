@@ -12,6 +12,7 @@ import { PositionRelative, type RelativeReference } from "./PositionRelative";
 import { addCorner, dragHandle, editShape, handleAt, handles, removeCorner, type Handle } from "../render/point-edit";
 import type { PlacingFootprint } from "./FootprintPicker";
 import { fromOverlay, useViewport } from "./viewport";
+import { isTyping } from "./keys";
 
 const BG = "#0b1220";
 const SEL = "#ffd166";
@@ -582,9 +583,20 @@ export function BoardView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (isTyping(e.target)) return;
       // The symbol or footprint editor open over the board has its own keys.
       if (document.querySelector(".fp-editor")) return;
+      if (editing && (posRel || arrayFor)) {
+        // Escape cancels Position Relative's pick, else closes the open dialog. Delete would take away
+        // the items the dialog is about to move or copy, so it waits until the dialog is closed.
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (posRel?.picking) setPosRel({ ...posRel, picking: undefined });
+          else (setPosRel(null), setArrayFor(null));
+          return;
+        }
+        if (e.key === "Delete" || e.key === "Backspace") return;
+      }
       if (editing && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "m") {
         // KiCad's measure tool.
         e.preventDefault();
@@ -1177,7 +1189,7 @@ export function BoardView({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (fromOverlay(e)) return;
-    if (posRel?.picking && e.button === 0) {
+    if (editing && posRel?.picking && e.button === 0) {
       // Position Relative's "Select item…" / "Select point…": this click picks its reference, nothing else.
       e.preventDefault();
       const p = toBoard(e);
@@ -1550,6 +1562,13 @@ export function BoardView({
     const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
     if (uuids.length) setArrayFor({ uuids, origin: selectionCenter() });
   };
+  // Arranging moves the items themselves, one per cell: locked items stay put, as for any move, and so do
+  // grouped ones (each member in a cell of its own would pull the group apart).
+  const arrangeable = arrayFor?.uuids.filter((u) => !lockedIds.has(u) && !topGroup(board, u)) ?? [];
+  // A dialog left open when editing stops (or a pick in progress) would otherwise come back stale.
+  useEffect(() => {
+    if (!editing) (setPosRel(null), setArrayFor(null));
+  }, [editing]);
   /** Position Relative To: the items it moves, its reference, and what a click on the board picks for it. */
   const [posRel, setPosRel] = useState<{ items: Array<{ uuid: string; locked?: boolean }>; extras?: string[]; reference?: RelativeReference; picking?: "item" | "point" } | null>(null);
   const openPosRel = () => {
@@ -1861,7 +1880,7 @@ export function BoardView({
         />
       )}
       {editing && arrayFor && (
-        <CreateArray file={edit!.file} uuids={arrayFor.uuids} origin={arrayFor.origin} onEdit={(ops) => edit!.onEdit(ops)} onClose={() => setArrayFor(null)} />
+        <CreateArray file={edit!.file} uuids={arrayFor.uuids} arrangeable={arrangeable} origin={arrayFor.origin} onEdit={(ops) => edit!.onEdit(ops)} onClose={() => setArrayFor(null)} />
       )}
       <div className="view-tools">
         <button onClick={() => vp.fit(mirror(scene.bbox))} title="Fit board (F, or Home while editing)"><Icon name="fit" /> Fit</button>

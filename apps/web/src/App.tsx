@@ -61,6 +61,7 @@ import { PartPicker } from "./ui/PartPicker";
 import { nextReferences, SchematicView } from "./ui/SchematicView";
 import type { Selection } from "./ui/selection";
 import { DEFAULT_LAYERS, LayerList, SELECTABLE, SheetTree } from "./ui/Sidebars";
+import { isTyping } from "./ui/keys";
 
 type Mode = "schematic" | "board" | "3d";
 
@@ -697,7 +698,8 @@ export function App() {
         setShowFind(true);
         return;
       }
-      if ((e.key === "/" || (e.key === "f" && (e.metaKey || e.ctrlKey))) && project) {
+      // "/" jumps to the search, except while typing (a "/" in a name or a path is just a character).
+      if (((e.key === "/" && !isTyping(e.target)) || (e.key === "f" && (e.metaKey || e.ctrlKey))) && project) {
         e.preventDefault();
         document.getElementById("inspector-search")?.focus();
         return;
@@ -708,7 +710,7 @@ export function App() {
         save();
         return;
       }
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isTyping(e.target)) return;
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
