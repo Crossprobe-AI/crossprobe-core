@@ -16,7 +16,7 @@ const W = 1280;
 function Workspace({ wide = false }: { wide?: boolean }) {
   const panels = usePanelLayout(wide ? 600 : 0);
   const panel = (side: Side, label: string, body: React.ReactNode) => (
-    <SidePanel side={side} label={label} state={panels.layout[side]} onChange={(p) => panels.set(side, p)} onToggle={() => panels.toggle(side)} otherWidth={panels.widths[side === "left" ? "right" : "left"]}>
+    <SidePanel side={side} label={label} state={panels.layout[side]} onChange={(p) => panels.set(side, p)} onToggle={() => panels.toggle(side)} width={panels.widths[side]} otherWidth={panels.widths[side === "left" ? "right" : "left"]}>
       {body}
     </SidePanel>
   );
@@ -320,12 +320,60 @@ describe("room", () => {
   });
 });
 
+describe("resizing a widened inspector (the datasheet tab)", () => {
+  it("drags from the width shown: narrower and wider straight away", async () => {
+    await render(<Workspace wide />);
+    await frames();
+    expect(width(cell("right"))).toBe(600);
+    await drag("right", 100);
+    expect(width(cell("right"))).toBe(500);
+    await drag("right", -150);
+    expect(width(cell("right"))).toBe(650);
+  });
+
+  it("steps from the width shown with the keyboard, and reports it", async () => {
+    const screen = await render(<Workspace wide />);
+    await frames();
+    const sep = screen.getByRole("separator", { name: "Resize inspector" });
+    await expect.element(sep).toHaveAttribute("aria-valuenow", "600");
+    edge("right").focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect.element(sep).toHaveAttribute("aria-valuenow", "590");
+    expect(width(cell("right"))).toBe(590);
+  });
+
+  it("drags from the width shown when a narrow window has made the panel give way", async () => {
+    // 860 wide: 230 + 340 + 320 is 30 too many, so the inspector shows 310 of its 340.
+    await page.viewport(860, 800);
+    await render(<Workspace />);
+    await frames();
+    expect(width(cell("right"))).toBe(310);
+    // Narrowing by 20 shows straight away (from 310, not from the 340 kept).
+    await drag("right", 20);
+    expect(width(cell("right"))).toBe(290);
+    expect(width(canvas())).toBeGreaterThanOrEqual(CANVAS_MIN);
+  });
+});
+
+describe("accessibility of a shut panel's edge", () => {
+  it("says it is collapsed, with a value inside its range", async () => {
+    const screen = await render(<Workspace />);
+    toggle("left").click();
+    await settled();
+    const sep = screen.getByRole("separator", { name: "Resize sheets" });
+    await expect.element(sep).toHaveAttribute("aria-valuetext", "collapsed");
+    const now = Number(sep.element().getAttribute("aria-valuenow"));
+    expect(now).toBeGreaterThanOrEqual(PANEL_LIMITS.left.min);
+    expect(now).toBeLessThanOrEqual(PANEL_LIMITS.left.max);
+  });
+});
+
 describe("what is kept", () => {
   it("keeps the widths and which panels are shut between visits", async () => {
     const first = await render(<Workspace />);
     await drag("right", -80);
     toggle("left").click();
-    await frames();
+    await new Promise((r) => setTimeout(r, 400));
     expect(stored()).toEqual({ left: { width: PANEL_LIMITS.left.default, collapsed: true }, right: { width: PANEL_LIMITS.right.default + 80, collapsed: false } });
     await first.unmount();
     await render(<Workspace />);
@@ -341,6 +389,25 @@ describe("what is kept", () => {
     expect(readLayout()).toEqual({ left: { width: PANEL_LIMITS.left.min, collapsed: false }, right: { width: PANEL_LIMITS.right.max, collapsed: false } });
     localStorage.setItem(KEY, JSON.stringify({ left: { width: "wide" }, right: null }));
     expect(readLayout()).toEqual({ left: { width: 230, collapsed: false }, right: { width: 340, collapsed: false } });
+  });
+
+  it("writes the layout once a drag settles, not on every move", async () => {
+    const write = vi.spyOn(Storage.prototype, "setItem");
+    await render(<Workspace />);
+    await new Promise((r) => setTimeout(r, 400));
+    write.mockClear();
+    // A real drag: a move each frame.
+    const el = edge("left");
+    const r = el.getBoundingClientRect();
+    const at = (x: number) => ({ bubbles: true, pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, clientX: x, clientY: r.top + 40 });
+    el.dispatchEvent(new PointerEvent("pointerdown", at(r.left + 4)));
+    for (let i = 1; i <= 10; i++) {
+      el.dispatchEvent(new PointerEvent("pointermove", at(r.left + 4 + i * 12)));
+      await frames(1);
+    }
+    el.dispatchEvent(new PointerEvent("pointerup", at(r.left + 124)));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(write.mock.calls.filter(([k]) => k === KEY).length).toBe(1);
   });
 
   it("still works when the browser keeps nothing (storage off)", async () => {

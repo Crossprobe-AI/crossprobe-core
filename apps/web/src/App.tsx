@@ -1134,6 +1134,7 @@ export function App() {
             state={panels.layout.left}
             onChange={(p) => panels.set("left", p)}
             onToggle={() => panels.toggle("left")}
+            width={panels.widths.left}
             otherWidth={panels.widths.right}
           >
           <aside className="sidebar">
@@ -1552,6 +1553,7 @@ export function App() {
             state={panels.layout.right}
             onChange={(p) => panels.set("right", p)}
             onToggle={() => panels.toggle("right")}
+            width={panels.widths.right}
             otherWidth={panels.widths.left}
           >
           <Inspector
