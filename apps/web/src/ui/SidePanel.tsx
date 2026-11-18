@@ -96,7 +96,14 @@ export const layoutColumns = (w: Record<Side, number>) => `${w.left}px minmax(0,
  */
 export function usePanelLayout(minRight = 0) {
   const [layout, setLayout] = useState<PanelLayout>(readLayout);
-  useEffect(() => writeLayout(layout), [layout]);
+  // Kept once it settles, not on every move of a drag.
+  useEffect(() => {
+    const t = setTimeout(() => writeLayout(layout), 250);
+    return () => clearTimeout(t);
+  }, [layout]);
+  /** A tab's widening (minRight) holds until the inspector is resized; the next tab that asks widens it again. */
+  const [widen, setWiden] = useState(true);
+  useEffect(() => setWiden(true), [minRight]);
   /**
    * The columns animate while a panel opens or shuts. The class goes on in the same update
    * as the new widths, so the browser never lays out the new widths without the transition.
@@ -106,6 +113,7 @@ export function usePanelLayout(minRight = 0) {
   current.current = layout;
   const set = useCallback((side: Side, patch: Partial<PanelState>) => {
     if (patch.collapsed !== undefined && patch.collapsed !== current.current[side].collapsed) setMoving((n) => n + 1);
+    if (side === "right" && patch.width !== undefined) setWiden(false);
     setLayout((l) => ({ ...l, [side]: { ...l[side], ...patch } }));
   }, []);
   const toggle = useCallback((side: Side) => {
@@ -128,7 +136,7 @@ export function usePanelLayout(minRight = 0) {
     observer.current.observe(el);
   }, []);
 
-  const widths = panelWidths(layout, total, minRight);
+  const widths = panelWidths(layout, total, widen ? minRight : 0);
   return { layout, set, toggle, widths, ref, className: moving ? "panels-moving" : "", style: { gridTemplateColumns: layoutColumns(widths) } };
 }
 
@@ -138,6 +146,7 @@ export function SidePanel({
   state,
   onChange,
   onToggle,
+  width,
   otherWidth,
   children,
 }: {
@@ -147,6 +156,8 @@ export function SidePanel({
   state: PanelState;
   onChange: (patch: Partial<PanelState>) => void;
   onToggle: () => void;
+  /** The width it is shown at now (panelWidths: widened for a tab, or given way in a narrow window). */
+  width: number;
   /** The other panel's width now (0 when shut), to keep the canvas CANVAS_MIN wide. */
   otherWidth: number;
   children: ReactNode;
@@ -159,7 +170,8 @@ export function SidePanel({
     const ws = cell.current?.parentElement?.getBoundingClientRect().width;
     return ws ? Math.max(min, ws - otherWidth - CANVAS_MIN) : max;
   };
-  const shown = state.collapsed ? 0 : state.width;
+  /** Drags and keys start from the width as shown, not the stored one (they differ while a tab widens it). */
+  const shown = state.collapsed ? 0 : width || state.width;
   /**
    * While the column opens or shuts (and while shut), the content keeps the width it has
    * open, so it slides behind the edge instead of being squeezed; otherwise it fills the
@@ -214,8 +226,8 @@ export function SidePanel({
     const shrink = side === "left" ? "ArrowLeft" : "ArrowRight";
     const step = e.shiftKey ? BIG_STEP : STEP;
     let w: number | undefined;
-    if (e.key === grow) w = (state.collapsed ? min : state.width + step);
-    else if (e.key === shrink) w = state.width - step;
+    if (e.key === grow) w = state.collapsed ? min : shown + step;
+    else if (e.key === shrink) w = shown - step;
     else if (e.key === "Home") w = min;
     else if (e.key === "End") w = max;
     else if (e.key === "Enter") {
@@ -244,7 +256,8 @@ export function SidePanel({
         aria-controls={`side-panel-${side}`}
         aria-valuemin={min}
         aria-valuemax={max}
-        aria-valuenow={shown}
+        aria-valuenow={state.collapsed ? min : shown}
+        aria-valuetext={state.collapsed ? "collapsed" : `${shown} pixels`}
         tabIndex={0}
         title="Drag to resize; double-click for the default width"
         onPointerDown={onPointerDown}
