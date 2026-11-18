@@ -96,7 +96,14 @@ expect(after.every((x, i) => Math.abs(x - (2 * mid - xsBefore[i])) < 0.001), `mi
 await page.keyboard.press("Escape");
 await tool("Renumber");
 await sideField("Prefix", "P");
-for (const p of [...padsAt].reverse()) await clickAt(await fpView({ x: 2 * mid - p.x, y: p.y }));
+// Each click waits for its renumbering, and comes after the double-click time: pads a few pixels apart,
+// clicked quickly, may count as one double click (the distance allowed differs by platform).
+for (const p of [...padsAt].reverse()) {
+  const was = (await pads()).join();
+  await clickAt(await fpView({ x: 2 * mid - p.x, y: p.y }));
+  for (let t = 0; t < 40 && (await pads()).join() === was; t++) await wait(100);
+  await wait(600);
+}
 const nums = (await pads()).map((p) => /"([^"]*)"/.exec(p)[1]);
 expect(nums.join() === ["P3", "P2", "P1"].slice(3 - nums.length).join(), `numbers: ${nums.join(" ")}`);
 await page.keyboard.press("Escape");
