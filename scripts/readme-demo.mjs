@@ -228,12 +228,23 @@ await press(".view-tools button", "Fit");
 await wait(400);
 await caption("5 · Route all does the rest");
 await hold(900);
+// Route all is in the toolbar's Tools menu: open it, then choose it, as a user does.
+const at = (selector) =>
+  page.evaluate((selector) => {
+    const r = document.querySelector(selector)?.getBoundingClientRect();
+    return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined;
+  }, selector);
+const tools = await at(".edit-toolbar .tools-menu > summary");
+if (!tools) await fail("no Tools menu");
+await glide(tools);
+await click();
+await frame(300);
 const routeAll = await page.evaluate(() => {
-  const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes("Route all") || x.title?.startsWith("Route all"));
+  const b = [...document.querySelectorAll(".tools-menu .menu-items button")].find((x) => x.title?.startsWith("Route every unrouted"));
   const r = b?.getBoundingClientRect();
-  return r && { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : undefined;
 });
-if (!routeAll) await fail("no Route all button");
+if (!routeAll) await fail("no Route all in the Tools menu");
 await glide(routeAll);
 await click();
 await frame(400);
