@@ -17,10 +17,13 @@ export function boardRoot(doc: Document): List {
   return root;
 }
 
-const uuidOf = (n: List) => String(arg(findChild(n, "uuid") ?? findChild(n, "tstamp"), 0) ?? "");
+// KiCad 6 and 7 name a group by `(id …)`, other items by `(tstamp …)`.
+const uuidOf = (n: List) => String(arg(findChild(n, "uuid") ?? findChild(n, "tstamp") ?? (headOf(n) === "group" ? findChild(n, "id") : undefined), 0) ?? "");
 
 /** A top-level board item (footprint, track, via, zone, drawing, text) by UUID. */
 export function findBoardItem(root: List, uuid: string): List | undefined {
+  // Nothing has the empty UUID: without this, it would match the first list without one, e.g. (version …).
+  if (!uuid) return undefined;
   return root.children.find((c): c is List => isList(c) && uuidOf(c) === uuid);
 }
 

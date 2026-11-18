@@ -115,7 +115,8 @@ export function FindReplace({
             value={find}
             onChange={(e) => setFind(e.target.value)}
             onKeyDown={(e) => {
-              e.stopPropagation();
+              // The app's own Ctrl/Cmd keys (Save, Find) still work from here; plain keys stay in the box.
+              if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
               if (e.key === "Enter") next(e.shiftKey ? -1 : 1);
               if (e.key === "Escape") onClose();
             }}
@@ -124,7 +125,7 @@ export function FindReplace({
         {editing && (
           <label className="prop">
             <span>Replace with</span>
-            <input value={replace} onChange={(e) => setReplace(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+            <input value={replace} onChange={(e) => setReplace(e.target.value)} onKeyDown={(e) => !e.ctrlKey && !e.metaKey && e.stopPropagation()} />
           </label>
         )}
         <div className="find-options">

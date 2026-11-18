@@ -8,7 +8,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 // Built package (npm run build): used by the dev server to index KiCad's symbol libraries.
 import { creditedIndex, indexLibrary, resolveLibrarySymbol, type LibrarySymbolEntry } from "@crossprobe/kicad-model";
 import { serialize } from "@crossprobe/kicad-sexpr";
@@ -337,6 +337,10 @@ export default defineConfig(({ command }) => ({
   // The app's own endpoints first; backend() takes what they leave.
   plugins: [react(), demos(), blocks(), occt(), backend(), versionedFavicon()],
   resolve: { alias: { "@crossprobe/kicad-sexpr": pkg("kicad-sexpr"), "@crossprobe/kicad-model": pkg("kicad-model"), "@crossprobe/extensions": SETUP.extensions } },
+  // The dev server serves files from this checkout's workspace and, when a build adds extensions from a
+  // folder outside it, from that folder's workspace too (its packages, e.g. the fonts the stylesheet loads,
+  // are installed there).
+  server: { fs: { allow: [...new Set([searchForWorkspaceRoot(process.cwd()), searchForWorkspaceRoot(dirname(SETUP.extensions))])] } },
   worker: { format: "es" },
   // The lazily loaded 3D view (three.js) is one large chunk by design.
   build: { chunkSizeWarningLimit: 800 },
