@@ -814,7 +814,7 @@ export function renderSheet(
         const uuid = str(findChild(node, "uuid"));
         const name = findChildren(node, "property").find((p) => /^Sheet ?name$/.test(str(p, 0)));
         const page = findChildren(findChild(node, "instances") ?? node, "project").flatMap((p) => findChildren(p, "path")).find((p) => str(p, 0) === sheet.path);
-        items.push({ kind: "sheet", sheetPath: `${sheet.path}/${uuid}`, prims: sheetPrims(node), text: str(name, 1), pinNames: findChildren(node, "pin").map((p) => str(p, 0)), page: page ? str(findChild(page, "page")) : undefined });
+        items.push({ kind: "sheet", sheetPath: `${sheet.path}/${uuid}`, prims: sheetPrims(node), text: str(name, 1), pinNames: findChildren(node, "pin").map((p) => str(p, 0)), page: page ? str(findChild(page, "page")) : schematic.sheets.find((s) => s.path === `${sheet.path}/${uuid}`)?.pageNumber });
         break;
       }
       case "symbol": {

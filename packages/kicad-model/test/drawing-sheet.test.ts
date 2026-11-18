@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { arg, findChild, isList, parse } from "@crossprobe/kicad-sexpr";
-import { drawingSheetPrims, loadSchematic, parseDrawingSheet, sheetsByPage } from "../src/index.js";
+import { drawingSheetPrims, loadSchematic, parseDrawingSheet, sheetsByPage, stepLabel } from "../src/index.js";
 
 const KICAD_CLI = process.env.KICAD_CLI!;
 const DEMOS = process.env.KICAD_DEMOS!;
@@ -72,5 +72,17 @@ describe.skipIf(!cli)("drawing sheets", () => {
     }
     expect(missing).toEqual([]);
     expect(placed).toBeGreaterThan(20);
+  });
+});
+
+// KiCad 10's STRING_INCREMENTER as DS_DATA_ITEM_TEXT::IncrementLabel sets it up (every letter, no length limit).
+describe("drawing-sheet label stepping", () => {
+  it("steps the last number or same-case letters as KiCad does", () => {
+    const cases: Array<[string, number, string]> = [
+      ["1", 1, "2"], ["9", 1, "10"], ["01", 1, "02"], ["09", 1, "10"], ["099", 1, "100"],
+      ["A", 1, "B"], ["Z", 1, "AA"], ["AZ", 1, "BA"], ["z", 2, "ab"], ["Ab", 1, "Ac"], ["aB", 1, "aC"],
+      ["R1-", 1, "R2-"], ["X 3)", 2, "X 5)"], ["B", -1, "A"], ["A", -1, "A"], ["0", -1, "0"], ["--", 1, "--"],
+    ];
+    expect(cases.map(([t, by]) => stepLabel(t, by))).toEqual(cases.map(([, , want]) => want));
   });
 });
