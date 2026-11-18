@@ -7,6 +7,7 @@ import puppeteer from "puppeteer-core";
 const URL = process.env.APP_URL ?? "http://localhost:5173/";
 const browser = await puppeteer.launch({ executablePath: process.env.BROWSER ?? "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
+await page.setViewport({ width: 1600, height: 1000 });
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 page.on("console", (m) => m.type() === "error" && console.log("console:", m.text()));
 page.on("dialog", (d) => d.accept()); // the "leave site?" prompt for unsaved changes
