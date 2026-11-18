@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import "../../src/styles.css";
 import { Menu } from "../../src/ui/Menu";
 import { OverflowTabs } from "../../src/ui/OverflowTabs";
@@ -109,6 +109,30 @@ describe("floating surfaces", () => {
       const f = frame(document.querySelector(s)!);
       expect([f.radius, f.border], s).toEqual([menu.radius, menu.border]);
     }
+  });
+});
+
+describe("a toolbar menu's items", () => {
+  it("keep their words on a narrow screen, where the toolbar's own buttons show only icons", async () => {
+    await page.viewport(1200, 800);
+    const screen = await render(
+      <main className="canvas" style={{ position: "relative", width: 800, height: 500 }}>
+        <div className="edit-toolbar">
+          <button>
+            <span className="tl">Find</span>
+          </button>
+          <Menu className="tools-menu" label="Tools" summary="Tools">
+            <button>
+              <span className="tl">Update PCB</span>
+            </button>
+          </Menu>
+        </div>
+      </main>,
+    );
+    expect(getComputedStyle(document.querySelector(".edit-toolbar > button .tl")!).display).toBe("none");
+    await screen.getByLabelText("Tools").click();
+    expect(box(document.querySelector(".menu-items .tl")!).width).toBeGreaterThan(0);
+    await page.viewport(1280, 800);
   });
 });
 
