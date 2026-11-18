@@ -285,7 +285,8 @@ button.primary.big {
   border-radius: 4px;
 }
 @media (max-width: 760px) {
-  .welcome-grid { grid-template-columns: 1fr; }
+  /* minmax(0, …): the column stays as wide as the card, not as wide as its widest row. */
+  .welcome-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .pane {
   padding: 24px;
