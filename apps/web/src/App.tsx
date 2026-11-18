@@ -62,6 +62,7 @@ import { nextReferences, SchematicView } from "./ui/SchematicView";
 import type { Selection } from "./ui/selection";
 import { DEFAULT_LAYERS, LayerList, SELECTABLE, SheetTree } from "./ui/Sidebars";
 import { isTyping } from "./ui/keys";
+import { SidePanel, usePanelLayout } from "./ui/SidePanel";
 
 type Mode = "schematic" | "board" | "3d";
 
@@ -175,6 +176,8 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<EditContext["placing"]>();
   const [wideInspector, setWideInspector] = useState(false);
+  /** The side panels' widths and whether they are shut (ui/SidePanel.tsx). */
+  const panels = usePanelLayout(wideInspector ? 600 : 0);
   const [placingBlock, setPlacingBlock] = useState<EditContext["placingBlock"]>();
   const [boardTool, setBoardTool] = useState<BoardTool>("select");
   const [boardLayer, setBoardLayer] = useState("F.Cu");
@@ -1070,7 +1073,15 @@ export function App() {
           </div>
         </main>
       ) : (
-        <div className={`workspace${wideInspector ? " inspector-wide" : ""}`}>
+        <div className={`workspace ${panels.className}${wideInspector ? " inspector-wide" : ""}`} ref={panels.ref} style={panels.style}>
+          <SidePanel
+            side="left"
+            label={mode === "schematic" ? "Sheets" : mode === "board" ? "Layers" : "Side panel"}
+            state={panels.layout.left}
+            onChange={(p) => panels.set("left", p)}
+            onToggle={() => panels.toggle("left")}
+            otherWidth={panels.widths.right}
+          >
           <aside className="sidebar">
             {mode === "schematic" && sheet && <SheetTree sheets={project.sheets} current={sheet.path} onOpen={setSheetPath} />}
             {mode === "board" && project.board && (
@@ -1124,6 +1135,7 @@ export function App() {
               </details>
             )}
           </aside>
+          </SidePanel>
           <main className="canvas">
             {mode === "schematic" && sheet && (
               <>
@@ -1513,6 +1525,14 @@ export function App() {
               </Suspense>
             )}
           </main>
+          <SidePanel
+            side="right"
+            label="Inspector"
+            state={panels.layout.right}
+            onChange={(p) => panels.set("right", p)}
+            onToggle={() => panels.toggle("right")}
+            otherWidth={panels.widths.left}
+          >
           <Inspector
             project={project}
             editing={editing && mode === "schematic"}
@@ -1536,6 +1556,7 @@ export function App() {
               setMode("schematic");
             }}
           />
+          </SidePanel>
         </div>
       )}
       {project && (
