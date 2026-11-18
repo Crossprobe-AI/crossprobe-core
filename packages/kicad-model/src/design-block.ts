@@ -558,11 +558,16 @@ function itemId(item: List): string | undefined {
   return u ? `${TABLE_BY_CELL}${String(arg(u, 0))}` : undefined;
 }
 
-/** The points that place an item: a wire's ends, a table's cell corners, else its anchor. */
+/** The points that place an item: a wire's ends, a table's cells (both corners, so it is clear of what's below), else its anchor. */
 function itemPoints(item: List): Point[] {
   const xy = (n: List | undefined) => (n ? [{ x: Number(arg(n, 0)), y: Number(arg(n, 1)) }] : []);
   if (headOf(item) === "wire" || headOf(item) === "bus") return findChildren(findChild(item, "pts")!, "xy").flatMap(xy);
-  if (headOf(item) === "table") return findChildren(findChild(item, "cells") ?? item, "table_cell").flatMap((c) => xy(findChild(c, "at")));
+  if (headOf(item) === "table")
+    return findChildren(findChild(item, "cells") ?? item, "table_cell").flatMap((c) => {
+      const [at] = xy(findChild(c, "at"));
+      const size = findChild(c, "size");
+      return at ? [at, { x: at.x + Number(arg(size, 0) ?? 0), y: at.y + Number(arg(size, 1) ?? 0) }] : [];
+    });
   return xy(findChild(item, "at"));
 }
 

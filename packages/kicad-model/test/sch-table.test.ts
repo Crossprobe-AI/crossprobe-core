@@ -72,6 +72,8 @@ describe.skipIf(!cli)("schematic tables", () => {
     const tdoc = parse(target.files[tname]!);
     const placed = insertBlock(sheetRoot(tdoc), block, { x: 101.6, y: 76.2 }, ["/x"], "other");
     expect(placed.uuids).toHaveLength(1);
+    // The area it takes is the whole table, not only its cells' corners.
+    expect(placed.bounds).toEqual({ x: 101.6, y: 76.2, width: 45.72, height: 10.16 });
     expect(cells(sheetRoot(tdoc))[0]).toBe("Rail @101.6,76.2 22.86x5.08");
     for (const [k, v] of Object.entries(target.files)) writeFileSync(join(dir, k), k === tname ? serialize(tdoc) : v);
     execFileSync(KICAD_CLI, ["sch", "upgrade", "--force", join(dir, tname)], { stdio: "ignore" });

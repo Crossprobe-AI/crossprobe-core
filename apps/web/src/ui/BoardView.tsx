@@ -216,6 +216,7 @@ export function BoardView({
   edit,
   dirty = false,
   frame: pageFrame,
+  panels,
 }: {
   board: Board;
   visible: Set<string>;
@@ -236,6 +237,11 @@ export function BoardView({
   dirty?: boolean;
   /** The page frame (drawing sheet), drawn behind the board. */
   frame?: DrawingSheetPrim[];
+  /**
+   * One floating panel at a time: this view's dialogs (Create Array, Position Relative) say when they
+   * open, and close when `epoch` changes (another panel opened).
+   */
+  panels?: { epoch: number; onOpen: () => void };
 }) {
   const scene = useMemo(() => buildScene(board), [board]);
   const overlay = useMemo(() => {
@@ -1572,7 +1578,10 @@ export function BoardView({
   const openArray = () => {
     // Footprint texts and pads stand for their footprint, once.
     const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
-    if (uuids.length) setArrayFor({ uuids, origin: selectionCenter() });
+    if (!uuids.length) return;
+    setPosRel(null);
+    setArrayFor({ uuids, origin: selectionCenter() });
+    panels?.onOpen();
   };
   // Arranging moves the items themselves, one per cell: locked items stay put, as for any move, and so do
   // grouped ones (each member in a cell of its own would pull the group apart).
@@ -1585,8 +1594,20 @@ export function BoardView({
   const [posRel, setPosRel] = useState<{ items: Array<{ uuid: string; locked?: boolean }>; extras?: string[]; reference?: RelativeReference; picking?: "item" | "point" } | null>(null);
   const openPosRel = () => {
     const uuids = [...new Set(picked.map((p) => (p.kind === "fptext" ? p.footprint : p.uuid)))];
-    if (uuids.length) setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })), extras: withGroupExtras(uuids).filter((u) => !uuids.includes(u)) });
+    if (!uuids.length) return;
+    setArrayFor(null);
+    setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })), extras: withGroupExtras(uuids).filter((u) => !uuids.includes(u)) });
+    panels?.onOpen();
   };
+  // Another panel opened: these close.
+  const panelEpoch = panels?.epoch;
+  const seenEpoch = useRef(panelEpoch);
+  useEffect(() => {
+    if (seenEpoch.current === panelEpoch) return;
+    seenEpoch.current = panelEpoch;
+    setPosRel(null);
+    setArrayFor(null);
+  }, [panelEpoch]);
   const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
   /** The menu, kept inside the view: moved left or up when it would run past the edge. */
   const menuRef = useRef<HTMLDivElement>(null);

@@ -328,7 +328,9 @@ boards and covers the target choice (locked item, item under the cursor, extreme
 `scripts/e2e-array.mjs` box-selects 33 items on pic_programmer's board (six footprints, their
 tracks and texts) and makes a 3 × 1 grid 30 mm apart from the right-click menu's
 "Create Array…". kicad-cli's position file of the saved board has all 12 copies 30 and 60 mm
-right of a part like them, under unique references. Undo removes them. `test/board-array.test.ts`
+right of a part like them, under unique references. Undo removes them. With the dialog open,
+Libraries closes it, and opening it again closes Libraries: one floating panel at a time.
+`test/board-array.test.ts`
 checks the cell offsets (grid, stagger, snake, circle) and has KiCad's pcbnew make the same copies:
 every copied footprint matches.
 
@@ -532,6 +534,8 @@ the "zones are out of date" notice follows undo and redo.
   the next, opening the sheet each is on;
 - while editing, Replace all makes them "SDATA" in one step: undo brings them all back, redo
   renames them again.
+- one floating panel shows at a time: Ctrl+F with Find open puts the cursor back in its field,
+  Annotate's "More options…" closes Find, and Ctrl+F closes Annotate.
 
 KiCad's netlist of the saved project has the same connections, with the net named SDATA.
 `test/find-replace.test.ts` checks the matching rules and Replace all the same way.

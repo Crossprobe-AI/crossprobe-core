@@ -78,6 +78,7 @@ import {
   type FindOptions,
   type FindTarget,
   setSheetPage,
+  setLegacySheetPage,
   syncSheetPins,
   type LabelShape,
   resolveLibrarySymbol,
@@ -418,6 +419,12 @@ export function zonesStaleAfter(ops: EditOp[], stale: boolean): boolean {
   return stale || ops.some((o) => o.file.endsWith(".kicad_pcb") && !copperNeutral(o));
 }
 
+/** Schematic edits that can't change a net or its classes: no need to recompute the project's net classes after them. */
+const KEEPS_NETS = new Set<EditOp["op"]>([
+  "moveField", "rotateField", "setFieldVisible", "setLabelShape", "setPageSettings", "addSchText", "addSchTextBox", "addSchGraphic",
+  "setHyperlink", "addTable", "addImage", "setImageScale",
+]);
+
 /**
  * The project file keeps the net classes the schematic gives each net (KiCad writes them on
  * save, and the board's rules read them): bring them in line after a schematic edit. Only for
@@ -439,7 +446,8 @@ function syncNetclassAssignments(rootFile: string, changed: Record<string, strin
     return;
   }
   const had = pro.net_settings?.netclass_assignments ?? {};
-  const sheets = Object.keys({ ...files, ...changed }).filter((f) => f.endsWith(".kicad_sch"));
+  // Design blocks' sheets aren't part of the design.
+  const sheets = Object.keys({ ...files, ...changed }).filter((f) => f.endsWith(".kicad_sch") && !/\.kicad_blocks\//.test(f));
   const uses = sheets.some((f) => /\((netclass_flag|directive_label|rule_area)\b|\(property "Netclass"/.test(read(f)));
   if (!uses && !Object.keys(had).length) return;
   let next: Record<string, string[]>;
@@ -842,7 +850,20 @@ export class Editor {
         case "setSheetProps":
           each([op.uuid], (n) => {
             if (op.name !== undefined) setSheetName(n, op.name);
-            if (op.page) setSheetPage(n, op.page.path, op.page.number);
+            if (!op.page) return;
+            if (findChild(n, "instances") || !rootFile) return setSheetPage(n, op.page.path, op.page.number);
+            // KiCad 6 keeps page numbers in the root file, by the path below the root sheet.
+            const own = rootFile === op.file;
+            const top = own ? root : sheetRoot(load(rootFile).doc);
+            const rootPath = `/${String(arg(findChild(top, "uuid"), 0) ?? "")}`;
+            const below = op.page.path.startsWith(rootPath) ? op.page.path.slice(rootPath.length) : op.page.path;
+            setLegacySheetPage(top, `${below}/${op.uuid}`, op.page.number);
+            if (!own) {
+              const doc = load(rootFile).doc;
+              const t = serialize(doc);
+              this.docs.set(rootFile, { text: t, doc });
+              changed[rootFile] = t;
+            }
           });
           break;
         case "setSheetPinName": each([op.uuid], (n) => setSheetPinName(n, op.pin, op.name)); break;
@@ -934,7 +955,7 @@ export class Editor {
       this.docs.set(op.file, { text: out, doc: cached.doc });
       changed[op.file] = out;
     }
-    if (rootFile && ops.some((op) => op.file.endsWith(".kicad_sch"))) syncNetclassAssignments(rootFile, changed, files);
+    if (rootFile && ops.some((op) => op.file.endsWith(".kicad_sch") && !KEEPS_NETS.has(op.op))) syncNetclassAssignments(rootFile, changed, files);
     return changed;
   }
 }
