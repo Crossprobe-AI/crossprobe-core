@@ -32,7 +32,7 @@ const clickSch = async (p) => {
   await page.mouse.click(c.x, c.y);
   await wait(200);
 };
-const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".edit-toolbar button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
+const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".tool-rail button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
 const component = (ref) => page.evaluate((r) => window.__crossprobe.project.components.find((c) => c.reference === r), ref);
 /** Open a demo, go to the sheet a part is on, start editing and select the part. */
 const open = async (demo, ref) => {

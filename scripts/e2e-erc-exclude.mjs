@@ -33,7 +33,7 @@ await page.waitForSelector(".viewport.schematic svg", { timeout: 60000 });
 await wait(800);
 await page.keyboard.press("e");
 await wait(300);
-await page.evaluate(() => [...document.querySelectorAll(".edit-toolbar button")].find((b) => b.querySelector(".tl")?.textContent === "Global label").click());
+await page.evaluate(() => [...document.querySelectorAll(".tool-rail button")].find((b) => b.querySelector(".tl")?.textContent === "Global label").click());
 globalThis.nextPrompt = "LONELY";
 const c = await page.evaluate(() => window.__schematicView.toClient({ x: 30.48, y: 30.48 }));
 await page.mouse.click(c.x, c.y);

@@ -350,6 +350,18 @@ const ICONS = {
   ),
   table: <path d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14" />,
   chevronRight: <path d="M9 5l7 7-7 7" />,
+  // The toolbar's menu of one-off actions, and the view-only state.
+  tools: (
+    <>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.3-.6-.6-2.3z" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

@@ -30,7 +30,7 @@ const clickSch = async (p, count = 1) => {
   await page.mouse.click(c.x, c.y, { count });
   await wait(250);
 };
-const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".edit-toolbar button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
+const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".tool-rail button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
 const files = () => page.evaluate(() => window.__crossprobe.files());
 const assignments = async () => {
   const f = await files();
