@@ -826,7 +826,9 @@ export class Editor {
         }
         case "annotate": break; // expanded above
         case "addSheet": {
-          addSheet(root, { ...op, file: op.newFile });
+          // The new file sits in this sheet's folder; its Sheetfile is relative to that folder.
+          const dir = op.file.slice(0, op.file.lastIndexOf("/") + 1);
+          addSheet(root, { ...op, file: op.newFile.startsWith(dir) ? op.newFile.slice(dir.length) : op.newFile });
           if (files[op.newFile] === undefined && changed[op.newFile] === undefined) changed[op.newFile] = newSheetFile();
           break;
         }
