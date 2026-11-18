@@ -2,7 +2,8 @@
 // their tracks and texts) is moved with Shift+P so its top-left footprint sits 120, 100 mm from the
 // grid origin (the board has none set: 0, 0), then again by 10 mm at 90° (polar) from an item picked
 // on the board. kicad-cli's position file of the saved board has the footprints there, all moved by
-// the same amount. Undo puts them back.
+// the same amount. Undo puts them back. With the dialog open, R turns nothing, and Escape during a
+// pick cancels only the pick. A context menu opened at the view's corner stays inside the view.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-posrel.mjs <out-dir>
 import puppeteer from "puppeteer-core";
 import { execFileSync } from "node:child_process";
@@ -107,6 +108,17 @@ await page.keyboard.down("Shift");
 await page.keyboard.press("P");
 await page.keyboard.up("Shift");
 await page.waitForSelector(".position-relative", { timeout: 3000 });
+// Keys that edit the selection wait behind the dialog: R doesn't turn it.
+const beforeR = await footprints();
+await page.keyboard.press("r");
+await wait(400);
+expect(JSON.stringify(await footprints()) === JSON.stringify(beforeR), "R behind the dialog turns nothing");
+// Escape during a pick (focus in the dialog) cancels the pick, not the dialog.
+expect(await button("Select item"), "select item");
+await page.evaluate(() => document.querySelector(".position-relative .row-buttons .on")?.focus());
+await page.keyboard.press("Escape");
+await wait(200);
+expect(await page.evaluate(() => !!document.querySelector(".position-relative") && !document.querySelector(".position-relative .row-buttons .on")), "Escape cancelled the pick and kept the dialog");
 expect(await button("Select item"), "select item");
 // A part in the middle of the fitted view (P3, the 40-pin socket).
 const c = await at({ x: 0.59, y: 0.6 });
@@ -134,6 +146,31 @@ await idle();
 await wait(400);
 const undone = await footprints();
 expect(before.every((f) => { const g = undone.find((x) => x.uuid === f.uuid); return g.x === f.x && g.y === f.y; }), "back where they were");
+
+console.log("-- a context menu near the view's bottom-right corner stays inside it, its submenu too");
+const corner = await at({ x: 0.97, y: 0.9 });
+await page.mouse.click(corner.x, corner.y, { button: "right" });
+await wait(300);
+await wait(300);
+const inside = (sel) =>
+  page.evaluate((sel) => {
+    const v = document.querySelector(".viewport").getBoundingClientRect();
+    const r = document.querySelector(sel)?.getBoundingClientRect();
+    return !!r && r.width > 0 && r.left >= v.left - 0.5 && r.top >= v.top - 0.5 && r.right <= v.right + 0.5 && r.bottom <= v.bottom + 0.5;
+  }, sel);
+expect(await inside(".viewport > .context-menu"), "the menu is inside the view");
+const sub = await page.evaluate(() => {
+  const s = document.querySelector(".viewport > .context-menu .context-sub");
+  if (!s) return null;
+  const r = s.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+});
+if (sub) {
+  await page.mouse.move(sub.x, sub.y);
+  await wait(300);
+  expect(await inside(".viewport > .context-menu .context-sub > .context-menu"), "its submenu opens inside the view");
+} else expect(false, "a submenu in the menu");
+await page.keyboard.press("Escape");
 
 console.log(problems.length ? `PROBLEMS:\n- ${problems.join("\n- ")}` : "ALL OK");
 await browser.close();

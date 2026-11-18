@@ -192,7 +192,7 @@ completes a feature.
 | Pad properties | Partly | Size, shape, drill and net; not margins or zone connection |
 | Logo footprint from a bitmap | Works | No smoothing |
 | Align and distribute | Works | KiCad's ten commands, from the right-click menu: by bounding boxes (footprints without their text), locked items stay put and set the target, else the item under the cursor. Boxes compared with KiCad's on its demos; TrueType text is measured by its outlines |
-| Arrays | Works | KiCad's Create Array (Ctrl+T): grids with offsets, stagger and fill order, circles with or without turning the items; copies get the next free references after their own, or keep them; or the selection itself is laid out. Copies compared with KiCad's pcbnew. No pad numbering (footprint editor) |
+| Arrays | Works | KiCad's Create Array (context menu; Ctrl+T where the browser passes it on): grids with offsets, stagger and fill order, circles with or without turning the items; copies get the next free references after their own, or keep them; or the selection itself is laid out. Copies compared with KiCad's pcbnew. No pad numbering (footprint editor) |
 | Position relative | Works | KiCad's Position Relative To (Shift+P): the selection's top-left footprint to an item or point picked on the board, or the grid origin, plus an offset in x/y or polar; locked items stay. Positions compared with KiCad's. No local origin |
 | DXF and SVG import, footprint wizard, component classes, repeated layout | No | |
 | Python scripting, action plugins, the IPC API | No | |
