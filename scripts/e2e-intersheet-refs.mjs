@@ -30,7 +30,7 @@ const clickSch = async (p) => {
   await page.mouse.click(c.x, c.y);
   await wait(200);
 };
-const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".edit-toolbar button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
+const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".tool-rail button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
 const openSheet = (i) => page.evaluate((i) => document.querySelectorAll(".tree button")[i].click(), i);
 /** The page-list texts drawn on the sheet that is open. */
 const lists = () => page.evaluate(() => [...document.querySelectorAll(".viewport.schematic g.i-label text")].map((t) => t.textContent).filter((t) => /^\[[0-9,]*\]$/.test(t)).sort());

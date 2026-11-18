@@ -62,7 +62,7 @@ expect(!!table && files[table].includes('(uri "${KIPRJMOD}/pic_programmer.kicad_
 
 console.log("-- insert it again from the Add block tool");
 await page.keyboard.press("Escape");
-await page.evaluate(() => [...document.querySelectorAll(".edit-toolbar button")].find((x) => x.querySelector(".tl")?.textContent === "Add block").click());
+await page.evaluate(() => [...document.querySelectorAll(".tool-rail button")].find((x) => x.querySelector(".tl")?.textContent === "Add block").click());
 await page.waitForSelector(".block-picker", { timeout: 5000 });
 await wait(300);
 const listed = await page.evaluate(() => [...document.querySelectorAll(".block-picker .part-list button .part-name")].map((x) => x.textContent));
