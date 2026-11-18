@@ -236,9 +236,18 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
   // Only the copper KiCad's check builds: no graphics.
   const copper = items.filter((it) => it.item.kind === "pad" || it.item.kind === "track" || it.item.kind === "via" || it.item.kind === "zone");
   /** The width the items at a neck must keep (KiCad evaluates the first one). */
-  const required = (it: CopperItem, layer: string): { min: number; name: string } => {
+  const inPoly = (p: Point, poly: Point[]) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i]!, b = poly[j]!;
+      if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  };
+  const required = (it: CopperItem, layer: string, at: Point): { min: number; name: string } => {
     if (custom.length) {
-      const c = customConstraint(custom, "connection_width", { type: it.item.kind === "pad" ? "Pad" : it.item.kind === "via" ? "Via" : it.item.kind === "zone" ? "Zone" : "Track", netName: it.item.net, netClass: netClassOf(rules, it.item.net).name, layer: it.ruleLayer, layers: it.layers, hasNet: (n) => nets.has(n), intersectsArea: () => false }, layer);
+      // A pad answers to its footprint's reference; an area condition is tested at the neck.
+      const c = customConstraint(custom, "connection_width", { type: it.item.kind === "pad" ? "Pad" : it.item.kind === "via" ? "Via" : it.item.kind === "zone" ? "Zone" : "Track", netName: it.item.net, netClass: netClassOf(rules, it.item.net).name, reference: it.item.reference, layer: it.ruleLayer, layers: it.layers, hasNet: (n) => nets.has(n), intersectsArea: (name) => board.zones.some((z) => z.name === name && z.outline.length >= 3 && inPoly(at, z.outline)) }, layer);
       if (c?.min !== undefined) return { min: c.min, name: c.rule };
     }
     return { min: boardMin, name: "board setup constraints" };
@@ -268,7 +277,7 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
             // KiCad lists zones after the other items.
             near.sort((p, q) => Number(p.item.kind === "zone") - Number(q.item.kind === "zone"));
             if (!near.length) continue;
-            const c = required(near[0]!, layer);
+            const c = required(near[0]!, layer, at);
             if (Math.abs(c.min - minWidth) > 1e-9) continue;
             out.push({
               type: "connection_width",
