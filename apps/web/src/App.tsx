@@ -1084,10 +1084,12 @@ export function App() {
               <section className="pane open-pane">
                 <h2>Drop a project folder anywhere, or choose one</h2>
                 <p className="muted">The folder with the .kicad_pro, .kicad_sch and .kicad_pcb files. KiCad 6 to 10.</p>
-                <button className="primary big" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
-                  <Icon name="folderOpen" size={18} /> Choose folder…
-                </button>
-                <Slot name="start-open" />
+                <div className="open-actions">
+                  <button className="primary big" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
+                    <Icon name="folderOpen" size={18} /> Choose folder…
+                  </button>
+                  <Slot name="start-open" />
+                </div>
               </section>
               <section className="pane">
                 <h2>Start an empty project</h2>

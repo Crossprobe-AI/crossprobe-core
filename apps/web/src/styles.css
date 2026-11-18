@@ -329,8 +329,9 @@ button.primary {
   padding-top: 3px;
   padding-bottom: 3px;
 }
-button.primary.big {
-  padding: 10px 18px;
+/* A big button, primary or not: the start screen's ways to open a project. */
+button.big {
+  padding: 9px 16px;
   font-size: 14px;
 }
 
@@ -402,6 +403,16 @@ button.primary.big {
 }
 @media (max-width: 760px) {
   .pane + .pane { border-left: 0; border-top: 1px solid var(--border); }
+}
+/* The ways to open a project: one column of buttons, all as wide and as tall, the
+   folder first and filled, the others (extensions add them) outlined. */
+.open-actions {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 300px);
+}
+.open-actions button {
+  width: 100%;
 }
 .open-pane {
   align-items: flex-start;
