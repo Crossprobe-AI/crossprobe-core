@@ -601,7 +601,9 @@ export function BoardView({
           return;
         }
         // Other keys would change the selection behind the dialog (rotate, move, duplicate, paste):
-        // they wait until it is closed.
+        // they wait until it is closed. The Ctrl keys the board claims still don't go to the browser
+        // (a bookmark, a new tab, its own paste or find).
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && ["d", "t", "v", "g"].includes(e.key.toLowerCase())) e.preventDefault();
         return;
       }
       if (editing && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "m") {
