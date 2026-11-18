@@ -78,3 +78,44 @@ describe.skipIf(!existsSync(PCB) || !existsSync(PY))("hatched zone fill as KiCad
       expect(diff / kicad).toBeLessThan(c.limit ?? 0.04);
     });
 });
+
+/**
+ * A board of one hatched GND zone and one small GND via, placed so a hatch hole encloses the via's
+ * relief while the ring's outer edge crosses the hole: KiCad keeps that hole (it drops a hole only
+ * when it encloses a ring's outer contour), so the via hangs on its spokes.
+ */
+function oneVia(via?: { x: number; y: number }): string {
+  const head = readFileSync(PCB, "utf8");
+  const setupEnd = head.indexOf("\n\t)\n", head.indexOf("\n\t(setup")) + 4;
+  return (
+    head.slice(0, setupEnd) +
+    `\t(gr_rect (start 0 0) (end 40 30) (stroke (width 0.05) (type solid)) (fill no) (layer "Edge.Cuts") (uuid "7a26e5f1-0000-4000-8000-000000000201"))
+${via ? `\t(via (at ${via.x} ${via.y}) (size 0.8) (drill 0.4) (layers "F.Cu" "B.Cu") (net "GND") (uuid "7a26e5f1-0000-4000-8000-000000000202"))\n` : ""}\t(zone (net "GND") (layer "B.Cu") (uuid "7a26e5f1-0000-4000-8000-000000000203") (hatch edge 0.5) (connect_pads (clearance 0.3)) (min_thickness 0.25)
+\t\t(fill yes (mode hatch) (thermal_gap 0.5) (thermal_bridge_width 0.5) (hatch_thickness 0.3) (hatch_gap 2.5) (hatch_orientation 0) (hatch_min_hole_area 0.3))
+\t\t(polygon (pts (xy 1 1) (xy 39 1) (xy 39 29) (xy 1 29))))
+)
+`
+  );
+}
+
+describe.skipIf(!existsSync(PCB) || !existsSync(PY))("hatch holes around a small via, as KiCad's", () => {
+  it("a hole enclosing the relief but crossed by the ring stays", () => {
+    // Ours against KiCad's, with the via and without: the via adds next to nothing to the
+    // difference (the rest is along the zone's edges). Dropping that hole added about 1.4 mm².
+    const xor = (text: string, name: string) => {
+      const dir = mkdtempSync(join(tmpdir(), "crossprobe-hatch-via-"));
+      writeFileSync(join(dir, "in.kicad_pcb"), text);
+      try {
+        execFileSync(PY, [join(import.meta.dirname, "pcbnew-refill.py"), join(dir, "in.kicad_pcb"), join(dir, "out.kicad_pcb")], { stdio: "ignore" });
+      } catch {
+        // pcbnew may crash on exit after saving.
+      }
+      const theirs = parseBoard(readFileSync(join(dir, "out.kicad_pcb"), "utf8"));
+      const d = fillDifference(fillZones(parseBoard(text), projectDesignRules("{}"))[0]!.paths, theirs.zones[0]!.fills.map((p) => p.points));
+      if (process.env.ORACLE_VERBOSE) writeFileSync(join(process.env.ORACLE_VERBOSE, `one_via_${name}.txt`), `${name}: xor ${d.xorArea.toFixed(3)} of ${d.kicadArea.toFixed(2)} mm²\n`);
+      expect(d.kicadArea).toBeGreaterThan(200);
+      return d.xorArea;
+    };
+    expect(xor(oneVia({ x: 20.8, y: 15.4 }), "via") - xor(oneVia(), "none")).toBeLessThan(0.2);
+  });
+});

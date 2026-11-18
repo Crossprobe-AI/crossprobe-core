@@ -597,7 +597,7 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
     // cutting a hatched zone's holes while it is deflated (as KiCad does).
     if (half > 0) fill = offset(fill, -half);
     const tileRings = zone.hatch ? nearBox(iRingsDeflated, gx0, gy0, gx1, gy1) : [];
-    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, [...nearBox(iCuts, gx0, gy0, gx1, gy1), ...tileRings]);
+    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, [...nearBox(iHoles, gx0, gy0, gx1, gy1), ...tileRings]);
     if (half > 0) fill = offset(fill, half);
     // Rings back where a hatch hole or the deflation notched them, then clear of the zone's
     // edge, other nets' clearances and drills again (KiCad: BooleanAdd( thermalRings ), then trims).
@@ -702,10 +702,12 @@ function cutHatch(fill: Paths, holes: Point[][], h: Hatch, minThickness: number,
   c.AddPaths(outline, ClipperLib.PolyType.ptClip, true);
   const tree = new ClipperLib.PolyTree();
   c.Execute(ClipperLib.ClipType.ctIntersection, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  // KiCad drops a hole only when it encloses a ring's (or clearance hole's) outer contour, not its inner one.
+  const outers = rings.filter((r) => r.length && ClipperLib.Clipper.Orientation(r));
   const kept: Paths = [];
   for (const piece of ClipperLib.JS.PolyTreeToExPolygons(tree)) {
     if (Math.abs(ClipperLib.Clipper.Area(piece.outer)) < minArea) continue;
-    const encloses = rings.some((r) => r.length && r.every((q) => ClipperLib.Clipper.PointInPolygon(q, piece.outer) === 1));
+    const encloses = outers.some((r) => r.every((q) => ClipperLib.Clipper.PointInPolygon(q, piece.outer) === 1));
     if (encloses) continue;
     kept.push(piece.outer, ...piece.holes);
   }
