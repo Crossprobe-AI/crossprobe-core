@@ -38,6 +38,7 @@ import {
 } from "@crossprobe/kicad-model";
 import { evidenceFileName, parseEvidence } from "./datasheet/evidence";
 import { parseRequirements, requirementsFileName } from "./requirements/requirements";
+import { resolveProjectPath } from "./project-path";
 import { renderSheet } from "./render/schematic";
 import type { ProjectView, SheetView } from "./render/types";
 
@@ -154,14 +155,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
       return t;
     };
     // The project's drawing sheet (KiCad's Page Settings › Drawing sheet), relative to the project.
-    let drawingSheet: ReturnType<typeof parseDrawingSheet> | undefined;
-    try {
-      const wks = String(JSON.parse(files[project] ?? "{}")?.schematic?.page_layout_descr_file ?? "").replace(/^\$\{KIPRJMOD\}\//, "");
-      if (wks && files[dir + wks] !== undefined) drawingSheet = parseDrawingSheet(files[dir + wks]!);
-      else if (wks) warnings.push(`drawing sheet ${wks} not found: the default frame is drawn`);
-    } catch {
-      // An unreadable project file leaves the default frame.
-    }
+    const drawingSheet = projectDrawingSheet("schematic", "drawing sheet");
     sheets = schematic.sheets.map((s) => renderSheet(s, tree(s.file), schematic, netlist, pinNets, drawingSheet));
 
     components = schematic.components.map((c) => ({
@@ -280,23 +274,21 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     }
   }
 
-  /** The board's drawing sheet (pcbnew's Page Settings › Drawing sheet), relative to the project. */
-  // Its path may use the project's text variables, as KiCad expands it; ${KIPRJMOD} is the project folder.
-  function boardDrawingSheet(): ReturnType<typeof parseDrawingSheet> | undefined {
+  /**
+   * The drawing sheet the project names for the schematic or the board (Page Settings › Drawing
+   * sheet), found as KiCad resolves the path (resolveProjectPath); undefined for the default frame.
+   */
+  function projectDrawingSheet(app: "schematic" | "pcbnew", what: string): ReturnType<typeof parseDrawingSheet> | undefined {
     try {
-      const raw = String(JSON.parse(files[project] ?? "{}")?.pcbnew?.page_layout_descr_file ?? "");
-      const vars = projectTextVariables();
-      const wks = raw
-        .replace(/\$\{([^}]+)\}/g, (m, name: string) => (name === "KIPRJMOD" ? "." : (vars?.[name] ?? m)))
-        .replace(/\\/g, "/")
-        .replace(/^(\.\/)+/, "");
-      if (wks && files[dir + wks] !== undefined) return parseDrawingSheet(files[dir + wks]!);
-      if (wks)
-        warnings.push(
-          /^(\/|[A-Za-z]:)/.test(wks) || wks.includes("${")
-            ? `board drawing sheet ${raw} is outside the project (only the project's own files are read): the default frame is drawn`
-            : `board drawing sheet ${raw} not found: the default frame is drawn`,
-        );
+      const raw = String(JSON.parse(files[project] ?? "{}")?.[app]?.page_layout_descr_file ?? "");
+      if (!raw) return undefined;
+      const r = resolveProjectPath(raw, dir, files, projectTextVariables());
+      if ("file" in r) return parseDrawingSheet(files[r.file]!);
+      warnings.push(
+        "outside" in r
+          ? `${what} ${raw} is outside the project (only the project's own files are read): the default frame is drawn`
+          : `${what} ${raw} not found: the default frame is drawn`,
+      );
     } catch {
       // An unreadable project file leaves the default frame.
     }
@@ -326,7 +318,7 @@ export function analyze({ project, files }: ProjectFiles): ProjectView {
     nets,
     board,
     boardFile: board ? `${base}.kicad_pcb` : undefined,
-    boardDrawingSheet: board ? boardDrawingSheet() : undefined,
+    boardDrawingSheet: board ? projectDrawingSheet("pcbnew", "board drawing sheet") : undefined,
     textVariables: projectTextVariables(),
     projectFile: project,
     clearance,

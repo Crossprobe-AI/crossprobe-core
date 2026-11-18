@@ -573,6 +573,12 @@ page, with the same text at the same place. In the app, vme-wren opens with its 
 around the board with the board's title block, and the "Drawing sheet" toggle hides it.
 pic_programmer's board names none and gets the default frame.
 
+`apps/web/test/project-path.test.ts` resolves sheet paths as KiCad does: `${KIPRJMOD}`, project
+variables (whose values use other variables), backslashes, and absolute paths into the project
+folder. With interf_u's sheet named by an absolute path, or through a variable, both the board and
+every schematic page get it (its logo included); a path above the project or a missing file only
+warns.
+
 ## Links
 
 `scripts/e2e-hyperlink.mjs` gives a text on KiCad's pic_programmer demo the link "#2": out of
