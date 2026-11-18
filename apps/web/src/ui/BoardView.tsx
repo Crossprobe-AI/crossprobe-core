@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { alignMoves, boardItemBox, groupBox, boardItemPosition, copperItems, groupItems, topGroup, distributeMoves, coupledRoute, dimensionGeometry, displayName, diffPairSizes, diffPartnerOnBoard, InteractiveRouter, netClassOf, pairEscape, pairObstacles, partnerPads, roundedRectShapes, trackConflicts, type AlignMode, type Board, type ClearanceViolation, type DesignRules, type DistributeMode, type DrawingSheetPrim } from "@crossprobe/kicad-model";
 import type { ProjectView } from "../render/types";
 import { buildScene, drawKnockouts, drawPadLabels, drawTrackLabels, drawViaLabels, drawFrame, layerColor, padPath, type BoardScene } from "../render/board";
@@ -587,15 +587,16 @@ export function BoardView({
       // The symbol or footprint editor open over the board has its own keys.
       if (document.querySelector(".fp-editor")) return;
       if (editing && (posRel || arrayFor)) {
-        // Escape cancels Position Relative's pick, else closes the open dialog. Delete would take away
-        // the items the dialog is about to move or copy, so it waits until the dialog is closed.
+        // Escape cancels Position Relative's pick, else closes the open dialog.
         if (e.key === "Escape") {
           e.preventDefault();
           if (posRel?.picking) setPosRel({ ...posRel, picking: undefined });
           else (setPosRel(null), setArrayFor(null));
           return;
         }
-        if (e.key === "Delete" || e.key === "Backspace") return;
+        // Other keys would change the selection behind the dialog (rotate, move, duplicate, paste):
+        // they wait until it is closed.
+        return;
       }
       if (editing && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "m") {
         // KiCad's measure tool.
@@ -626,7 +627,7 @@ export function BoardView({
           if (e.shiftKey) ungroupSelection();
           else groupSelection();
         } else if (k === "t" && picked.length) {
-          // KiCad's Create Array.
+          // KiCad's Create Array. Browsers usually keep Ctrl+T (a new tab), so the menu doesn't advertise it.
           e.preventDefault();
           openArray();
         } else if (k === "d" && picked.length) {
@@ -1297,9 +1298,11 @@ export function BoardView({
       }
       return;
     }
-    if (g === "handle" && ptDrag && pointShape) {
-      const to = snap(toBoard(e), edit!.grid);
+    if (g === "handle") {
+      // The preview goes whatever happens (the shape may have gone meanwhile).
       setPtDrag(null);
+      if (!ptDrag || !pointShape) return;
+      const to = snap(toBoard(e), edit!.grid);
       if (Math.hypot(to.x - ptDrag.h.at.x, to.y - ptDrag.h.at.y) > 1e-9) commitPoints(dragHandle(pointShape, ptDrag.h, to), ptDrag.h.type === "edge" ? "Move edge" : "Move corner");
       return;
     }
@@ -1315,6 +1318,15 @@ export function BoardView({
     }
     vp.handlers.onPointerUp();
     void e;
+  };
+  /** A gesture the browser cancelled (a touch taken over, a lost capture): nothing is committed, previews go. */
+  const onPointerCancel = () => {
+    gesture.current = null;
+    pressed.current = null;
+    setPtDrag(null);
+    setBox(null);
+    setDrag((d) => (d?.committed ? d : null));
+    vp.handlers.onPointerUp();
   };
 
   const onClick = (e: React.MouseEvent) => {
@@ -1576,6 +1588,27 @@ export function BoardView({
     if (uuids.length) setPosRel({ items: uuids.map((uuid) => ({ uuid, locked: lockedIds.has(uuid) })), extras: withGroupExtras(uuids).filter((u) => !uuids.includes(u)) });
   };
   const [menu, setMenu] = useState<{ x: number; y: number; at?: Point; hit?: BoardItem; choices?: BoardItem[] } | null>(null);
+  /** The menu, kept inside the view: moved left or up when it would run past the edge. */
+  const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = menuRef.current, view = el?.parentElement;
+    if (!el || !view || !menu) return;
+    const w = view.clientWidth, h = view.clientHeight;
+    el.style.left = `${Math.max(0, Math.min(menu.x, w - el.offsetWidth - 4))}px`;
+    el.style.top = `${Math.max(0, Math.min(menu.y, h - el.offsetHeight - 4))}px`;
+  }, [menu]);
+  /** A submenu opens to the left, or upwards, when there's no room for it to the right or below. */
+  const placeSub = (entry: HTMLElement) => {
+    const sub = entry.querySelector<HTMLElement>(":scope > .context-menu");
+    const view = menuRef.current?.parentElement;
+    if (!sub || !view) return;
+    const v = view.getBoundingClientRect(), r = entry.getBoundingClientRect();
+    sub.style.display = "flex";
+    const sw = sub.offsetWidth, sh = sub.offsetHeight;
+    sub.style.display = "";
+    entry.classList.toggle("open-left", r.right + sw > v.right && r.left - sw >= v.left);
+    entry.classList.toggle("open-up", r.top + sh > v.bottom && r.bottom - sh >= v.top);
+  };
   /** Menu entries: [label, shortcut, action], a separator, or a submenu. */
   type MenuEntry = [string, string, () => void] | "-" | { label: string; items: Array<[string, string, () => void] | "-"> };
   /**
@@ -1695,7 +1728,7 @@ export function BoardView({
     // KiCad offers Align/Distribute once more than one item is selected.
     if (tool === "select" && new Set(picked.filter((p) => p.kind !== "fptext").map((p) => p.uuid)).size > 1) out.push(arrangeMenu(menu?.at));
     if (tool === "select" && picked.length) {
-      out.push(["Create Array…", "Ctrl+T", openArray], ["Position Relative To…", "Shift+P", openPosRel]);
+      out.push(["Create Array…", "", openArray], ["Position Relative To…", "Shift+P", openPosRel]);
       if (picked.length > 1) out.push(["Group", "Ctrl+G", groupSelection]);
       if (pickedGroups().length) out.push(["Ungroup", "Ctrl+Shift+G", ungroupSelection]);
       out.push("-");
@@ -1801,6 +1834,8 @@ export function BoardView({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={(e) => gesture.current && e.buttons === 0 && onPointerCancel()}
       onPointerLeave={() => setCursor(null)}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -1808,12 +1843,12 @@ export function BoardView({
     >
       <canvas ref={canvas} style={{ width: "100%", height: "100%", display: "block" }} />
       {menu && (
-        <div className="context-menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+        <div ref={menuRef} className="context-menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           {menuItems().map((m, i) =>
             m === "-" ? (
               <hr key={i} />
             ) : "items" in m ? (
-              <div key={i} className="context-sub">
+              <div key={i} className="context-sub" onPointerEnter={(e) => placeSub(e.currentTarget)} onFocus={(e) => placeSub(e.currentTarget)}>
                 <button>
                   <span>{m.label}</span>
                   <kbd>▸</kbd>

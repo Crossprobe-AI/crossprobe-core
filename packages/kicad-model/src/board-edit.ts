@@ -356,7 +356,8 @@ export function pasteBoardItems(root: List, items: Array<{ text: string; uuid: s
       if (headOf(n) === "uuid" || headOf(n) === "tstamp") setArg(n, 0, str(newBoardUuid()));
       return true;
     });
-    const own = findChild(node, "uuid");
+    // KiCad 6/7 items carry a tstamp instead of a uuid.
+    const own = findChild(node, "uuid") ?? findChild(node, "tstamp");
     if (own) setArg(own, 0, str(uuid));
     moveBoardItem(node, dx, dy);
     if (headOf(node) === "footprint") {
