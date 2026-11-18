@@ -224,18 +224,19 @@ button:disabled {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-/* A short label for a state or a kind (a plan, a revision), next to its name. */
-.badge {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
+/* Fields that size themselves by their padding (compact rows, toolbars, the hint pill)
+   keep that size, not the default height above. */
+.edit-hint select,
+.field-input,
+.part-picker input,
+.search,
+.edit-toolbar select,
+.board-props .prop input,
+.board-props .prop select,
+.pins select.pin-alternate,
+.board-setup .prop input,
+.fields-table td input {
+  height: auto;
 }
 .mono {
   font-family: var(--mono);
@@ -1390,14 +1391,21 @@ g.hl text {
   gap: 8px;
   margin-top: 6px;
 }
+/* A short label for a state or a kind, next to its name: neutral (a block's library, a
+   datasheet check), or .accent to stand out (the account's plan). */
 .badge {
-  font-size: 12px;
-  font-weight: 600;
+  display: inline-block;
   padding: 1px 6px;
   border-radius: 5px;
   background: var(--panel-2);
   color: var(--muted);
   font: 600 12px/1.4 var(--sans);
+  white-space: nowrap;
+}
+.badge.accent {
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .badge.reviewed {
   background: var(--accent-soft);

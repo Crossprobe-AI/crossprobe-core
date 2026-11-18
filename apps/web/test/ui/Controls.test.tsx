@@ -88,6 +88,57 @@ describe("plain controls", () => {
     for (const el of els) expect(box(el).height, `${el.tagName} ${el.textContent}`).toBeCloseTo(h, 0);
   });
 
+  it("compact fields keep the size their padding gives them, not the dialogs' 32px", async () => {
+    await render(
+      <div style={{ position: "relative", width: 900, height: 400 }}>
+        <div className="edit-toolbar">
+          <button>Edit</button>
+          <select aria-label="toolbar">
+            <option>F.Cu</option>
+          </select>
+        </div>
+        <div className="board-props">
+          <label className="prop">
+            <span>X</span>
+            <input aria-label="board-props input" />
+          </label>
+          <label className="prop">
+            <span>Layer</span>
+            <select aria-label="board-props select">
+              <option>F.Cu</option>
+            </select>
+          </label>
+        </div>
+        <table className="fields-table">
+          <tbody>
+            <tr>
+              <td>
+                <input aria-label="fields-table" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <input className="field-input" aria-label="field-input" />
+        <div className="board-setup">
+          <label className="prop">
+            <span>Clearance</span>
+            <input type="number" aria-label="board-setup" />
+          </label>
+        </div>
+        <div className="edit-hint" style={{ position: "static", transform: "none" }}>
+          Snap <select aria-label="edit-hint"><option>grid</option></select>
+        </div>
+      </div>,
+    );
+    for (const el of document.querySelectorAll<HTMLElement>("[aria-label]")) {
+      if (el.tagName === "BUTTON") continue;
+      expect(box(el).height, el.getAttribute("aria-label")!).toBeLessThan(30);
+    }
+    // The toolbar's select is no taller than its buttons.
+    const tb = document.querySelector(".edit-toolbar")!;
+    expect(box(tb.querySelector("select")!).height).toBeLessThanOrEqual(box(tb.querySelector("button")!).height);
+  });
+
   it("text has proportional punctuation: '.' ',' ':' are not figure-wide", async () => {
     await render(
       <p>
@@ -103,10 +154,16 @@ describe("plain controls", () => {
   it("a badge stands out from the text around it", async () => {
     await render(
       <p>
-        Plan <span className="badge">Connect</span>
+        Plan <span className="badge accent">Connect</span> <span className="badge">neutral</span>
       </p>,
     );
-    const cs = getComputedStyle(document.querySelector(".badge")!);
+    const cs = getComputedStyle(document.querySelector(".badge.accent")!);
+    const neutral = getComputedStyle(document.querySelector(".badge:not(.accent)")!);
+    // The accent one is not the neutral one: its own colours and a border.
+    expect(cs.backgroundColor).not.toBe(neutral.backgroundColor);
+    expect(cs.color).not.toBe(neutral.color);
+    expect(cs.borderTopStyle).toBe("solid");
+    expect(neutral.borderTopStyle).toBe("none");
     expect(cs.backgroundColor).not.toBe(getComputedStyle(document.body).backgroundColor);
     expect(cs.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
     expect(Number(cs.fontWeight)).toBeGreaterThanOrEqual(600);
