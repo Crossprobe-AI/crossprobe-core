@@ -204,7 +204,15 @@ export function App() {
   const [showFab, setShowFab] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   /** One floating panel at a time: opening one closes the others (and the part/block pickers behind a dialog). */
-  const openPanel = useCallback((name: "setup" | "fab" | "update" | "assign" | "fields" | "plot" | "nets" | "updateSch" | "cleanup" | "reannotate" | "libcheck") => {
+  // The board view's own dialogs (Create Array, Position Relative) close when this changes.
+  const [panelEpoch, setPanelEpoch] = useState(0);
+  /** Ctrl+F with Find open puts the cursor back in its field. */
+  const [findFocus, setFindFocus] = useState(0);
+  /** "board": the board view opened a dialog of its own; the app's close. */
+  const openPanel = useCallback((name: "setup" | "fab" | "update" | "assign" | "fields" | "plot" | "nets" | "updateSch" | "cleanup" | "reannotate" | "libcheck" | "find" | "annotate" | "board") => {
+    if (name !== "board") setPanelEpoch((n) => n + 1);
+    setShowFind((v) => (name === "find" ? !v : false));
+    setShowAnnotate(name === "annotate");
     setShowSetup((v) => (name === "setup" ? !v : false));
     setShowFab(name === "fab");
     setShowUpdate((v) => (name === "update" ? !v : false));
@@ -695,7 +703,8 @@ export function App() {
       // Ctrl+F on the schematic: KiCad's Find (and Replace while editing).
       if (e.key === "f" && (e.metaKey || e.ctrlKey) && project && mode === "schematic") {
         e.preventDefault();
-        setShowFind(true);
+        if (showFind) setFindFocus((n) => n + 1);
+        else openPanel("find");
         return;
       }
       // "/" jumps to the search, except while typing (a "/" in a name or a path is just a character).
@@ -740,7 +749,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [project, save, undo, redo, editing, mode]);
+  }, [project, save, undo, redo, editing, mode, showFind, openPanel]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1178,7 +1187,7 @@ export function App() {
                         <button onClick={(e) => { edit([{ op: "annotate", file: sheet.file, mode: "all", order: "y" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
                           Renumber all, top to bottom
                         </button>
-                        <button onClick={(e) => { setShowAnnotate(true); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
+                        <button onClick={(e) => { openPanel("annotate"); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
                           More options…
                         </button>
                       </div>
@@ -1200,7 +1209,7 @@ export function App() {
                   >
                     <Icon name="download" /> <span className="tl">Netlist</span>
                   </button>
-                  <button className={showFind ? "on" : ""} onClick={() => setShowFind((v) => !v)} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
+                  <button className={showFind ? "on" : ""} onClick={() => openPanel("find")} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
                     <Icon name="search" /> <span className="tl">Find</span>
                   </button>
                   {editing && (
@@ -1245,6 +1254,7 @@ export function App() {
                 {showAnnotate && editing && <Annotate sheet={sheet} onEdit={edit} onClose={() => setShowAnnotate(false)} />}
                 {showFind && (
                   <FindReplace
+                    focusToken={findFocus}
                     project={project}
                     files={async () => (session.current ? session.current.files() : {})}
                     editing={editing}
@@ -1471,6 +1481,7 @@ export function App() {
                   designRules={project.designRules}
                   dirty={zonesStale}
                   frame={boardPageFrame}
+                  panels={{ epoch: panelEpoch, onOpen: () => openPanel("board") }}
                   edit={
                     project.boardFile
                       ? {

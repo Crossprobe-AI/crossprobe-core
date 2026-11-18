@@ -80,6 +80,15 @@ const opened = await page.evaluate(() => {
 });
 expect(opened, "menu: Create Array…");
 await page.waitForSelector(".create-array", { timeout: 3000 });
+// One floating panel at a time: Libraries closes the dialog, and the dialog closes Libraries.
+await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Libraries").click());
+await wait(300);
+expect(await page.evaluate(() => !!document.querySelector(".library-check") && !document.querySelector(".create-array")), "Libraries closes Create Array");
+await page.mouse.click(c.x, c.y, { button: "right" });
+await wait(200);
+await page.evaluate(() => [...document.querySelectorAll(".context-menu button")].find((x) => x.textContent.startsWith("Create Array")).click());
+await page.waitForSelector(".create-array", { timeout: 3000 });
+expect(await page.evaluate(() => !document.querySelector(".library-check")), "and Create Array closes Libraries");
 expect(await setField("Columns", 3), "columns");
 expect(await setField("Rows", 1), "rows");
 expect(await setField("Column spacing", 30), "spacing");
