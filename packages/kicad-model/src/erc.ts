@@ -206,7 +206,7 @@ export function runErc(schematic: Schematic, netlist: Netlist, options: ErcOptio
   for (const sheet of schematic.sheets) {
     if (files.has(sheet.file)) continue;
     files.add(sheet.file);
-    const asRoot: Report = (type, sheet, message, items, severity) => report(type, sheet, message, items, severity, schematic.root);
+    const asRoot: Report = (type, sheet, message, items, severity, _kicadSheet, markerAt) => report(type, sheet, message, items, severity, schematic.root, markerAt);
     checkSheetGeometry(sheet, schematic, options.gridMm ?? 1.27, asRoot);
   }
   checkSheetPins(schematic, report);
@@ -444,9 +444,11 @@ function checkSheetGeometry(sheet: SheetInstance, schematic: Schematic, grid: nu
   // Off-grid: in KiCad's 100 nm units, so the test is exact.
   const g = Math.round(grid * 1e4);
   const off = (p: Point) => Math.round(p.x * 1e4) % g !== 0 || Math.round(p.y * 1e4) % g !== 0;
-  for (const w of data.wires) if (off(w.a) || off(w.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }]);
-  for (const b of data.buses) if (off(b.a) || off(b.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus", at: b.a, ...(b.uuid && { uuid: b.uuid }) }]);
-  for (const e of data.busEntries) for (const end of [e.a, e.b]) if (off(end)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus to wire entry", at: e.a, ...(e.uuid && { uuid: e.uuid }) }]);
+  // KiCad's marker (and so an exclusion's place) is on the start if that is off grid, else on the end;
+  // a bus entry gets one at each off-grid end.
+  for (const w of data.wires) if (off(w.a) || off(w.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: wireDesc(w), at: w.a, ...(w.uuid && { uuid: w.uuid }) }], undefined, undefined, off(w.a) ? w.a : w.b);
+  for (const b of data.buses) if (off(b.a) || off(b.b)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus", at: b.a, ...(b.uuid && { uuid: b.uuid }) }], undefined, undefined, off(b.a) ? b.a : b.b);
+  for (const e of data.busEntries) for (const end of [e.a, e.b]) if (off(end)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: "Bus to wire entry", at: e.a, ...(e.uuid && { uuid: e.uuid }) }], undefined, undefined, end);
   // One report per symbol, at its first off-grid pin.
   const reported = new Set<string>();
   for (const p of pinPoints) if (off(p.at) && !reported.has(p.symbol) && reported.add(p.symbol)) report("endpoint_off_grid", sheet, "Symbol pin or wire end off connection grid", [{ description: `Symbol ${p.reference} Pin ${p.number}`, at: p.at, reference: p.reference, pin: p.number, ...(p.uuid && { uuid: p.uuid }) }]);
@@ -619,8 +621,44 @@ const iu = (mm: number) => Math.round(mm * 1e4);
  */
 export function ercExclusionEntry(v: ErcViolation): string {
   const at = v.at ?? v.items[0]?.at ?? { x: 0, y: 0 };
-  return [v.type, iu(at.x), iu(at.y), v.items[0]?.uuid ?? NIL_UUID, v.items[1]?.uuid ?? NIL_UUID, v.sheet, v.sheet, v.items[1] ? v.sheet : ""].join("|");
+  // KiCad matches the whole string, so the sheet fields must be the ones its check records.
+  const fields = EXCLUSION_SHEETS[v.type] ?? "S";
+  const path = (f: string) => (fields.includes(f) ? v.sheet : "");
+  return [v.type, iu(at.x), iu(at.y), v.items[0]?.uuid ?? NIL_UUID, v.items[1]?.uuid ?? NIL_UUID, path("S"), path("M"), path("A")].join("|");
 }
+
+/**
+ * Which sheet paths KiCad 10's check records in its marker, and so in its exclusion entry:
+ * S the sheet the finding is on, M the main item's, A the other item's (set by some checks even
+ * with one item). Checks that run per sheet file (off-grid ends, symbol issues) record none.
+ */
+const EXCLUSION_SHEETS: Partial<Record<ErcType, "" | "S" | "SM" | "SMA">> = {
+  endpoint_off_grid: "",
+  duplicate_sheet_names: "",
+  different_unit_footprint: "",
+  undefined_netclass: "",
+  duplicate_reference: "",
+  pin_not_driven: "SM",
+  power_pin_not_driven: "SM",
+  pin_not_connected: "SM",
+  no_connect_connected: "SM",
+  no_connect_dangling: "SM",
+  hier_label_mismatch: "SM",
+  missing_unit: "SM",
+  missing_input_pin: "SM",
+  missing_bidi_pin: "SM",
+  missing_power_pin: "SM",
+  single_global_label: "SM",
+  ground_pin_not_ground: "SM",
+  pin_to_pin: "SMA",
+  multiple_net_names: "SMA",
+  similar_labels: "SMA",
+  similar_label_and_power: "SMA",
+  similar_power: "SMA",
+  same_local_global_label: "SMA",
+  field_name_whitespace: "SMA",
+  different_unit_net: "SMA",
+};
 
 /**
  * Is a finding excluded? KiCad matches its whole string; this file doesn't know every item's

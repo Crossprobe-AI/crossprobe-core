@@ -17,7 +17,7 @@ import { buildNetlist } from "./connectivity.js";
 import { pointKey, transformLibPoint, type Point } from "./geometry.js";
 import { resolveLibrarySymbol } from "./library.js";
 import { loadSchematic } from "./project.js";
-import { addJunction, addLabel, addNoConnect, addWire, duplicateItems, findItem, newSheetFile, newUuid, placeSymbol, setSymbolField, sheetRoot } from "./schematic-edit.js";
+import { addJunction, addLabel, addNoConnect, addWire, duplicateItems, findItem, newSheetFile, newUuid, placeSymbol, setSymbolField, sheetRoot, TABLE_BY_CELL } from "./schematic-edit.js";
 
 // ---------------------------------------------------------------------------
 // Spec
@@ -545,8 +545,26 @@ export function checkSpecCitations(spec: BlockSpec): string[] {
 // Inserting a block into a design
 // ---------------------------------------------------------------------------
 
-const BLOCK_ITEMS = new Set(["symbol", "wire", "bus", "bus_entry", "junction", "no_connect", "label", "global_label", "hierarchical_label", "text", "text_box"]);
+const BLOCK_ITEMS = new Set(["symbol", "wire", "bus", "bus_entry", "junction", "no_connect", "label", "global_label", "hierarchical_label", "text", "text_box", "table"]);
 const GRID = 1.27;
+
+/** An item's id as findItem takes it: its UUID, or for a KiCad 9 table (none of its own) its first cell's. */
+function itemId(item: List): string | undefined {
+  const own = findChild(item, "uuid");
+  if (own) return String(arg(own, 0));
+  if (headOf(item) !== "table") return undefined;
+  const cell = findChild(findChild(item, "cells") ?? item, "table_cell");
+  const u = cell && findChild(cell, "uuid");
+  return u ? `${TABLE_BY_CELL}${String(arg(u, 0))}` : undefined;
+}
+
+/** The points that place an item: a wire's ends, a table's cell corners, else its anchor. */
+function itemPoints(item: List): Point[] {
+  const xy = (n: List | undefined) => (n ? [{ x: Number(arg(n, 0)), y: Number(arg(n, 1)) }] : []);
+  if (headOf(item) === "wire" || headOf(item) === "bus") return findChildren(findChild(item, "pts")!, "xy").flatMap(xy);
+  if (headOf(item) === "table") return findChildren(findChild(item, "cells") ?? item, "table_cell").flatMap((c) => xy(findChild(c, "at")));
+  return xy(findChild(item, "at"));
+}
 
 export interface InsertedBlock {
   /** UUIDs of the new items in the target sheet, in the block's order. */
@@ -570,16 +588,8 @@ export interface InsertedBlock {
  */
 export function insertBlock(target: List, blockText: string, at: Point, sheetPaths: string[], projectName: string, keepReferences = false): InsertedBlock {
   const source = sheetRoot(parse(blockText));
-  const items = source.children.filter((c): c is List => isList(c) && BLOCK_ITEMS.has(headOf(c) ?? "") && !!findChild(c, "uuid"));
-  const points: Point[] = [];
-  for (const item of items) {
-    if (headOf(item) === "wire" || headOf(item) === "bus") {
-      for (const xy of findChildren(findChild(item, "pts")!, "xy")) points.push({ x: Number(arg(xy, 0)), y: Number(arg(xy, 1)) });
-    } else {
-      const a = findChild(item, "at");
-      if (a) points.push({ x: Number(arg(a, 0)), y: Number(arg(a, 1)) });
-    }
-  }
+  const items = source.children.filter((c): c is List => isList(c) && BLOCK_ITEMS.has(headOf(c) ?? "") && !!itemId(c));
+  const points = items.flatMap(itemPoints);
   if (!points.length) return { uuids: [], symbolUuids: [], symbols: [], bounds: { x: at.x, y: at.y, width: 0, height: 0 } };
   const minX = Math.min(...points.map((p) => p.x));
   const minY = Math.min(...points.map((p) => p.y));
@@ -587,7 +597,7 @@ export function insertBlock(target: List, blockText: string, at: Point, sheetPat
   const dy = Math.round((at.y - minY) / GRID) * GRID;
 
   const references: Record<string, string> = {};
-  const sourceIds = items.map((i) => String(arg(findChild(i, "uuid"), 0)));
+  const sourceIds = items.map((i) => itemId(i)!);
   if (!keepReferences) items.forEach((item, i) => {
     if (headOf(item) !== "symbol") return;
     const ref = String(arg(findChildren(item, "property").find((p) => arg(p, 0) === "Reference"), 1) ?? "U");
@@ -615,14 +625,7 @@ export function findFreeSpot(sheet: List, margin = 12.7): Point {
   let maxY = -Infinity;
   for (const item of sheet.children) {
     if (!isList(item) || !BLOCK_ITEMS.has(headOf(item) ?? "")) continue;
-    const points: Array<[number, number]> = [];
-    if (headOf(item) === "wire" || headOf(item) === "bus") {
-      for (const xy of findChildren(findChild(item, "pts")!, "xy")) points.push([Number(arg(xy, 0)), Number(arg(xy, 1))]);
-    } else {
-      const a = findChild(item, "at");
-      if (a) points.push([Number(arg(a, 0)), Number(arg(a, 1))]);
-    }
-    for (const [x, y] of points) {
+    for (const { x, y } of itemPoints(item)) {
       minX = Math.min(minX, x);
       maxY = Math.max(maxY, y);
     }
