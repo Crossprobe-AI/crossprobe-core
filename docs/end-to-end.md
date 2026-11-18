@@ -341,6 +341,10 @@ pic_programmer's board, and with Shift+P:
 2. An item picked on the board (P3), 10 mm at 90° in polar coordinates: R1 is 10 mm below P3's
    position.
 
+While the dialog is open, R turns nothing behind it, and Escape with the focus in the dialog
+cancels a pick but keeps the dialog. A context menu opened at the view's bottom-right corner, and
+its Align/Distribute submenu, stay inside the view.
+
 Undo puts everything back. `test/arrange.test.ts` compares item positions (what the reference and
 anchor are taken from) with KiCad's on six demo boards.
 
