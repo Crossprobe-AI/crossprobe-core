@@ -2,7 +2,8 @@
 // in labels on both sheets and in the sheet pin between them; Enter goes from match to match,
 // opening the sheet each is on. While editing, Replace all makes it "SDATA" everywhere in one
 // step: undo brings every one back, redo makes them SDATA again. KiCad's netlist of the saved
-// project names the nets SDATA, with the same pins as before.
+// project names the nets SDATA, with the same pins as before. One floating panel shows at a time:
+// Annotate's options close Find, Ctrl+F closes Annotate, and Ctrl+F with Find open refocuses it.
 // Run the dev server (npm run dev -w @crossprobe/web), then: node scripts/e2e-find.mjs <out-dir>
 import puppeteer from "puppeteer-core";
 import { execFileSync } from "node:child_process";
@@ -85,6 +86,22 @@ await page.keyboard.up("Control");
 await idle();
 await wait(800);
 expect(!(await labels()).some((l) => l.includes("RB7")), "redo makes them SDATA again");
+
+console.log("-- one panel at a time");
+await page.evaluate(() => document.activeElement?.blur());
+await page.keyboard.down("Control");
+await page.keyboard.press("f");
+await page.keyboard.up("Control");
+await wait(300);
+expect(await page.evaluate(() => document.activeElement === document.querySelector(".find-panel input")), "Ctrl+F with Find open puts the cursor back in its field");
+await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "More options…").click());
+await wait(300);
+expect(await page.evaluate(() => !!document.querySelector(".annotate-panel") && !document.querySelector(".find-panel")), "Annotate's options close Find rather than drawing over it");
+await page.keyboard.down("Control");
+await page.keyboard.press("f");
+await page.keyboard.up("Control");
+await wait(300);
+expect(await page.evaluate(() => !!document.querySelector(".find-panel") && !document.querySelector(".annotate-panel")), "and Ctrl+F closes Annotate");
 
 const dir = `${OUT}/pic_programmer`;
 cpSync(`${DEMOS}/pic_programmer`, dir, { recursive: true });

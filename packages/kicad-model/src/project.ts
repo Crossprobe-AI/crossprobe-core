@@ -95,20 +95,30 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
       return;
     }
     for (const ref of inst.data.sheets) {
+      // KiCad finds a sheet's file next to the sheet that uses it; files from older layouts
+      // name it from the project folder, which is the same for sheets there.
+      let file = sheetFilePath(inst.file, ref.file);
+      if (file !== ref.file && !cache.has(file)) {
+        try {
+          read(file);
+        } catch {
+          file = ref.file;
+        }
+      }
       // A sheet that (directly or indirectly) contains itself would recurse forever.
       let cyclic = false;
-      for (let a: SheetInstance | undefined = inst; a; a = a.parent) if (a.file === ref.file) cyclic = true;
+      for (let a: SheetInstance | undefined = inst; a; a = a.parent) if (a.file === file) cyclic = true;
       if (cyclic) {
-        warnings.push(`${inst.namePath}: sheet "${ref.name}" refers back to ${ref.file}; skipped`);
+        warnings.push(`${inst.namePath}: sheet "${ref.name}" refers back to ${file}; skipped`);
         continue;
       }
-      const data = load(ref.file);
+      const data = load(file);
       if (!data) continue;
       visit(
         {
           path: `${inst.path}/${ref.uuid}`,
           namePath: `${inst.namePath}${ref.name}/`,
-          file: ref.file,
+          file,
           data,
           parent: inst,
           ref,
@@ -190,6 +200,24 @@ export function loadSchematic(rootFile: string, read: ReadFile): Schematic {
     suffix: typeof drawing["intersheets_ref_suffix"] === "string" ? drawing["intersheets_ref_suffix"] : "",
   };
   return { root, sheets, components, placements, warnings, textVariables, intersheetRefs };
+}
+
+/**
+ * A sheet file named in `parent` (a path from the project folder), as a path from the project
+ * folder: relative to the parent's folder, as KiCad resolves it ("../x" and "./x" included).
+ */
+export function sheetFilePath(parent: string, name: string): string {
+  const n = name.replace(/\\/g, "/");
+  if (n.startsWith("/") || /^[A-Za-z]:\//.test(n) || n.includes("${")) return name;
+  const parts = parent.split("/").slice(0, -1);
+  for (const seg of n.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") {
+      if (parts.length && parts[parts.length - 1] !== "..") parts.pop();
+      else parts.push("..");
+    } else parts.push(seg);
+  }
+  return parts.join("/");
 }
 
 /** Pins of a library symbol that belong to a given unit and body style. */

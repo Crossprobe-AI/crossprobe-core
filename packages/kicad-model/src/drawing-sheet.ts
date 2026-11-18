@@ -227,25 +227,34 @@ export function drawingSheetText(text: string, info: DrawingSheetInfo, depth = 0
   });
 }
 
-/** KiCad's label stepping: the last letter or number, carried within its kind ("A"→"B", "9"→"10", "Z"→"AA"). */
-function stepLabel(text: string, by: number): string {
+/**
+ * KiCad's label stepping (STRING_INCREMENTER as drawing sheets use it): the last number, or the
+ * last run of same-case letters, stepped within its kind ("A"→"B", "Ab"→"Ac", "Z"→"AA",
+ * "09"→"10", "01"→"02"). A step below zero leaves the label as it is.
+ */
+export function stepLabel(text: string, by: number): string {
   if (!by) return text;
-  const m = /^(.*?)([0-9]+|[A-Za-z]+)([^0-9A-Za-z]*)$/.exec(text);
+  const m = /^(.*?)([0-9]+|[a-z]+|[A-Z]+)([^0-9A-Za-z]*)$/s.exec(text);
   if (!m) return text;
-  const [, head, part, tail] = m;
-  if (/^[0-9]+$/.test(part!)) return `${head}${Number(part) + by}${tail}`;
-  const upper = part === part!.toUpperCase();
-  const base = upper ? 65 : 97;
+  const [, head, part, tail] = m as unknown as [string, string, string, string];
+  if (/^[0-9]/.test(part)) {
+    const n = Number(part) + by;
+    if (n < 0) return text;
+    // Zero-padded numbers keep their width.
+    return `${head}${part.startsWith("0") ? String(n).padStart(part.length, "0") : n}${tail}`;
+  }
+  const base = part === part.toUpperCase() ? 65 : 97;
   let n = 0;
-  for (const ch of part!) n = n * 26 + (ch.charCodeAt(0) - base + 1);
+  for (const ch of part) n = n * 26 + (ch.charCodeAt(0) - base + 1);
   n += by;
-  let s = "";
+  if (n < 1) return text;
+  let out = "";
   while (n > 0) {
     n--;
-    s = String.fromCharCode(base + (n % 26)) + s;
+    out = String.fromCharCode(base + (n % 26)) + out;
     n = Math.floor(n / 26);
   }
-  return `${head}${s}${tail}`;
+  return `${head}${out}${tail}`;
 }
 
 /**
@@ -292,11 +301,12 @@ export function drawingSheetPrims(ds: DrawingSheet, width: number, height: numbe
     } else if (item.kind === "text") {
       const full = drawingSheetText(item.text, info);
       const multiline = full.includes("\\n");
+      // KiCad steps the text as written, before its variables are filled in.
       const first = [place(item.pos, 0, item.incrx, item.incry)];
       for (let i = 0; i < item.repeat; i++) {
         const at = place(item.pos, i, item.incrx, item.incry);
         if (i > 0 && !inside([at], first)) continue;
-        const text = (item.repeat > 1 && !multiline ? stepLabel(full, i * item.incrlabel) : full).replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
+        const text = (item.repeat > 1 && !multiline ? drawingSheetText(stepLabel(item.text, i * item.incrlabel), info) : full).replace(/\\n/g, "\n").replace(/\\\\/g, "\\");
         // Too long or too tall for its room: shrunk to fit, as KiCad does.
         let size = { ...item.size };
         if (item.maxlen > 0) {

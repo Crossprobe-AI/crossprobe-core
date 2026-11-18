@@ -869,6 +869,21 @@ export function setSheetName(sheet: List, name: string): void {
 }
 
 /** The page number of one instance of a sheet symbol: `path` is the instance path of the sheet it is drawn on. */
+/**
+ * A KiCad 6 sheet's page number, kept in the root file's `sheet_instances` under the sheet's path
+ * below the root ("/<sheet uuid>/…"), as KiCad 6 writes it.
+ */
+export function setLegacySheetPage(root: List, relativePath: string, page: string): void {
+  const instances = findChild(root, "sheet_instances");
+  if (!instances) return insertTopLevel(root, list("sheet_instances", list("path", str(relativePath), list("page", str(page)))));
+  const existing = findChildren(instances, "path").find((p) => arg(p, 0) === relativePath);
+  if (existing) {
+    const node = findChild(existing, "page");
+    if (node) setArg(node, 0, str(page));
+    else insertAt(existing, existing.children.length, list("page", str(page)));
+  } else insertAt(instances, instances.children.length, list("path", str(relativePath), list("page", str(page))), "\t");
+}
+
 export function setSheetPage(sheet: List, path: string, page: string): void {
   for (const project of findChildren(findChild(sheet, "instances") ?? sheet, "project")) {
     for (const p of findChildren(project, "path")) {

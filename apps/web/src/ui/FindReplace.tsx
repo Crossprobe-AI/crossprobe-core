@@ -13,6 +13,7 @@ import { Icon } from "./icons";
 const KIND: Record<FindTarget["kind"], string> = { text: "Text", label: "Label", field: "Field", sheet: "Sheet", sheetpin: "Sheet pin" };
 
 export function FindReplace({
+  focusToken,
   project,
   files,
   editing,
@@ -20,6 +21,8 @@ export function FindReplace({
   onShow,
   onClose,
 }: {
+  /** Changes when the field should take the cursor again (Ctrl+F with the panel open). */
+  focusToken?: number;
   project: ProjectView;
   /** The project's files as they are now (with unsaved edits). */
   files: () => Promise<Record<string, string>>;
@@ -42,7 +45,10 @@ export function FindReplace({
   // A new function on every render of the app: read it when needed, don't search again because of it.
   const filesRef = useRef(files);
   filesRef.current = files;
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, [focusToken]);
 
   // The sheet files, parsed once per version of the project.
   const parsed = useRef<{ project: ProjectView; sheets: Array<{ file: string; root: ReturnType<typeof sheetRoot> }> }>(undefined);

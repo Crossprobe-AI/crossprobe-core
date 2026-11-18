@@ -1005,7 +1005,7 @@ export function SchematicView({
           {tool === "select" &&
             (picked.size
               ? [...picked].every((id) => id.includes("#"))
-                ? "Field selected · drag to move · R turns it · double-click to edit"
+                ? "Field selected · drag to move · R turns it · double-click to edit · to delete, mirror or copy the part, click its body"
                 : `${picked.size} selected · drag to move · R rotate · X/Y mirror · Del delete · ⌘C/⌘V copy · ⌘D duplicate · `
               : "Click to select · shift-click or shift-drag to add · drag to move")}
           {tool === "wire" && (wire.length ? "Click to add corners · end on a pin or double-click · Esc cancels" : "Click to start a wire")}
