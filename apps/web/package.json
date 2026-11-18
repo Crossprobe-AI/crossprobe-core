@@ -23,6 +23,7 @@
     "./render/types": "./src/render/types.ts",
     "./requirements/requirements": "./src/requirements/requirements.ts",
     "./server/bundled-libs": "./server/bundled-libs.ts",
+    "./ui/CopyField": "./src/ui/CopyField.tsx",
     "./ui/FootprintChooser": "./src/ui/FootprintChooser.tsx",
     "./ui/Menu": "./src/ui/Menu.tsx",
     "./ui/fields": "./src/ui/fields.ts",
