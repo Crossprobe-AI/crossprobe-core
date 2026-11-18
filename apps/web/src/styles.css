@@ -17,6 +17,19 @@
   --panel-2: #f2f5f3;
   --border: #d3dbd6;
   --line-strong: #a9b6af;
+  /* Floating surfaces (menus, flyouts, the canvas's panels, pickers): one look for all. */
+  --surface-bg: var(--raised);
+  --surface-border: 1px solid var(--line-strong);
+  --surface-radius: 4px;
+  --surface-shadow: 0 1px 0 var(--border), 0 12px 32px rgba(20, 22, 25, 0.12);
+  /* Layers on the canvas: panels, then the toolbars, then what opens from them. */
+  --z-panel: 4;
+  --z-bar: 6;
+  --z-popover: 15;
+  /* The canvas's toolbar (.edit-toolbar): where it is, and where what opens from it starts. */
+  --bar-top: 10px;
+  --bar-height: 34px;
+  --popover-gap: 4px;
   /* Borders of interactive controls (inputs, buttons, segmented controls): >= 3:1 on panels (WCAG 1.4.11). */
   --border-control: #77847d;
   --text: #101915;
@@ -3176,8 +3189,7 @@ button.sb-checks:hover {
   letter-spacing: 1px;
   padding: 0;
 }
-.tabs-more > button.more:hover,
-.tabs-more > button.more.on {
+.tabs-more > button.more:hover {
   color: var(--text);
   background: var(--panel);
 }
@@ -3868,4 +3880,62 @@ button.sb-checks:hover {
 }
 .pin-alternate-row select {
   max-width: 96px;
+}
+
+/* ---------- One base for what floats over the canvas ----------
+   Menus, flyouts, the canvas's panels and pickers share one surface (the --surface-*
+   tokens), sit on named layers (--z-*) so a menu never opens under a panel, and open
+   from the toolbar at the same place: --popover-gap below it, flush with its right edge. */
+.menu-items,
+.tabs-menu,
+.rail-flyout,
+.update-pcb,
+.board-props,
+.part-picker {
+  background: var(--surface-bg);
+  border: var(--surface-border);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+}
+.menu-items,
+.tabs-menu,
+.rail-flyout {
+  z-index: var(--z-popover);
+}
+.update-pcb,
+.board-props,
+.part-picker {
+  z-index: var(--z-panel);
+  top: calc(var(--bar-top) + var(--bar-height) + var(--popover-gap));
+}
+/* The toolbars: the same border and corners, above the panels (what opens from them too). */
+.edit-toolbar,
+.tool-rail {
+  border: var(--surface-border);
+  border-radius: var(--surface-radius);
+  z-index: var(--z-bar);
+}
+.edit-toolbar {
+  top: var(--bar-top);
+  min-height: var(--bar-height);
+}
+/* A menu in the toolbar opens where its panels do: measured from the bar itself (the menu
+   is not the positioned box), past its 1px border, flush with its right edge. */
+.edit-toolbar .menu {
+  position: static;
+}
+.edit-toolbar .menu-items {
+  top: calc(100% + 1px + var(--popover-gap));
+  right: -1px;
+}
+/* A button whose menu, flyout or panel is open looks the same everywhere: the accent's
+   tint. (A mode that is on, Editing or the tool in use, is the dark fill instead.) */
+.menu[open] > summary,
+button[aria-haspopup][aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* A field's focus ring inside its border, so a panel that scrolls can't cut it off. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea):focus-visible {
+  outline-offset: -1px;
 }
