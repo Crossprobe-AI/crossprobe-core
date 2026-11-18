@@ -373,7 +373,9 @@ back after re-inflating. The copper differs on 2.5–3.6% of KiCad's area, again
 zone filled solid (on the straight hatch, 200 mm² against the solid fill's 194 mm²). A fifth case
 adds 14 GND vias clear of other copper under a thin, wide-gapped hatch: KiCad relieves them like
 thermal pads (gap, ring, spokes), and so do we. That case differs by 5.1%, as the same hatch
-without vias does (5.2%); before via reliefs it was 7.5%.
+without vias does (5.2%); before via reliefs it was 7.5%. A small board of one hatched zone and one GND via, placed
+so a hatch hole encloses the via's relief while its ring crosses the hole, checks that we keep that
+hole as KiCad does (it drops only holes enclosing a ring's outer edge).
 
 ## Groups
 
