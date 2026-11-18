@@ -63,7 +63,7 @@ export function PositionRelative({
   };
   const locked = items.filter((i) => i.locked).length;
   return (
-    <div className="update-pcb position-relative" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && onClose())}>
+    <div className="update-pcb position-relative" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => (e.stopPropagation(), e.key === "Escape" && (picking ? onPick(picking) : onClose()))}>
       <div className="update-head">
         <strong>Position relative to</strong>
         <button className="icon-btn" onClick={onClose} title="Close">

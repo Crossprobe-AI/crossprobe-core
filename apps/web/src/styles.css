@@ -2673,6 +2673,14 @@ button.sb-checks:hover {
   top: -4px;
   white-space: nowrap;
 }
+.context-sub.open-left > .context-menu {
+  left: auto;
+  right: 100%;
+}
+.context-sub.open-up > .context-menu {
+  top: auto;
+  bottom: -4px;
+}
 .context-sub:hover > .context-menu,
 .context-sub:focus-within > .context-menu {
   display: flex;
