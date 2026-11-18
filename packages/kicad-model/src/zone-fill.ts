@@ -14,7 +14,7 @@
  */
 import ClipperLib from "clipper-lib";
 import { flashChecker, padCorners, type Board, type Footprint, type Graphic, type Pad, type Via, type Zone } from "./board.js";
-import { arcPoints, netClassOf, type DesignRules } from "./drc.js";
+import { arcPoints, netClassOf, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 
 type Path = ClipperLib.Path;
@@ -801,6 +801,201 @@ export function fillZones(board: Board, rules: DesignRules): ZoneFill[] {
     }
   }
   return out;
+}
+
+/**
+ * The copper of DRC items (pads, tracks, vias, zone fills; each a list of shapes) as one
+ * fractured set of outlines, as KiCad's checks build it: every item turned into a polygon,
+ * merged, and each hole joined to its outline (SHAPE_POLY_SET::Fracture). A track's chain of
+ * segments (an arc's chords) is outlined as one band with round ends, as KiCad outlines a track,
+ * so no notches show between its pieces.
+ */
+export function fracturedCopper(items: Array<Shape[] | ArcBand>): Point[][] {
+  const paths: Paths = [];
+  const positive = (p: Path) => (ClipperLib.Clipper.Orientation(p) ? p : [...p].reverse());
+  for (const shapes of items) {
+    if (!Array.isArray(shapes)) {
+      paths.push(positive(kicadArc(shapes)));
+      continue;
+    }
+    const segs = shapes.filter((sh): sh is Extract<Shape, { kind: "seg" }> => sh.kind === "seg");
+    const chain = segs.length > 1 && segs.length === shapes.length && segs.every((sh, k) => k === 0 || (sh.r === segs[0]!.r && Math.hypot(sh.a.x - segs[k - 1]!.b.x, sh.a.y - segs[k - 1]!.b.y) < 1e-9));
+    if (chain) {
+      paths.push(...offset([toPath([segs[0]!.a, ...segs.map((sh) => sh.b)])], segs[0]!.r, true).map(positive));
+      continue;
+    }
+    for (const sh of shapes) {
+      if (sh.kind === "seg" && Math.hypot(sh.a.x - sh.b.x, sh.a.y - sh.b.y) < 1e-9) paths.push(positive(kicadCircle(sh.a, sh.r)));
+      else if (sh.kind === "seg") paths.push(positive(kicadOval(sh.a, sh.b, sh.r)));
+      else if (sh.kind === "area") {
+        // A fill in KiCad's fractured form: its cuts taken out again first (merging thousands of
+        // zero-width cuts is very slow), the outline counter-clockwise and the holes the other way.
+        const loops = unfracture(sh.pts).map(toPath);
+        if (!loops.length) continue;
+        const outer = loops.reduce((m, l) => (Math.abs(ClipperLib.Clipper.Area(l)) > Math.abs(ClipperLib.Clipper.Area(m)) ? l : m));
+        const flip = !ClipperLib.Clipper.Orientation(outer);
+        paths.push(...(flip ? loops.map((l) => [...l].reverse()) : loops));
+      } else if (sh.pts.length >= 3) paths.push(...(sh.r > 0 ? offset([positive(toPath(sh.pts))], sh.r) : [positive(toPath(sh.pts))]));
+    }
+  }
+  return paths.length ? fracture(paths) : [];
+}
+
+/**
+ * A circle as KiCad's TransformCircleToPolygon makes it (error outside): its segment count for
+ * the arc error, rounded up to a multiple of 8, corners half a step off the axes, on a radius
+ * grown by the error so the sides touch the circle.
+ */
+function kicadCircle(c: Point, r: number, err = ARC_ERROR): Path {
+  const n = kicadCircleSegs(r, err);
+  const nm = Math.round(r * 1e6);
+  const R = (nm + Math.round(Math.abs(nm * (1 - 1 / Math.cos(Math.PI / n))))) / 1e6;
+  const d = (2 * Math.PI) / n;
+  return toPath(Array.from({ length: n }, (_, k) => ({ x: c.x + R * Math.cos(d / 2 + k * d), y: c.y - R * Math.sin(d / 2 + k * d) })));
+}
+
+/** An arc track, outlined as KiCad outlines it (see kicadArc). */
+export interface ArcBand {
+  start: Point;
+  mid: Point;
+  end: Point;
+  width: number;
+}
+
+/** KiCad's GetArcToSegmentCount: segments for `sweep` radians of a circle of radius r. */
+function kicadSegs(r: number, err: number, sweep: number): number {
+  const inc = Math.min(Math.PI / 4, 2 * Math.acos(1 - Math.min(1, err / Math.max(r, 1e-6))));
+  return Math.max(2, Math.round(Math.abs(sweep) / inc));
+}
+
+/**
+ * An arc track as KiCad's TransformArcToPolygon makes it (error outside): a half circle at each
+ * end and the outer edge with their error outside (corners on a grown radius between exact
+ * end points), the inner edge with corners exactly on its circle.
+ */
+function kicadArc(a: ArcBand, err = ARC_ERROR): Path {
+  const { start: p0, mid: m, end: p1 } = a;
+  const hw = a.width / 2;
+  // The circle through the three points.
+  const d = 2 * (p0.x * (m.y - p1.y) + m.x * (p1.y - p0.y) + p1.x * (p0.y - m.y));
+  if (Math.abs(d) < 1e-12) return kicadOval(p0, p1, hw, err);
+  const s0 = p0.x ** 2 + p0.y ** 2, s1 = m.x ** 2 + m.y ** 2, s2 = p1.x ** 2 + p1.y ** 2;
+  const c = { x: (s0 * (m.y - p1.y) + s1 * (p1.y - p0.y) + s2 * (p0.y - m.y)) / d, y: (s0 * (p1.x - m.x) + s1 * (p0.x - p1.x) + s2 * (m.x - p0.x)) / d };
+  const R = Math.hypot(p0.x - c.x, p0.y - c.y);
+  const a0 = Math.atan2(p0.y - c.y, p0.x - c.x), am = Math.atan2(m.y - c.y, m.x - c.x), a1 = Math.atan2(p1.y - c.y, p1.x - c.x);
+  const norm = (t: number) => ((t % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  // Which way round passes the middle point.
+  const sgn = norm(am - a0) < norm(a1 - a0) ? 1 : -1;
+  const sweep = sgn > 0 ? norm(a1 - a0) : norm(a0 - a1);
+  const at = (o: Point, r: number, t: number): Point => ({ x: o.x + r * Math.cos(t), y: o.y + r * Math.sin(t) });
+  const grown = (r: number, n: number, part: number) => {
+    const seg360 = Math.abs(Math.round((n * 2 * Math.PI) / part));
+    const nm = Math.round(r * 1e6);
+    return (nm + Math.round(Math.abs(nm * (1 - 1 / Math.cos(Math.PI / Math.max(3, seg360)))))) / 1e6;
+  };
+  /** Error outside: exact ends, n corners between them on the grown radius. */
+  const outside = (o: Point, r: number, from: number, by: number): Point[] => {
+    const n = kicadSegs(r, err, by) + 1;
+    const g = grown(r, n, Math.abs(by));
+    return [at(o, r, from), ...Array.from({ length: n }, (_, i) => at(o, g, from + (by * (i + 0.5)) / n)), at(o, r, from + by)];
+  };
+  const pts: Point[] = [
+    // The start's half circle, from the inner side round the back to the outer side.
+    ...outside(p0, hw, a0 + Math.PI, sgn * Math.PI),
+    ...outside(c, R + hw, a0, sgn * sweep),
+    // The end's half circle, from the outer side round the front to the inner side.
+    ...outside(p1, hw, a1, sgn * Math.PI),
+  ];
+  const ri = R - hw;
+  if (ri > 0) {
+    const n = kicadSegs(ri, err, sweep) + 1;
+    for (let i = 0; i <= n; i++) pts.push(at(c, ri, a1 - (sgn * sweep * i) / n));
+  }
+  return toPath(pts);
+}
+
+/** KiCad's segment count for a full circle of radius r (GetArcToSegmentCount), rounded up to a multiple of 8. */
+function kicadCircleSegs(r: number, err: number): number {
+  const inc = Math.min(45, ((2 * Math.acos(1 - Math.min(1, err / Math.max(r, 1e-6)))) * 180) / Math.PI);
+  return Math.ceil(Math.max(2, Math.round(360 / inc)) / 8) * 8;
+}
+
+/**
+ * A straight track (or oval) as KiCad's TransformOvalToPolygon makes it (error outside): round
+ * ends with corners half a step off the axis on the grown radius, the whole cut back to the
+ * track's exact width.
+ */
+function kicadOval(a: Point, b: Point, r: number, err = ARC_ERROR): Path {
+  const n = kicadCircleSegs(r, err);
+  const nm = Math.round(r * 1e6);
+  const R = (nm + Math.round(Math.abs(nm * (1 - 1 / Math.cos(Math.PI / n))))) / 1e6;
+  let [s, e] = [a, b];
+  if (e.x - s.x < 0) [s, e] = [b, a];
+  const len = Math.hypot(e.x - s.x, e.y - s.y);
+  const th = Math.atan2(e.y - s.y, e.x - s.x);
+  const d = (2 * Math.PI) / n;
+  const local: Point[] = [{ x: len, y: R }];
+  for (let t = d / 2; t < Math.PI - 1e-12; t += d) local.push({ x: len + R * Math.sin(t), y: R * Math.cos(t) });
+  local.push({ x: len, y: -R }, { x: 0, y: -R });
+  for (let t = d / 2; t < Math.PI - 1e-12; t += d) local.push({ x: -R * Math.sin(t), y: -R * Math.cos(t) });
+  local.push({ x: 0, y: R });
+  // Cut to the band |y| <= r (Sutherland–Hodgman against both edges).
+  const clip = (pts: Point[], keep: (p: Point) => boolean, y0: number) => {
+    const out: Point[] = [];
+    pts.forEach((p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      const pi = keep(p), qi = keep(q);
+      if (pi) out.push(p);
+      if (pi !== qi) out.push({ x: p.x + ((q.x - p.x) * (y0 - p.y)) / (q.y - p.y), y: y0 });
+    });
+    return out;
+  };
+  const band = clip(clip(local, (p) => p.y <= r, r), (p) => p.y >= -r, -r);
+  const c = Math.cos(th), si = Math.sin(th);
+  return toPath(band.map((p) => ({ x: s.x + p.x * c - p.y * si, y: s.y + p.x * si + p.y * c })));
+}
+
+/**
+ * A polygon in KiCad's fractured form back as its loops: every cut (an edge walked once each
+ * way) taken out, and the walk carried on past it.
+ */
+export function unfracture(pts: Point[]): Point[][] {
+  const n = pts.length;
+  if (n < 3) return [];
+  const key = (a: Point, b: Point) => `${a.x},${a.y};${b.x},${b.y}`;
+  const edges = new Map<string, number[]>();
+  for (let i = 0; i < n; i++) {
+    const k = key(pts[i]!, pts[(i + 1) % n]!);
+    (edges.get(k) ?? edges.set(k, []).get(k)!).push(i);
+  }
+  // Edge i's way back along the same cut, if any.
+  const partner = new Int32Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    if (partner[i]! >= 0) continue;
+    const back = edges.get(key(pts[(i + 1) % n]!, pts[i]!))?.find((j) => j !== i && partner[j]! < 0);
+    if (back !== undefined) (partner[i] = back), (partner[back] = i);
+  }
+  const used = new Uint8Array(n);
+  const loops: Point[][] = [];
+  for (let s = 0; s < n; s++) {
+    if (used[s] || partner[s]! >= 0) continue;
+    const loop: Point[] = [];
+    let e = s;
+    for (let guard = 0; guard <= n && !used[e]; guard++) {
+      used[e] = 1;
+      loop.push(pts[e]!);
+      let next = (e + 1) % n;
+      // Over a cut: carry on after its way back (cuts may follow one another).
+      for (let hop = 0; partner[next]! >= 0 && hop <= n; hop++) {
+        used[next] = 1;
+        used[partner[next]!] = 1;
+        next = (partner[next]! + 1) % n;
+      }
+      e = next;
+    }
+    if (loop.length >= 3) loops.push(loop);
+  }
+  return loops;
 }
 
 /**
