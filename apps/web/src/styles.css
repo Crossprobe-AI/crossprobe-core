@@ -415,11 +415,6 @@ button.big {
 .open-actions button {
   width: 100%;
 }
-/* Icon and words at the left, lined up from one button to the next (beats button:has(> .icon)). */
-.open-actions button:is(button) {
-  justify-content: flex-start;
-  text-align: left;
-}
 .open-pane {
   align-items: flex-start;
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
