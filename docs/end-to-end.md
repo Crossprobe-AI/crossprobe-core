@@ -43,7 +43,7 @@ rip-up and stitching to pours, plus the fixes the scripted runs turned up.
 1. Board polish: logo edges follow pixels (no curve smoothing); teardrops are straight-edged (KiCad also offers curved ones); radial dimensions show text only.
 2. Routing: shove pushes up to three tracks deep, but along the grid: tracks at exactly the minimum spacing count as crowded; differential pairs don't shove or swap P/N (KiCad's router doesn't swap either: place the parts so the pair arrives in order); meanders are square and single-sided. A pair's skew is matched with low bumps on the shorter leg where they fit, not with KiCad's coupled skew serpentines. "Route all" takes about 5 s on the USB board (in the worker).
 3. DRC exclusions are set from the Issues tab. KiCad honours one only where our marker position matches its own.
-4. Copper connection width (min_connection) isn't checked. A first try that followed KiCad's vertex-pair search flagged thermal spokes and fill bridges KiCad doesn't, so it was shelved.
+4. Copper connection width (min_connection, `connection_width` rules) is checked as KiCad's DRC checks it: copper outlined as KiCad outlines it (its circles, ovals and arcs), the same neck search. Where several vertex pairs cross one neck, which one is reported follows the order of the outline's points, which comes from KiCad's polygon library, so counts can differ a little (StickHub at 0.5 mm: 499 against 574) while the places agree; vme-wren's own 0.1 mm gives KiCad's 193 findings layer by layer (`test/drc-connection-width.test.ts`).
 
 `scripts/e2e-tutorial.mjs` builds the tutorial board in the browser from a new
 project (place, wire, power flag, footprints through the chooser, ERC, Update PCB, flip, rounded
