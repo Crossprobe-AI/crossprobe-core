@@ -105,6 +105,12 @@ const PARTS = [
 
 step("new project");
 await page.goto(URL, { waitUntil: "networkidle0" });
+// A page reload part-way (the dev server reloads it when a source file changes, or when it
+// re-optimises dependencies after a restart) loses what the run has built: say so if it happens.
+page.on("load", () => {
+  console.log(`  NOTE: the page reloaded (${(Date.now() - t0) / 1000} s); a source change or a dependency re-optimisation in the dev server? Results after this are not meaningful.`);
+  problems.push("the page reloaded during the run");
+});
 await page.type('input[aria-label="Project name"]', "usbmcu");
 await page.click(".new-project button");
 await page.waitForSelector(".viewport.schematic svg", { timeout: 20000 });
@@ -184,8 +190,13 @@ await page.keyboard.press("Escape");
 await wait(300);
 p = await proj();
 const net = (n) => p.nets.find((x) => x.name === n || x.name === `/${n}`);
-for (const [n, count] of [["GND", 26], ["+3V3", 12], ["VBUS", 7], ["USB_D+", 3], ["USB_D-", 3], ["MCU_D+", 2], ["XTAL1", 3]])
-  expect(net(n)?.nodes.length === count, `${n}: ${net(n)?.nodes.length} pins (want ${count})`);
+for (const [n, count] of [["GND", 26], ["+3V3", 12], ["VBUS", 7], ["USB_D+", 3], ["USB_D-", 3], ["MCU_D+", 2], ["XTAL1", 3]]) {
+  const got = net(n)?.nodes ?? [];
+  // When short, which pins are missing (and which net they are on instead).
+  const missing = got.length === count ? [] : PARTS.flatMap((part) => Object.entries(part.pins).filter(([, x]) => x.replace(/^~/, "") === n).map(([pin]) => [part.ref, pin])).filter(([ref, pin]) => !got.some((g) => g.reference === ref && g.pin === pin));
+  const elsewhere = missing.map(([ref, pin]) => `${ref}.${pin}→${p.nets.find((x) => x.nodes.some((g) => g.reference === ref && g.pin === pin))?.name ?? "none"}`);
+  expect(got.length === count, `${n}: ${got.length} pins (want ${count})${elsewhere.length ? `; missing ${elsewhere.join(" ")}` : ""}`);
+}
 
 step("ERC: no-connect the unused pins");
 await tab("Issues");
