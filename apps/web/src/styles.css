@@ -330,8 +330,9 @@ button.primary {
   padding-top: 3px;
   padding-bottom: 3px;
 }
-button.primary.big {
-  padding: 10px 18px;
+/* A big button, primary or not: the start screen's ways to open a project. */
+button.big {
+  padding: 9px 16px;
   font-size: 14px;
 }
 
@@ -403,6 +404,16 @@ button.primary.big {
 }
 @media (max-width: 760px) {
   .pane + .pane { border-left: 0; border-top: 1px solid var(--border); }
+}
+/* The ways to open a project: one column of buttons, all as wide and as tall, the
+   folder first and filled, the others (extensions add them) outlined. */
+.open-actions {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 300px);
+}
+.open-actions button {
+  width: 100%;
 }
 .open-pane {
   align-items: flex-start;
@@ -1185,6 +1196,7 @@ g.hl text {
   right: 12px;
   z-index: 3;
   display: flex;
+  align-items: center;
   gap: 2px;
   background: var(--panel);
   border: 1px solid var(--line-strong);
@@ -1205,6 +1217,186 @@ g.hl text {
   background: var(--ink);
   color: var(--on-ink);
   font-weight: 500;
+}
+/* The drawing tools (ui/ToolRail.tsx): a vertical rail at the canvas's left edge, below
+   the breadcrumb and clear of the side panel's toggle. */
+.tool-rail {
+  position: absolute;
+  top: 46px;
+  left: 30px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  max-height: calc(100% - 56px);
+  overflow-y: auto;
+  overflow-x: visible;
+  scrollbar-width: thin;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong, var(--border));
+  border-radius: 3px;
+  box-shadow: 0 1px 0 var(--border), 0 6px 18px rgba(20, 22, 25, 0.1);
+}
+.rail-item {
+  position: relative;
+  display: flex;
+}
+.tool-rail .rail-tool {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text);
+}
+.tool-rail .rail-tool:hover {
+  background: var(--panel-2);
+}
+.tool-rail .rail-tool.on {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.rail-group.in-use > .rail-tool:not(.on) {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tool-rail .tl {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* A group's corner mark, and the small target over it that opens the flyout. */
+.rail-more {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-bottom: 4px solid currentColor;
+  opacity: 0.7;
+}
+.tool-rail .rail-open {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.rail-sep {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border);
+}
+.rail-flyout {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  background: var(--raised, var(--panel));
+  border: 1px solid var(--line-strong, var(--border));
+  border-radius: 3px;
+  box-shadow: var(--elevation, 0 12px 32px rgba(20, 22, 25, 0.16));
+}
+.rail-flyout[hidden] {
+  display: none;
+}
+.rail-flyout-title {
+  padding: 3px 8px 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* Icon and name at the left, keys at the right (beats button:has(> .icon)'s centring). */
+.tool-rail .rail-flyout button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.rail-flyout button:hover {
+  background: var(--panel-2);
+}
+.rail-flyout button.on {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.rail-flyout .tl {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+}
+.rail-flyout .kbd {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.rail-flyout button.on .kbd {
+  color: inherit;
+}
+/* Viewing: the tools are there, dimmed, under a label that says why. */
+.tool-rail .rail-view-only {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  width: 30px;
+  padding: 4px 0 5px;
+  margin-bottom: 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.tool-rail .rail-view-only:hover {
+  color: var(--accent);
+  background: transparent;
+}
+.tool-rail.viewing .rail-tool {
+  color: var(--muted);
+  opacity: 0.55;
+}
+.tool-rail.viewing .rail-tool:hover {
+  opacity: 1;
+}
+/* The toolbar's View only button: a state more than an action, so quieter than Editing. */
+.edit-toolbar button.view-only {
+  color: var(--muted);
+}
+.edit-toolbar button.view-only:hover {
+  color: var(--text);
+}
+/* With the rail at the left, the breadcrumb lines up with it. */
+.canvas:has(.tool-rail) .breadcrumb {
+  left: 30px;
 }
 .edit-hint {
   position: absolute;
@@ -1531,6 +1723,8 @@ button:has(> .icon),
   font-size: 12px;
   padding: 2px 4px;
   margin-left: 2px;
+  /* As tall as the toolbar's buttons. */
+  height: 28px;
 }
 .viewport.board.crosshair {
   cursor: crosshair;
@@ -1761,7 +1955,8 @@ button:has(> .icon),
 .board-props {
   position: absolute;
   top: 52px;
-  left: 12px;
+  /* Clear of the tool rail (left 30px, 38px wide). */
+  left: 76px;
   z-index: 4;
   width: 230px;
   background: var(--panel);

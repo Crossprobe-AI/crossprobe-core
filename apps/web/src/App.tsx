@@ -63,6 +63,8 @@ import type { Selection } from "./ui/selection";
 import { DEFAULT_LAYERS, LayerList, SELECTABLE, SheetTree } from "./ui/Sidebars";
 import { isTyping } from "./ui/keys";
 import { SidePanel, usePanelLayout } from "./ui/SidePanel";
+import { Menu } from "./ui/Menu";
+import { ToolRail, type RailItem } from "./ui/ToolRail";
 
 type Mode = "schematic" | "board" | "3d";
 
@@ -105,6 +107,56 @@ function ExtensionRoot({ id, Root, host }: { id: string; Root: NonNullable<(type
   );
   return <Root host={{ ...shared, link: links[id], ...own }} />;
 }
+
+/** The schematic editor's tools in the rail, top to bottom (ui/ToolRail.tsx). */
+const SCHEMATIC_TOOLS: RailItem<Tool>[] = [
+  { id: "select", label: "Select", keys: "Esc", icon: "select" },
+  "|",
+  { id: "wire", label: "Wire", keys: "W", icon: "wire" },
+  { group: "Buses", tools: [{ id: "bus", label: "Bus", keys: "B", icon: "bus" }, { id: "busentry", label: "Bus entry", keys: "Z", icon: "busEntry" }] },
+  { group: "Labels", tools: [{ id: "label", label: "Label", keys: "L", icon: "label" }, { id: "glabel", label: "Global label", keys: "Ctrl+L", icon: "glabel" }, { id: "hlabel", label: "Hier. label", keys: "H", icon: "hlabel" }] },
+  { id: "junction", label: "Junction", keys: "J", icon: "junction" },
+  { id: "noconnect", label: "No-connect", keys: "Q", icon: "noConnect" },
+  "|",
+  { id: "place", label: "Add part", keys: "A", icon: "addPart" },
+  { id: "power", label: "Power", keys: "P", icon: "power" },
+  { id: "block", label: "Add block", icon: "block" },
+  "|",
+  {
+    group: "Text and graphics",
+    tools: [
+      { id: "text", label: "Text", keys: "T", icon: "text" },
+      { id: "textbox", label: "Text box", icon: "textBox" },
+      { id: "line", label: "Lines", icon: "drawLine" },
+      { id: "rect", label: "Rectangle", icon: "drawRect" },
+      { id: "circle", label: "Circle", icon: "drawCircle" },
+      { id: "arc", label: "Arc", icon: "drawArc" },
+      { id: "image", label: "Image", icon: "image" },
+      { id: "table", label: "Table", icon: "table" },
+    ],
+  },
+  { group: "Sheets", tools: [{ id: "sheet", label: "Sheet", keys: "Shift+S", icon: "sheet" }, { id: "sheetpin", label: "Sheet pin", icon: "sheetPin" }] },
+  { group: "Rules", tools: [{ id: "netclass", label: "Net class", icon: "netClass" }, { id: "rulearea", label: "Rule area", icon: "ruleArea" }] },
+];
+/** The board editor's tools in the rail. */
+const BOARD_TOOLS: RailItem<BoardTool>[] = [
+  { id: "select", label: "Select", keys: "Esc", icon: "select" },
+  "|",
+  { id: "route", label: "Route", keys: "X", icon: "route" },
+  { id: "via", label: "Via", keys: "V", icon: "via" },
+  { id: "footprint", label: "Footprint", keys: "A", icon: "addPart" },
+  "|",
+  { id: "outline", label: "Outline", icon: "outline", title: "Board outline on Edge.Cuts" },
+  { id: "zone", label: "Zone", icon: "zone", title: "Copper zone (pour)" },
+  {
+    group: "Text and dimensions",
+    tools: [
+      { id: "text", label: "Text", icon: "text", title: "Silkscreen text" },
+      { id: "textbox", label: "Text box", icon: "textbox", title: "Text box: click two corners, then type the text (it wraps to the box)" },
+      { id: "dimension", label: "Dimension", icon: "dimension", title: "Dimension: click two points, then the offset (O: horizontal/vertical)" },
+    ],
+  },
+];
 
 export function App() {
   const [project, setProject] = useState<ProjectView>();
@@ -1032,10 +1084,12 @@ export function App() {
               <section className="pane open-pane">
                 <h2>Drop a project folder anywhere, or choose one</h2>
                 <p className="muted">The folder with the .kicad_pro, .kicad_sch and .kicad_pcb files. KiCad 6 to 10.</p>
-                <button className="primary big" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
-                  <Icon name="folderOpen" size={18} /> Choose folder…
-                </button>
-                <Slot name="start-open" />
+                <div className="open-actions">
+                  <button className="primary big" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
+                    <Icon name="folderOpen" size={18} /> Choose folder…
+                  </button>
+                  <Slot name="start-open" />
+                </div>
               </section>
               <section className="pane">
                 <h2>Start an empty project</h2>
@@ -1144,68 +1198,18 @@ export function App() {
                   {sheet.namePath === "/" ? "Root sheet" : sheet.namePath}
                   <span className="muted small"> · {sheet.file}</span>
                 </div>
+                <ToolRail<Tool>
+                  label="Schematic tools"
+                  editing={editing}
+                  active={tool}
+                  onEdit={() => setEditing(true)}
+                  onChoose={chooseTool}
+                  items={SCHEMATIC_TOOLS}
+                />
                 <div className="edit-toolbar">
-                  <button className={editing ? "on" : ""} onClick={() => setEditing((v) => !v)} title="Edit mode (E)">
-                    <Icon name="edit" /> {editing ? "Editing" : "Edit"}
+                  <button className={editing ? "on" : "view-only"} onClick={() => setEditing((v) => !v)} title="Edit mode (E)">
+                    <Icon name={editing ? "edit" : "eye"} /> {editing ? "Editing" : "View only"}
                   </button>
-                  {editing &&
-                    (
-                      [
-                        ["select", "Select", "Esc", "select"],
-                        ["wire", "Wire", "W", "wire"],
-                        ["bus", "Bus", "B", "bus"],
-                        ["busentry", "Bus entry", "Z", "busEntry"],
-                        ["label", "Label", "L", "label"],
-                        ["junction", "Junction", "J", "junction"],
-                        ["noconnect", "No-connect", "Q", "noConnect"],
-                        ["glabel", "Global label", "Ctrl+L", "glabel"],
-                        ["hlabel", "Hier. label", "H", "hlabel"],
-                        ["text", "Text", "T", "text"],
-                        ["textbox", "Text box", "", "textBox"],
-                        ["line", "Lines", "", "drawLine"],
-                        ["rect", "Rectangle", "", "drawRect"],
-                        ["circle", "Circle", "", "drawCircle"],
-                        ["arc", "Arc", "", "drawArc"],
-                        ["netclass", "Net class", "", "netClass"],
-                        ["rulearea", "Rule area", "", "ruleArea"],
-                        ["image", "Image", "", "image"],
-                        ["table", "Table", "", "table"],
-                        ["sheet", "Sheet", "Shift+S", "sheet"],
-                        ["sheetpin", "Sheet pin", "", "sheetPin"],
-                        ["place", "Add part", "A", "addPart"],
-                        ["power", "Power", "P", "power"],
-                        ["block", "Add block", "", "block"],
-                      ] as const
-                    ).map(([t, label, key, icon]) => (
-                      <Fragment key={t}>
-                        {(t === "wire" || t === "text" || t === "place") && <span className="tb-sep" />}
-                        <button className={tool === t ? "on" : ""} onClick={() => chooseTool(t)} title={key ? `${label} (${key})` : label}>
-                          <Icon name={icon} /> <span className="tl">{label}</span>
-                        </button>
-                      </Fragment>
-                    ))}
-                  {editing && <span className="tb-sep" />}
-                  {editing && (
-                    <details className="menu">
-                      <summary title="Annotate references">
-                        <Icon name="annotate" /> <span className="tl">Annotate</span>
-                      </summary>
-                      <div className="menu-items">
-                        <button onClick={(e) => { edit([{ op: "annotate", file: sheet.file, mode: "unannotated" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
-                          Number new parts (R? → R14)
-                        </button>
-                        <button onClick={(e) => { edit([{ op: "annotate", file: sheet.file, mode: "all", order: "x" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
-                          Renumber all, left to right
-                        </button>
-                        <button onClick={(e) => { edit([{ op: "annotate", file: sheet.file, mode: "all", order: "y" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
-                          Renumber all, top to bottom
-                        </button>
-                        <button onClick={(e) => { openPanel("annotate"); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>
-                          More options…
-                        </button>
-                      </div>
-                    </details>
-                  )}
                   {editing && (
                     <button
                       className={missingFootprints ? "attention" : ""}
@@ -1216,25 +1220,37 @@ export function App() {
                       {missingFootprints > 0 && <span className="count">{missingFootprints}</span>}
                     </button>
                   )}
-                  <button
-                    onClick={async () => session.current && downloadFile(`${project.name}.net`, netlistFile(await session.current.files(), project.projectFile))}
-                    title="Export the netlist in KiCad's format (.net), for Pcbnew and other tools"
-                  >
-                    <Icon name="download" /> <span className="tl">Netlist</span>
-                  </button>
                   <button className={showFind ? "on" : ""} onClick={() => openPanel("find")} title="Find (and replace, while editing) in texts, labels and fields on every sheet (Ctrl+F)">
                     <Icon name="search" /> <span className="tl">Find</span>
                   </button>
-                  {editing && (
-                    <>
-                    <button onClick={() => openPanel("fields")} title="Symbol fields table: every part's fields, edited in one place">
-                      <Icon name="table" /> <span className="tl">Fields</span>
+                  <Menu className="tools-menu" label="Tools" title="Annotate, the netlist, the fields table and page settings" summary={<><Icon name="tools" /> <span className="tl">Tools</span></>}>
+                    {editing && (
+                      <>
+                        <span className="menu-label">Annotate</span>
+                        <button onClick={() => edit([{ op: "annotate", file: sheet.file, mode: "unannotated" }])}>Number new parts (R? → R14)</button>
+                        <button onClick={() => edit([{ op: "annotate", file: sheet.file, mode: "all", order: "x" }])}>Renumber all, left to right</button>
+                        <button onClick={() => edit([{ op: "annotate", file: sheet.file, mode: "all", order: "y" }])}>Renumber all, top to bottom</button>
+                        <button onClick={() => openPanel("annotate")} title="Annotate references: scope, order and numbering">
+                          <Icon name="annotate" /> More options…
+                        </button>
+                        <hr />
+                        <button onClick={() => openPanel("fields")} title="Symbol fields table: every part's fields, edited in one place">
+                          <Icon name="table" /> Symbol fields table…
+                        </button>
+                        <button onClick={() => sheet && setPageFile(sheet.file)} title="Page settings: paper size and the title block (title, date, revision, company, comments)">
+                          <Icon name="doc" /> Page settings…
+                        </button>
+                        <hr />
+                      </>
+                    )}
+                    <button
+                      onClick={async () => session.current && downloadFile(`${project.name}.net`, netlistFile(await session.current.files(), project.projectFile))}
+                      title="Export the netlist in KiCad's format (.net), for Pcbnew and other tools"
+                    >
+                      <Icon name="download" /> Export the netlist (.net)
                     </button>
-                    <button onClick={() => sheet && setPageFile(sheet.file)} title="Page settings: paper size and the title block (title, date, revision, company, comments)">
-                      <Icon name="doc" /> <span className="tl">Page</span>
-                    </button>
-                    </>
-                  )}
+                    {!editing && <span className="menu-label muted">Annotating, the fields table and page settings need editing on (E).</span>}
+                  </Menu>
                 </div>
                 {editing && (tool === "place" || tool === "power") && <PartPicker key={`${tool}-${pickerOpen}`} power={tool === "power"} project={project} placing={placing} onPick={setPlacing} onNewSymbol={() => void openSymbolEditor()} />}
                 {editing && tool === "block" && (
@@ -1283,33 +1299,18 @@ export function App() {
             )}
             {mode === "board" && project.board && (
               <>
+                <ToolRail<BoardTool>
+                  label="Board tools"
+                  editing={editing}
+                  active={boardTool}
+                  onEdit={() => setEditing(true)}
+                  onChoose={setBoardTool}
+                  items={BOARD_TOOLS}
+                />
                 <div className="edit-toolbar">
-                  <button className={editing ? "on" : ""} onClick={() => setEditing((v) => !v)} title="Edit mode (E)">
-                    <Icon name="edit" /> {editing ? "Editing" : "Edit"}
+                  <button className={editing ? "on" : "view-only"} onClick={() => setEditing((v) => !v)} title="Edit mode (E)">
+                    <Icon name={editing ? "edit" : "eye"} /> {editing ? "Editing" : "View only"}
                   </button>
-                  {editing &&
-                    (
-                      [
-                        ["select", "Select", "Esc", "select"],
-                        ["route", "Route", "X", "route"],
-                        ["via", "Via", "V", "via"],
-                        ["footprint", "Footprint", "A", "addPart"],
-                        ["outline", "Outline", "", "outline"],
-                        ["zone", "Zone", "", "zone"],
-                        ["text", "Text", "", "text"],
-                        ["textbox", "Text box", "", "textbox"],
-                        ["dimension", "Dimension", "", "dimension"],
-                      ] as const
-                    ).map(([t, label, key, icon]) => (
-                      <button
-                        key={t}
-                        className={boardTool === t ? "on" : ""}
-                        onClick={() => setBoardTool(t)}
-                        title={t === "outline" ? "Board outline on Edge.Cuts" : t === "zone" ? "Copper zone (pour)" : t === "text" ? "Silkscreen text" : t === "textbox" ? "Text box: click two corners, then type the text (it wraps to the box)" : t === "dimension" ? "Dimension: click two points, then the offset (O: horizontal/vertical)" : `${label} (${key})`}
-                      >
-                        <Icon name={icon} /> <span className="tl">{label}</span>
-                      </button>
-                    ))}
                   {editing && (
                     <>
                       <select value={boardLayer} onChange={(e) => setBoardLayer(e.target.value)} title="Routing layer">
@@ -1372,19 +1373,44 @@ export function App() {
                       </select>
                     </>
                   )}
-                  {editing && <span className="tb-sep" />}
-                  {editing && project.board.zones.some((z) => !z.keepout) && (
-                    <button
-                      className={zonesStale ? "attention" : ""}
-                      onClick={() => edit([{ op: "refillZones", file: project.boardFile! }])}
-                      title="Refill copper zones (B)"
-                    >
-                      <Icon name="layers" /> <span className="tl">Refill</span>
-                    </button>
-                  )}
-                  {editing && project.unconnected.length > 0 && (
-                    <button
-                      onClick={() => {
+                  {(() => {
+                    const schN = project.schematicUpdate?.updates.length ?? 0;
+                    const pcbN = project.boardUpdate ? project.boardUpdate.updates.length + project.boardUpdate.missing.length : 0;
+                    const updateSch = project.schematicUpdate && (
+                      <button className={showUpdateSch ? "on" : ""} onClick={() => openPanel("updateSch")} title="Update schematic from PCB: references, values, footprints and fields changed on the board">
+                        <Icon name="schematic" /> <span className="tl">Update schematic</span>
+                        {schN > 0 && <span className="count">{schN}</span>}
+                      </button>
+                    );
+                    const updatePcb = project.boardUpdate && (
+                      <button className={showUpdate ? "on" : ""} onClick={() => openPanel("update")} title="Update PCB from schematic (F8)">
+                        <Icon name="sync" /> <span className="tl">Update PCB</span>
+                        {pcbN > 0 && <span className="count">{pcbN}</span>}
+                      </button>
+                    );
+                    const zones = project.board!.zones.some((z) => !z.keepout);
+                    return (
+                      <>
+                        {/* What needs doing stays in view: stale zones, and changes to bring across. */}
+                        {editing && zones && zonesStale && (
+                          <button className="attention" onClick={() => edit([{ op: "refillZones", file: project.boardFile! }])} title="Refill copper zones (B)">
+                            <Icon name="layers" /> <span className="tl">Refill</span>
+                          </button>
+                        )}
+                        {schN > 0 && updateSch}
+                        {pcbN > 0 && updatePcb}
+                        <Menu className="tools-menu" label="Tools" title="Board setup, routing helpers, renumbering, cleanup, libraries, page settings, nets and updates" summary={<><Icon name="tools" /> <span className="tl">Tools</span></>}>
+                          {editing && (
+                            <>
+                              <span className="menu-label">Routing</span>
+                              {zones && (
+                                <button onClick={() => edit([{ op: "refillZones", file: project.boardFile! }])} title="Refill copper zones (B)">
+                                  <Icon name="layers" /> Refill zones<span className="kbd">B</span>
+                                </button>
+                              )}
+                              {project.unconnected.length > 0 && (
+                                <button
+                        onClick={() => {
                         // Nets with a copper pour are left to the pour.
                         const poured = new Set(project.board!.zones.filter((z) => !z.keepout).map((z) => z.net));
                         const todo = project.unconnected.filter((u) => !poured.has(u.net));
@@ -1395,58 +1421,53 @@ export function App() {
                         const fanout: EditOp[] = poured.size ? [{ op: "stitchPours", file: f, fanout: true }] : [];
                         if (todo.length || stitch.length) edit([...fanout, ...(todo.length ? [{ op: "autoroute" as const, file: f, connections: todo.map((u) => ({ from: u.a.at, to: u.b.at, net: u.net })) }] : []), ...stitch]);
                       }}
-                      title="Route every unrouted connection automatically (nets with a copper pour are left to it); undo if you don't like it"
-                    >
-                      <Icon name="route" /> <span className="tl">Route all</span>
-                    </button>
-                  )}
-                  {editing && project.board!.tracks.length > 0 && (
-                    <button
-                      onClick={() => edit([{ op: "teardrops", file: project.boardFile! }, { op: "refillZones", file: project.boardFile! }])}
-                      title="Teardrops where tracks meet pads and vias (stronger joints for fabrication); run again after re-routing to update them"
-                    >
-                      <Icon name="via" /> <span className="tl">Teardrops</span>
-                    </button>
-                  )}
-                  {editing && project.board!.zones.some((z) => z.teardrop) && (
-                    <button onClick={() => edit([{ op: "teardrops", file: project.boardFile!, remove: true }, { op: "refillZones", file: project.boardFile! }])} title="Remove all teardrops">
-                      <Icon name="close" /> <span className="tl">No teardrops</span>
-                    </button>
-                  )}
-                  <span className="tb-sep" />
-                  <button className={showSetup ? "on" : ""} onClick={() => openPanel("setup")} title="Board setup: design rules and net class sizes">
-                    <Icon name="edit" /> <span className="tl">Setup</span>
-                  </button>
-                  <button className={showReannotate ? "on" : ""} onClick={() => openPanel("reannotate")} title="Renumber the board's references by position (geographical reannotation); Update schematic then sends them to the schematic">
-                    <Icon name="annotate" /> <span className="tl">Renumber</span>
-                  </button>
-                  <button className={showCleanup ? "on" : ""} onClick={() => openPanel("cleanup")} title="Cleanup tracks & vias: merge collinear segments, remove redundant and dangling tracks and vias">
-                    <Icon name="route" /> <span className="tl">Cleanup</span>
-                  </button>
-                  <button className={showLibCheck ? "on" : ""} onClick={() => openPanel("libcheck")} title="Compare every footprint with its library copy (KiCad's library parity check), and update the ones that differ">
-                    <Icon name="sync" /> <span className="tl">Libraries</span>
-                  </button>
-                  <button onClick={() => project.boardFile && setPageFile(project.boardFile)} title="Page settings: the board's paper size and title block">
-                    <Icon name="doc" /> <span className="tl">Page</span>
-                  </button>
-                  <button onClick={() => openPanel("nets")} title="Net inspector: length, vias and pads of every net">
-                    <Icon name="net" /> <span className="tl">Nets</span>
-                  </button>
-                  {project.schematicUpdate && (
-                    <button className={showUpdateSch ? "on" : ""} onClick={() => openPanel("updateSch")} title="Update schematic from PCB: references, values, footprints and fields changed on the board">
-                      <Icon name="schematic" /> <span className="tl">Update schematic</span>
-                      {project.schematicUpdate.updates.length > 0 && <span className="count">{project.schematicUpdate.updates.length}</span>}
-                    </button>
-                  )}
-                  {project.boardUpdate && (
-                    <button className={showUpdate ? "on" : ""} onClick={() => openPanel("update")} title="Update PCB from schematic (F8)">
-                      <Icon name="sync" /> <span className="tl">Update PCB</span>
-                      {(() => {
-                        const n = project.boardUpdate.updates.length + project.boardUpdate.missing.length;
-                        return n ? <span className="count">{n}</span> : null;
-                      })()}
-                    </button>
-                  )}
+                                  title="Route every unrouted connection automatically (nets with a copper pour are left to it); undo if you don't like it"
+                                >
+                                  <Icon name="route" /> Route all unrouted
+                                </button>
+                              )}
+                              {project.board!.tracks.length > 0 && (
+                                <button
+                                  onClick={() => edit([{ op: "teardrops", file: project.boardFile! }, { op: "refillZones", file: project.boardFile! }])}
+                                  title="Teardrops where tracks meet pads and vias (stronger joints for fabrication); run again after re-routing to update them"
+                                >
+                                  <Icon name="via" /> Add teardrops
+                                </button>
+                              )}
+                              {project.board!.zones.some((z) => z.teardrop) && (
+                                <button onClick={() => edit([{ op: "teardrops", file: project.boardFile!, remove: true }, { op: "refillZones", file: project.boardFile! }])} title="Remove all teardrops">
+                                  <Icon name="close" /> Remove teardrops
+                                </button>
+                              )}
+                              <hr />
+                            </>
+                          )}
+                          <span className="menu-label">Board</span>
+                          <button onClick={() => openPanel("setup")} title="Board setup: design rules and net class sizes">
+                            <Icon name="edit" /> Board setup…
+                          </button>
+                          <button onClick={() => openPanel("reannotate")} title="Renumber the board's references by position (geographical reannotation); Update schematic then sends them to the schematic">
+                            <Icon name="annotate" /> Renumber by position…
+                          </button>
+                          <button onClick={() => openPanel("cleanup")} title="Cleanup tracks & vias: merge collinear segments, remove redundant and dangling tracks and vias">
+                            <Icon name="route" /> Cleanup tracks and vias…
+                          </button>
+                          <button onClick={() => openPanel("libcheck")} title="Compare every footprint with its library copy (KiCad's library parity check), and update the ones that differ">
+                            <Icon name="sync" /> Compare with libraries…
+                          </button>
+                          <button onClick={() => project.boardFile && setPageFile(project.boardFile)} title="Page settings: the board's paper size and title block">
+                            <Icon name="doc" /> Page settings…
+                          </button>
+                          <button onClick={() => openPanel("nets")} title="Net inspector: length, vias and pads of every net">
+                            <Icon name="net" /> Net inspector…
+                          </button>
+                          {(updateSch || updatePcb) && <hr />}
+                          {schN === 0 && updateSch}
+                          {pcbN === 0 && updatePcb}
+                        </Menu>
+                      </>
+                    );
+                  })()}
                 </div>
                 {editing && boardTool === "footprint" && <FootprintPicker placing={placingFootprint} onPick={setPlacingFootprint} />}
                 {showSetup && <BoardSetup project={project} onEdit={edit} onClose={() => setShowSetup(false)} />}

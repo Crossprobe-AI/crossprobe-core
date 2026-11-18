@@ -31,7 +31,7 @@ const clickSch = async (p, count = 1) => {
   await page.mouse.click(c.x, c.y, { count });
   await wait(200);
 };
-const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".edit-toolbar button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
+const tool = (label) => page.evaluate((l) => [...document.querySelectorAll(".tool-rail button")].find((b) => b.querySelector(".tl")?.textContent === l).click(), label);
 const kinds = () => page.evaluate(() => window.__crossprobe.sheet.items.reduce((m, i) => ((m[i.kind] = (m[i.kind] ?? 0) + 1), m), {}));
 
 await page.goto(URL, { waitUntil: "networkidle0" });
