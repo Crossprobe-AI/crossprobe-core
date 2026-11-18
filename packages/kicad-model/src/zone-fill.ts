@@ -349,6 +349,11 @@ function spokes(pad: Pad, gap: number, width: number): Paths {
   return out;
 }
 
+/** A via as a round through-hole pad, for its thermal relief in a hatched zone. */
+function viaPad(v: Via): Pad {
+  return { number: "", type: "thru_hole", shape: "circle", at: v.at, rotation: 0, size: { x: v.size, y: v.size }, drill: v.drill, layers: v.layers, net: v.net } as unknown as Pad;
+}
+
 function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
   const { board, rules, copper } = ctx;
   const net = zone.net;
@@ -436,7 +441,14 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
     const idx = v.layers.map((l) => copper.indexOf(l)).filter((i) => i >= 0);
     const on = idx.length === 2 ? copper.slice(Math.min(...idx), Math.max(...idx) + 1).includes(layer) : true;
     if (same(v.net)) {
-      if (on) anchors.push(v.at);
+      // A hatched zone with thermal connections relieves its vias too, with a ring and spokes, so
+      // none sits alone in a hatch hole (KiCad 10's knockoutThermalReliefs); solid zones, and
+      // other connection modes (THT-only counts a via as solid), join them whole.
+      if (on && zone.hatch && zone.connect === "thermal" && zone.thermalGap > 0 && ctx.flashed(v, layer)) {
+        const pad = viaPad(v);
+        reliefs.push(...padPaths(pad, zone.thermalGap));
+        thermal.push({ pad, gap: zone.thermalGap, width: Math.min(zone.thermalWidth, v.size) });
+      } else if (on) anchors.push(v.at);
       continue;
     }
     if (on && ctx.flashed(v, layer)) holes.push(...circle(v.at, v.size / 2 + clearanceTo(v.net)));
@@ -508,18 +520,24 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
   // A hatched zone puts a ring of copper, a spoke wide, around each thermal relief, for the
   // hatch to meet (KiCad's buildHatchZoneThermalRings); other nets' clearances still cut it.
   const rings: Paths = [];
+  // The rings as the hatch sees them, deflated with the fill (each ring whole: its outer edge and
+  // its hole); KiCad adds them back after re-inflating.
+  const ringsDeflated: Paths = [];
   if (zone.hatch)
     for (const t of thermal) {
       const width = Math.min(t.width, t.pad.size.x, t.pad.size.y);
       if (width < zone.minThickness) continue;
-      rings.push(...difference(padPaths(t.pad, t.gap + width), padPaths(t.pad, t.gap)));
+      const ring = difference(padPaths(t.pad, t.gap + width), padPaths(t.pad, t.gap));
+      rings.push(...ring);
+      ringsDeflated.push(...(half > 0 ? offset(ring, -half) : ring));
     }
   const iRings = indexed(rings);
+  const iRingsDeflated = indexed(ringsDeflated);
   const iHoleCuts = indexed(holes);
   const iReliefs = indexed(reliefs);
   const iDrills = indexed(drills);
   const ab = bounds(area);
-  const tiles: Array<{ rect: Path; grown: Path; base: Paths; inBase: (p: Point) => boolean; x0: number; y0: number }> = [];
+  const tiles: Array<{ rect: Path; grown: Path; area: Paths; base: Paths; inBase: (p: Point) => boolean; x0: number; y0: number }> = [];
   // Hatched zones have wide margins (whole holes): bigger tiles keep the overlap in proportion.
   const T = (zone.hatch ? Math.max(TILE, 2 * tileMargin) : TILE) * S;
   const M = tileMargin * S;
@@ -541,7 +559,7 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
       const base = tileRings.length
         ? difference(union([...difference(tileArea, nearBox(iReliefs, ...box)), ...intersection(tileRings, tileArea)]), nearBox(iHoleCuts, ...box))
         : difference(tileArea, nearBox(iCuts, ...box));
-      tiles.push({ rect: rectPath(tx, ty, tx + T, ty + T), grown, base, inBase: pointTester(base), x0: tx, y0: ty });
+      tiles.push({ rect: rectPath(tx, ty, tx + T, ty + T), grown, area: tileArea, base, inBase: pointTester(base), x0: tx, y0: ty });
     }
   }
   const tileAt = (p: Point) => {
@@ -578,8 +596,16 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
     // Remove copper narrower than the minimum thickness (the margin keeps tile edges exact),
     // cutting a hatched zone's holes while it is deflated (as KiCad does).
     if (half > 0) fill = offset(fill, -half);
-    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, [...nearBox(iCuts, gx0, gy0, gx1, gy1), ...nearBox(iRings, gx0, gy0, gx1, gy1)]);
+    const tileRings = zone.hatch ? nearBox(iRingsDeflated, gx0, gy0, gx1, gy1) : [];
+    if (zone.hatch) fill = cutHatch(fill, hatchHoles(zone.hatch, zone.minThickness, t.x0 / S - holeReach, t.y0 / S - holeReach, (t.x0 + T) / S + holeReach, (t.y0 + T) / S + holeReach), zone.hatch, zone.minThickness, hatchOutline, [...nearBox(iCuts, gx0, gy0, gx1, gy1), ...tileRings]);
     if (half > 0) fill = offset(fill, half);
+    // Rings back where a hatch hole or the deflation notched them, then clear of the zone's
+    // edge, other nets' clearances and drills again (KiCad: BooleanAdd( thermalRings ), then trims).
+    // (Only the rings need the trim: the fill is already clear.)
+    if (tileRings.length) {
+      const back = difference(intersection(tileRings, t.area), [...nearBox(iHoles, gx0, gy0, gx1, gy1), ...tileDrills]);
+      if (back.length) fill = union([...fill, ...back]);
+    }
     pieces.push(...intersection(fill, [t.rect]));
   }
   const fill = union(pieces);
