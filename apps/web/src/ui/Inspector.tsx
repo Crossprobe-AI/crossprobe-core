@@ -49,6 +49,8 @@ const DRC_LABELS: Record<string, string> = {
   track_dangling: "Dangling tracks",
   via_dangling: "Dangling vias",
   courtyards_overlap: "Courtyards overlap",
+  missing_courtyard: "Missing courtyards",
+  malformed_courtyard: "Malformed courtyards",
   holes_co_located: "Holes drilled twice",
   hole_to_hole: "Holes too close",
   starved_thermal: "Starved thermal reliefs",
