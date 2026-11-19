@@ -60,3 +60,4 @@ export * from "./drc-diffpair.js";
 export * from "./drc-connection-width.js";
 export * from "./page-frame.js";
 export * from "./outline-chain.js";
+export * from "./drc-outline.js";

@@ -15,9 +15,10 @@ import { checkLengthRules } from "./drc-length.js";
 import { checkDiffPairRules } from "./drc-diffpair.js";
 import { checkConnectionWidth } from "./drc-connection-width.js";
 import { chainOutlines } from "./outline-chain.js";
+import { checkBoardOutline } from "./drc-outline.js";
 import { netClassOf } from "./drc.js";
 
-export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch" | "length_out_of_range" | "skew_out_of_range" | "diff_pair_gap_out_of_range" | "diff_pair_uncoupled_length_too_long" | "connection_width" | "missing_courtyard" | "malformed_courtyard";
+export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch" | "length_out_of_range" | "skew_out_of_range" | "diff_pair_gap_out_of_range" | "diff_pair_uncoupled_length_too_long" | "connection_width" | "missing_courtyard" | "malformed_courtyard" | "invalid_outline";
 
 export interface BoardViolation {
   type: BoardCheck;
@@ -1113,6 +1114,7 @@ export function checkBoard(board: Board, rules: DesignRules, items: CopperItem[]
   const on = (t: BoardCheck) => (sev[t] === undefined ? !DEFAULT_IGNORE.includes(t) : sev[t] !== "ignore");
   if (on("drill_out_of_range") || on("annular_width") || on("holes_co_located") || on("hole_to_hole")) checkHoles(board, rules, all);
   if (on("track_dangling") || on("via_dangling")) checkDangling(board, items, all);
+  if (on("invalid_outline")) all.push(...checkBoardOutline(board));
   if (on("courtyards_overlap")) checkCourtyards(board, all);
   if (on("missing_courtyard") || on("malformed_courtyard")) checkCourtyardDefinitions(board, all, on("missing_courtyard"), on("malformed_courtyard"));
   if (on("pth_inside_courtyard") || on("npth_inside_courtyard")) checkCourtyardHoles(board, all);

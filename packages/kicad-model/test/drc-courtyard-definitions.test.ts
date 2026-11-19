@@ -2,8 +2,9 @@
  * Footprint courtyard definitions against KiCad's DRC (missing_courtyard, malformed_courtyard,
  * both turned on): courtyard shapes chained as KiCad chains them. The footprints with no
  * courtyard are KiCad's (KiCad stops each check at 199 findings: the first 199 of ours are its
- * 199); the malformed ones are KiCad's, each with its errors within one (where several shape
- * ends meet at one point, which pair KiCad takes follows its k-d tree). Env: KICAD_DEMOS, KICAD_CLI.
+ * 199); the malformed ones are KiCad's, with KiCad's errors (where several shape ends meet at
+ * one point, which pair is taken follows KiCad's k-d tree, built as KiCad builds it).
+ * Env: KICAD_DEMOS, KICAD_CLI.
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +18,7 @@ const line = (x0: number, y0: number, x1: number, y1: number): Graphic => ({ lay
 describe("chaining outlines", () => {
   it("a closed box, a gap, a cross inside, and a polygon", () => {
     const box = [line(0, 0, 2, 0), line(2, 1, 2, 0), line(0, 1, 2, 1), line(0, 0, 0, 1)];
-    expect(chainOutlines(box)).toEqual({ ok: true, errors: [] });
+    expect(chainOutlines(box)).toMatchObject({ ok: true, errors: [] });
     // Ends 0.01 mm apart still meet (KiCad chains within 0.02 mm); 0.1 mm apart they don't.
     expect(chainOutlines([...box.slice(0, 3), line(0, 0.01, 0, 1)]).ok).toBe(true);
     const open = chainOutlines([...box.slice(0, 3), line(0, 0.1, 0, 1)]);
@@ -28,7 +29,7 @@ describe("chaining outlines", () => {
     expect(crossed.ok).toBe(false);
     expect(crossed.errors.some((e) => e.message === "(self-intersecting)")).toBe(true);
     const poly: Graphic = { layer: "F.CrtYd", kind: "poly", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }], width: 0.05, fill: false };
-    expect(chainOutlines([poly])).toEqual({ ok: true, errors: [] });
+    expect(chainOutlines([poly])).toMatchObject({ ok: true, errors: [] });
   });
 });
 
@@ -71,7 +72,7 @@ describe.skipIf(!cli)("courtyard definitions as KiCad's DRC", () => {
     // KiCad stops at 199.
     expect(missing(ours).slice(0, 199).sort()).toEqual(theirs.sort());
     if (theirs.length < 199) expect(missing(ours)).toHaveLength(theirs.length);
-    // Malformed: the same footprints, each with its errors within one.
+    // Malformed: the same footprints, each with KiCad's errors.
     const per = (list: Finding[]) => {
       const m = new Map<string, number>();
       for (const v of list) if (v.type === "malformed_courtyard") m.set(`${v.uuid} ${v.description}`, (m.get(`${v.uuid} ${v.description}`) ?? 0) + 1);
@@ -79,7 +80,7 @@ describe.skipIf(!cli)("courtyard definitions as KiCad's DRC", () => {
     };
     const a = per(k.found), b = per(ours);
     expect([...new Set([...b.keys()].map((x) => x.split(" ")[0]))].sort()).toEqual([...new Set([...a.keys()].map((x) => x.split(" ")[0]))].sort());
-    for (const key of new Set([...a.keys(), ...b.keys()])) expect(Math.abs((a.get(key) ?? 0) - (b.get(key) ?? 0)), key).toBeLessThanOrEqual(1);
+    expect(Object.fromEntries(b)).toEqual(Object.fromEntries(a));
   });
 
   it("a footprint whose attributes allow no courtyard", () => {
