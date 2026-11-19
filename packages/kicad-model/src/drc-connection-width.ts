@@ -13,7 +13,7 @@
 import type { Point } from "./geometry.js";
 import type { BoardViolation } from "./drc-checks.js";
 import { copperItems, netClassOf, shapeDistance, type CopperItem, type DesignRules, type Shape } from "./drc.js";
-import { customConstraint } from "./drc-rules.js";
+import { customConstraint, type RuleItem } from "./drc-rules.js";
 import type { Board } from "./board.js";
 import { fracturedCopper } from "./zone-fill.js";
 
@@ -233,9 +233,8 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
   const run = [...widths].filter((w) => w - eps > 0);
   if (!run.length) return [];
   const nets = new Set(board.nets);
-  // Only the copper KiCad's check builds: no graphics.
+  // The copper KiCad's check merges (no graphics); at a neck it hit-tests copper graphics too.
   const copper = items.filter((it) => it.item.kind === "pad" || it.item.kind === "track" || it.item.kind === "via" || it.item.kind === "zone");
-  /** The width the items at a neck must keep (KiCad evaluates the first one). */
   const inPoly = (p: Point, poly: Point[]) => {
     let inside = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -244,10 +243,21 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
     }
     return inside;
   };
-  const required = (it: CopperItem, layer: string, at: Point): { min: number; name: string } => {
+  const ruleItem = (it: CopperItem, at: Point): RuleItem => ({
+    type: it.item.kind === "pad" ? "Pad" : it.item.kind === "via" ? "Via" : it.item.kind === "zone" ? "Zone" : it.item.kind === "graphic" ? "Graphic" : "Track",
+    netName: it.item.net,
+    netClass: netClassOf(rules, it.item.net).name,
+    reference: it.item.reference,
+    layer: it.ruleLayer,
+    layers: it.layers,
+    hasNet: (n) => nets.has(n),
+    // An area condition is tested at the neck.
+    intersectsArea: (name) => board.zones.some((z) => z.name === name && z.outline.length >= 3 && inPoly(at, z.outline)),
+  });
+  /** The width the items at a neck must keep: KiCad evaluates the rules for the first two items found there. */
+  const required = (near: CopperItem[], layer: string, at: Point): { min: number; name: string } => {
     if (custom.length) {
-      // A pad answers to its footprint's reference; an area condition is tested at the neck.
-      const c = customConstraint(custom, "connection_width", { type: it.item.kind === "pad" ? "Pad" : it.item.kind === "via" ? "Via" : it.item.kind === "zone" ? "Zone" : "Track", netName: it.item.net, netClass: netClassOf(rules, it.item.net).name, reference: it.item.reference, layer: it.ruleLayer, layers: it.layers, hasNet: (n) => nets.has(n), intersectsArea: (name) => board.zones.some((z) => z.name === name && z.outline.length >= 3 && inPoly(at, z.outline)) }, layer);
+      const c = customConstraint(custom, "connection_width", ruleItem(near[0]!, at), layer, near[1] && ruleItem(near[1], at));
       if (c?.min !== undefined) return { min: c.min, name: c.rule };
     }
     return { min: boardMin, name: "board setup constraints" };
@@ -257,7 +267,7 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
   // KiCad names the layer as the board does (its user name, when it has one).
   const shown = (layer: string) => board.layers.find((l) => l.name === layer)?.userName ?? layer;
   for (const layer of board.copperLayers) {
-    const onLayer = copper.filter((it) => it.layers.has(layer));
+    const onLayer = items.filter((it) => it.layers.has(layer));
     const byNet = new Map<string, CopperItem[]>();
     for (const it of copper) if (it.layers.has(layer)) (byNet.get(it.item.net) ?? byNet.set(it.item.net, []).get(it.item.net)!).push(it);
     for (const [, list] of byNet) {
@@ -277,7 +287,7 @@ export function checkConnectionWidth(board: Board, rules: DesignRules, items: Co
             // KiCad lists zones after the other items.
             near.sort((p, q) => Number(p.item.kind === "zone") - Number(q.item.kind === "zone"));
             if (!near.length) continue;
-            const c = required(near[0]!, layer, at);
+            const c = required(near, layer, at);
             if (Math.abs(c.min - minWidth) > 1e-9) continue;
             out.push({
               type: "connection_width",
