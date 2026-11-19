@@ -17,7 +17,11 @@ export interface ChainError {
   message: "(not a closed shape)" | "(self-intersecting)";
   /** Where KiCad marks it (mm). */
   at: Point;
-  /** The shapes involved (indices into the list given). */
+  /**
+   * The shapes involved (indices into the list given). For a crossing found between outlines,
+   * the shapes owning the two segments, where KiCad finds them (-1 where it doesn't: it looks a
+   * segment up by its lexicographically smaller end first, so one walked the other way is lost).
+   */
   shapes: number[];
 }
 
@@ -37,6 +41,8 @@ function ends(g: Graphic): [P, P] {
   if (g.kind === "arc") return [nm(pts[0]!), nm(pts[2] ?? pts[1]!)];
   if (g.kind === "curve") return [nm(pts[0]!), nm(pts[pts.length - 1]!)];
   if (g.kind === "poly") return [nm(pts[0]!), nm(pts[0]!)];
+  // A rectangle given by its four corners (a footprint's, placed): its opposite corners.
+  if (g.kind === "rect" && pts.length >= 4) return [nm(pts[0]!), nm(pts[2]!)];
   return [nm(pts[0]!), nm(pts[1] ?? pts[0]!)];
 }
 
@@ -44,7 +50,7 @@ const closedKind = (g: Graphic) => g.kind === "poly" || g.kind === "circle" || g
 
 /** A closed shape's outline. */
 function closedOutline(g: Graphic): P[] {
-  if (g.kind === "rect") {
+  if (g.kind === "rect" && g.points.length < 4) {
     const [a, b] = [nm(g.points[0]!), nm(g.points[1]!)];
     return [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }];
   }
@@ -129,26 +135,153 @@ function intersect(a: P, b: P, c: P, d: P): P | undefined {
   return { x: c.x + Math.round((p1 * f.x) / det), y: c.y + Math.round((p1 * f.y) / det) };
 }
 
+/**
+ * nanoflann's k-d tree (KDTreeSingleIndexAdaptor, leaves of up to 10 points, split at the middle
+ * of the widest side), as KiCad searches shape ends with it: which of several equally near ends
+ * comes first follows the order the tree visits them, so it is built and searched as nanoflann
+ * does.
+ */
+class EndpointTree {
+  private readonly ind: number[];
+  private readonly root: KdNode;
+  private readonly box: Array<[number, number]>;
+  constructor(private readonly pts: P[]) {
+    this.ind = pts.map((_, i) => i);
+    const v = (i: number, d: number) => (d ? pts[i]!.y : pts[i]!.x);
+    this.box = [0, 1].map((d) => [Math.min(...pts.map((_, i) => v(i, d))), Math.max(...pts.map((_, i) => v(i, d)))] as [number, number]);
+    const bbox = this.box.map((b) => [...b] as [number, number]);
+    this.root = this.divide(0, pts.length, bbox);
+  }
+  private get(i: number, d: number) {
+    return d ? this.pts[i]!.y : this.pts[i]!.x;
+  }
+  private divide(left: number, right: number, bbox: Array<[number, number]>): KdNode {
+    if (right - left <= 10) {
+      for (let d = 0; d < 2; d++) {
+        bbox[d]![0] = bbox[d]![1] = this.get(this.ind[left]!, d);
+        for (let k = left + 1; k < right; k++) {
+          const x = this.get(this.ind[k]!, d);
+          if (x < bbox[d]![0]) bbox[d]![0] = x;
+          if (x > bbox[d]![1]) bbox[d]![1] = x;
+        }
+      }
+      return { leaf: [left, right] };
+    }
+    const count = right - left;
+    const minMax = (d: number) => {
+      let lo = this.get(this.ind[left]!, d), hi = lo;
+      for (let k = 1; k < count; k++) {
+        const x = this.get(this.ind[left + k]!, d);
+        if (x < lo) lo = x;
+        if (x > hi) hi = x;
+      }
+      return [lo, hi] as const;
+    };
+    const maxSpan = Math.max(bbox[0]![1] - bbox[0]![0], bbox[1]![1] - bbox[1]![0]);
+    let feat = 0, maxSpread = -1;
+    for (let d = 0; d < 2; d++) {
+      if (bbox[d]![1] - bbox[d]![0] > (1 - 0.00001) * maxSpan) {
+        const [lo, hi] = minMax(d);
+        if (hi - lo > maxSpread) (feat = d), (maxSpread = hi - lo);
+      }
+    }
+    const mid = (bbox[feat]![0] + bbox[feat]![1]) / 2;
+    const [lo, hi] = minMax(feat);
+    const cut = mid < lo ? lo : mid > hi ? hi : mid;
+    // planeSplit: < cut, then == cut, then > cut.
+    const swap = (a: number, b: number) => ([this.ind[left + a], this.ind[left + b]] = [this.ind[left + b]!, this.ind[left + a]!]);
+    let l = 0, r = count - 1;
+    for (;;) {
+      while (l <= r && this.get(this.ind[left + l]!, feat) < cut) l++;
+      while (r && l <= r && this.get(this.ind[left + r]!, feat) >= cut) r--;
+      if (l > r || !r) break;
+      swap(l, r);
+      l++;
+      r--;
+    }
+    const lim1 = l;
+    r = count - 1;
+    for (;;) {
+      while (l <= r && this.get(this.ind[left + l]!, feat) <= cut) l++;
+      while (r && l <= r && this.get(this.ind[left + r]!, feat) > cut) r--;
+      if (l > r || !r) break;
+      swap(l, r);
+      l++;
+      r--;
+    }
+    const lim2 = l;
+    const half = Math.floor(count / 2);
+    const idx = lim1 > half ? lim1 : lim2 < half ? lim2 : half;
+    const lbox = bbox.map((b) => [...b] as [number, number]);
+    lbox[feat]![1] = cut;
+    const child1 = this.divide(left, left + idx, lbox);
+    const rbox = bbox.map((b) => [...b] as [number, number]);
+    rbox[feat]![0] = cut;
+    const child2 = this.divide(left + idx, right, rbox);
+    for (let d = 0; d < 2; d++) (bbox[d]![0] = Math.min(lbox[d]![0], rbox[d]![0])), (bbox[d]![1] = Math.max(lbox[d]![1], rbox[d]![1]));
+    return { feat, low: lbox[feat]![1], high: rbox[feat]![0], child1, child2 };
+  }
+  /** The two nearest points: [index, squared distance] each (-1 when there are fewer). */
+  nearest2(q: P): Array<[number, number]> {
+    const idx = [-1, -1], dist = [Infinity, Infinity];
+    let count = 0;
+    const add = (d: number, i: number) => {
+      let k = count;
+      for (; k > 0; k--) {
+        if (dist[k - 1]! > d) {
+          if (k < 2) (dist[k] = dist[k - 1]!), (idx[k] = idx[k - 1]!);
+        } else break;
+      }
+      if (k < 2) (dist[k] = d), (idx[k] = i);
+      if (count < 2) count++;
+    };
+    const qv = [q.x, q.y];
+    const dists = [0, 0];
+    let mind = 0;
+    for (let d = 0; d < 2; d++) {
+      if (qv[d]! < this.box[d]![0]) (dists[d] = (qv[d]! - this.box[d]![0]) ** 2), (mind += dists[d]!);
+      if (qv[d]! > this.box[d]![1]) (dists[d] = (qv[d]! - this.box[d]![1]) ** 2), (mind += dists[d]!);
+    }
+    const search = (node: KdNode, mindist: number) => {
+      if ("leaf" in node) {
+        const worst = dist[1]!;
+        for (let k = node.leaf[0]; k < node.leaf[1]; k++) {
+          const i = this.ind[k]!;
+          const d = (this.pts[i]!.x - q.x) ** 2 + (this.pts[i]!.y - q.y) ** 2;
+          if (d < worst) add(d, i);
+        }
+        return;
+      }
+      const v = qv[node.feat]!;
+      const diff1 = v - node.low, diff2 = v - node.high;
+      const [best, other, cutDist] = diff1 + diff2 < 0 ? [node.child1, node.child2, (v - node.high) ** 2] : [node.child2, node.child1, (v - node.low) ** 2];
+      search(best, mindist);
+      const dst = dists[node.feat]!;
+      const md = mindist + cutDist - dst;
+      dists[node.feat] = cutDist;
+      if (md <= dist[1]!) search(other, md);
+      dists[node.feat] = dst;
+    };
+    if (this.pts.length) search(this.root, mind);
+    return [[idx[0]!, dist[0]!], [idx[1]!, dist[1]!]];
+  }
+}
+
+type KdNode = { leaf: [number, number] } | { feat: number; low: number; high: number; child1: KdNode; child2: KdNode };
+
 /** Chain the shapes into outlines: whether they all close and don't cross, and what KiCad reports. */
-export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolean; errors: ChainError[] } {
+export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolean; errors: ChainError[]; outlines: Point[][] } {
   const errors: ChainError[] = [];
-  if (!shapes.length) return { ok: true, errors };
+  if (!shapes.length) return { ok: true, errors, outlines: [] };
   const eps = Math.round(epsilonMm * 1e6);
   const endpoints: Array<{ p: P; shape: number }> = [];
   shapes.forEach((g, i) => {
     const [s, e] = ends(g);
     endpoints.push({ p: s, shape: i }, { p: e, shape: i });
   });
-  /** The two endpoints nearest a point (KiCad's k-d tree search for two). */
-  const nearest2 = (p: P) => {
-    let a = -1, b = -1, da = Infinity, db = Infinity;
-    endpoints.forEach((ep, k) => {
-      const d = d2(ep.p, p);
-      if (d < da) (b = a), (db = da), (a = k), (da = d);
-      else if (d < db) (b = k), (db = d);
-    });
-    return [[a, da], [b, db]] as Array<[number, number]>;
-  };
+  /** The two endpoints nearest a point, as KiCad's k-d tree finds them (ties included). */
+  const tree = new EndpointTree(endpoints.map((e) => e.p));
+  const nearest2 = (p: P) => tree.nearest2(p);
   const findNext = (cur: number, p: P): number | undefined => {
     let best: number | undefined, bestD = eps * eps;
     for (const [k, d] of nearest2(p)) {
@@ -159,6 +292,9 @@ export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolea
     }
     return best;
   };
+  // Which shape each walked segment came from, by its ends in walking order (KiCad's shapeOwners).
+  const owners = new Map<string, number>();
+  const own = (a: P, b: P, k: number) => owners.set(`${a.x},${a.y},${b.x},${b.y}`, k);
   const used = new Uint8Array(shapes.length);
   const contours: Array<{ pts: P[]; closed: boolean }> = [];
   const reportedGaps = new Set<string>();
@@ -167,7 +303,9 @@ export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolea
     used[start] = 1;
     const g = shapes[start]!;
     if (closedKind(g)) {
-      contours.push({ pts: closedOutline(g), closed: true });
+      const pts = closedOutline(g);
+      for (let k = 1; k < pts.length; k++) own(pts[k - 1]!, pts[k]!, start);
+      contours.push({ pts, closed: true });
       continue;
     }
     const chain = [start];
@@ -215,12 +353,21 @@ export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolea
     for (const k of chain) {
       const step = along(shapes[k]!, prevPt, eps);
       if (!step) continue;
-      for (const q of step.pts) if (!same(q, pts[pts.length - 1]!)) pts.push(q);
+      for (const q of step.pts)
+        if (!same(q, pts[pts.length - 1]!)) {
+          own(pts[pts.length - 1]!, q, k);
+          pts.push(q);
+        }
       prevPt = step.end;
     }
     const first = pts[0]!, last = pts[pts.length - 1]!;
     if (d2(first, last) <= eps * eps) {
-      if (!same(first, last) && pts.length > 2) pts[pts.length - 1] = first;
+      if (!same(first, last) && pts.length > 2) {
+        const before = pts[pts.length - 2]!;
+        const owner = owners.get(`${before.x},${before.y},${last.x},${last.y}`);
+        pts[pts.length - 1] = first;
+        if (owner !== undefined) own(before, first, owner);
+      }
       if (same(pts[0]!, pts[pts.length - 1]!) && pts.length > 1) pts.pop();
       contours.push({ pts, closed: true });
     } else {
@@ -243,7 +390,7 @@ export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolea
       gap(last);
     }
   }
-  if (contours.some((c) => !c.closed)) return { ok: false, errors };
+  if (contours.some((c) => !c.closed)) return { ok: false, errors, outlines: [] };
   // Every segment of every outline, each from its lexicographically smaller end, sorted.
   const lex = (a: P, b: P) => a.x - b.x || a.y - b.y;
   const segs: Array<[P, P]> = [];
@@ -261,17 +408,19 @@ export function chainOutlines(shapes: Graphic[], epsilonMm = 0.02): { ok: boolea
       const [c, d] = segs[j]!;
       // KiCad stops at the first segment starting "after" this one's end (VECTOR2 compares lengths).
       if (norm(c) > norm(b)) break;
+      const by = (p: P, q: P) => owners.get(`${p.x},${p.y},${q.x},${q.y}`) ?? -1;
+      const pair = [by(a, b), by(c, d)];
       if ((same(a, c) && same(b, d)) || (same(a, d) && same(b, c))) {
-        errors.push({ message: "(self-intersecting)", at: mm(a), shapes: [] });
+        errors.push({ message: "(self-intersecting)", at: mm(a), shapes: pair });
         crossing = true;
       } else {
         const pt = intersect(a, b, c, d);
         if (pt) {
-          errors.push({ message: "(self-intersecting)", at: mm(pt), shapes: [] });
+          errors.push({ message: "(self-intersecting)", at: mm(pt), shapes: pair });
           crossing = true;
         }
       }
     }
   }
-  return { ok: !crossing, errors };
+  return { ok: !crossing, errors, outlines: contours.map((c) => c.pts.map(mm)) };
 }
