@@ -100,6 +100,8 @@ export interface Footprint {
     dnp: boolean;
     /** Its pads may share solder-mask openings (fine-pitch parts). */
     allowMaskBridges?: boolean;
+    /** It needs no courtyard (DRC's missing courtyard check passes it over). */
+    allowMissingCourtyard?: boolean;
   };
   pads: Pad[];
   /** Footprint graphics in board coordinates (silkscreen, fab, courtyard, copper…). */
@@ -780,6 +782,7 @@ function parseFootprint(node: List, outline: OutlineShape[]): Footprint {
       excludeFromPosFiles: flags.has("exclude_from_pos_files"),
       dnp: flags.has("dnp"),
       allowMaskBridges: flags.has("allow_soldermask_bridges"),
+      allowMissingCourtyard: flags.has("allow_missing_courtyard"),
     },
     pads,
     graphics,
