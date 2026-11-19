@@ -962,18 +962,33 @@ function kicadOval(a: Point, b: Point, r: number, err = ARC_ERROR): Path {
 export function unfracture(pts: Point[]): Point[][] {
   const n = pts.length;
   if (n < 3) return [];
-  const key = (a: Point, b: Point) => `${a.x},${a.y};${b.x},${b.y}`;
-  const edges = new Map<string, number[]>();
-  for (let i = 0; i < n; i++) {
-    const k = key(pts[i]!, pts[(i + 1) % n]!);
-    (edges.get(k) ?? edges.set(k, []).get(k)!).push(i);
+  // Points indexed by a hash of their coordinates (typed arrays, no strings: fills run to
+  // hundreds of thousands of points), each bucket a chain through `chain`.
+  let size = 1;
+  while (size < 2 * n) size <<= 1;
+  const head = new Int32Array(size).fill(-1);
+  const chain = new Int32Array(n);
+  const hash = (p: Point) => (Math.imul(Math.round(p.x * 1e6) | 0, 0x9e3779b1) ^ Math.imul(Math.round(p.y * 1e6) | 0, 0x85ebca77)) & (size - 1);
+  // Filled from the end, so each chain runs in index order.
+  for (let i = n - 1; i >= 0; i--) {
+    const h = hash(pts[i]!);
+    chain[i] = head[h]!;
+    head[h] = i;
   }
-  // Edge i's way back along the same cut, if any.
+  // Edge i's way back along the same cut, if any: an edge j from i's end to i's start.
   const partner = new Int32Array(n).fill(-1);
   for (let i = 0; i < n; i++) {
     if (partner[i]! >= 0) continue;
-    const back = edges.get(key(pts[(i + 1) % n]!, pts[i]!))?.find((j) => j !== i && partner[j]! < 0);
-    if (back !== undefined) (partner[i] = back), (partner[back] = i);
+    const a = pts[i]!, b = pts[(i + 1) % n]!;
+    for (let j = head[hash(b)]!; j >= 0; j = chain[j]!) {
+      if (j === i || partner[j]! >= 0) continue;
+      const pj = pts[j]!, qj = pts[(j + 1) % n]!;
+      if (pj.x === b.x && pj.y === b.y && qj.x === a.x && qj.y === a.y) {
+        partner[i] = j;
+        partner[j] = i;
+        break;
+      }
+    }
   }
   const used = new Uint8Array(n);
   const loops: Point[][] = [];

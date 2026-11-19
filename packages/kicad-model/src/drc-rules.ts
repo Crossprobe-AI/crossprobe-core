@@ -347,14 +347,16 @@ export function customClearance(rules: DruRule[], a: RuleItem, b: RuleItem, laye
 
 /**
  * A single-item constraint (hole_size, annular_width, track_width, …) from the
- * custom rules: the last rule whose condition holds for the item (as A) wins.
+ * custom rules: the last rule whose condition holds for the item (as A) wins. Where KiCad
+ * passes a second item (connection_width: the next item found at a neck), the condition may
+ * hold either way round, A–B or B–A, as KiCad's DRC finds it.
  */
-export function customConstraint(rules: DruRule[], type: string, a: RuleItem, layer?: string): { min?: number; max?: number; rule: string } | undefined {
+export function customConstraint(rules: DruRule[], type: string, a: RuleItem, layer?: string, b?: RuleItem): { min?: number; max?: number; rule: string } | undefined {
   for (let i = rules.length - 1; i >= 0; i--) {
     const r = rules[i]!;
     const c = r.constraints.find((x) => x.type === type);
     if (!c || (layer && !layerMatches(r, layer))) continue;
-    if (!r.condition || evalExpr(r.condition, a) === true) return { min: c.min, max: c.max, rule: r.name };
+    if (!r.condition || evalExpr(r.condition, a, b) === true || (b && evalExpr(r.condition, b, a) === true)) return { min: c.min, max: c.max, rule: r.name };
   }
   return undefined;
 }
