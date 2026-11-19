@@ -13,7 +13,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkBoard, checkConnectionWidth, NeckFinder, parseBoard, projectDesignRules } from "../src/index.js";
+import { checkBoard, checkConnectionWidth, NeckFinder, parseBoard, parseDru, projectDesignRules, unfracture } from "../src/index.js";
 
 const DEMOS = process.env.KICAD_DEMOS ?? "";
 const KICAD_CLI = process.env.KICAD_CLI ?? "kicad-cli";
@@ -34,6 +34,14 @@ describe("necks", () => {
     for (const [a, b] of pairs) expect(Math.hypot(shape[a]!.x - shape[b]!.x, shape[a]!.y - shape[b]!.y)).toBeCloseTo(0.2e6, -3);
     // Wider than the neck allows: nothing.
     expect(new NeckFinder(0.15e6).findPairs(shape)).toEqual([]);
+  });
+  it("a fill's cuts taken out again: its outline and each hole", () => {
+    // A 10 mm square with a 3 mm and a 2 mm square hole, each joined to the outline's left side by a cut.
+    const xy = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 6], [6, 6], [6, 9], [9, 9], [9, 6], [6, 6], [0, 6], [0, 3], [2, 3], [2, 5], [4, 5], [4, 3], [2, 3], [0, 3]];
+    const one = xy.map(([x, y]) => ({ x: x!, y: y! }));
+    const loops = unfracture(one);
+    const area = (l: Array<{ x: number; y: number }>) => Math.abs(l.reduce((s, a, i) => s + a.x * l[(i + 1) % l.length]!.y - l[(i + 1) % l.length]!.x * a.y, 0) / 2);
+    expect(loops.map(area).sort((a, b) => a - b).map((a) => Math.round(a))).toEqual([4, 9, 100]);
   });
 });
 
@@ -70,6 +78,32 @@ describe.skipIf(!cli)("connection width as KiCad's DRC", () => {
       expect(v.items.some((i) => i.kind === "zone" && i.net === "GND")).toBe(true);
       expect(Math.abs(v.actual! - actualOf(k.found[0]!.description))).toBeLessThan(0.02);
     }
+  });
+
+  it("a custom rule's A and B: the first two items at a neck, either way round, copper graphics among them", () => {
+    // multichannel's four necks in its GND pour, with only a custom 0.3 mm rule: a track across
+    // two of them, a copper line across a third, the fourth left with the zone alone.
+    const { dir, pcb } = kicad("multichannel/multichannel_mixer.kicad_pcb", 0);
+    const xs = [169.478, 147.478, 125.478];
+    const across = (x: number, k: number) =>
+      k < 2
+        ? `(segment (start ${x} 107) (end ${x} 110) (width 0.05) (layer "B.Cu") (net 0) (uuid "00000000-0000-0000-0000-00000000000${k}"))`
+        : `(gr_line (start ${x} 107) (end ${x} 110) (stroke (width 0.05) (type solid)) (layer "B.Cu") (uuid "00000000-0000-0000-0000-00000000000${k}"))`;
+    const text = readFileSync(pcb, "utf8").trimEnd();
+    writeFileSync(pcb, `${text.slice(0, -1)}${xs.map(across).join("\n")}\n)\n`);
+    const dru = pcb.replace(/\.kicad_pcb$/, ".kicad_dru");
+    const count = (condition: string) => {
+      writeFileSync(dru, `(version 1)\n(rule "r"\n  (constraint connection_width (min 0.3mm))\n  (condition "${condition}"))\n`);
+      execFileSync(KICAD_CLI, ["pcb", "drc", "--format", "json", "-o", join(dir, "drc.json"), pcb], { stdio: "ignore" });
+      const theirs = (JSON.parse(readFileSync(join(dir, "drc.json"), "utf8")).violations as KiCadViolation[]).filter((v) => v.type === "connection_width").length;
+      const rules = { ...projectDesignRules(readFileSync(pcb.replace(/\.kicad_pcb$/, ".kicad_pro"), "utf8")), custom: parseDru(readFileSync(dru, "utf8")) };
+      return { theirs, ours: checkBoard(parseBoard(readFileSync(pcb, "utf8")), rules).filter((v) => v.type === "connection_width").length };
+    };
+    // B is the zone where something else crosses the neck, the line too; A or B a track: two.
+    expect(count("B.Type == 'Zone'")).toEqual({ theirs: 3, ours: 3 });
+    expect(count("B.Type == 'Track'")).toEqual({ theirs: 2, ours: 2 });
+    expect(count("A.Type == 'Zone'")).toEqual({ theirs: 4, ours: 4 });
+    expect(count("A.Type == 'Track' && B.Type == 'Track'")).toEqual({ theirs: 0, ours: 0 });
   });
 
   it("vme-wren's own 0.1 mm minimum: KiCad's findings on every layer", () => {
