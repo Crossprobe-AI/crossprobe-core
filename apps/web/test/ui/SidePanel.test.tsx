@@ -52,8 +52,15 @@ const edge = (side: Side) => q(`.side-panel.${side} .side-panel-edge`);
 const canvas = () => q("main.canvas");
 const width = (el: Element) => el.getBoundingClientRect().width;
 const frames = (n = 2) => new Promise<void>((r) => { let i = 0; const f = () => (++i >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
-/** Wait for the open/shut animation to end. */
-const settled = () => new Promise((r) => setTimeout(r, 400));
+/**
+ * Wait for the open/shut animation to end: until the page's running animations (the
+ * columns' transition) have finished, not a fixed time, which a slow machine can overrun.
+ */
+const settled = async () => {
+  await frames(2); // a transition starts on the frame after the change
+  await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined)));
+  await frames(1);
+};
 const stored = () => JSON.parse(localStorage.getItem(KEY) ?? "null");
 
 /** Drag `side`'s edge by dx pixels, as a mouse does: down, a few moves, up. */
@@ -152,7 +159,8 @@ describe("collapsing", () => {
       contentWidths.push(width(inner));
     }
     expect(seen.some((w) => w > 5 && w < PANEL_LIMITS.left.default - 5), `widths seen: ${seen.map(Math.round).join(", ")}`).toBe(true);
-    expect(seen.at(-1)).toBe(0);
+    await settled();
+    expect(width(cell("left"))).toBe(0);
     // The content kept its width all the way, so it slid out of view behind the canvas.
     expect(new Set(contentWidths.map(Math.round))).toEqual(new Set([PANEL_LIMITS.left.default]));
   });
