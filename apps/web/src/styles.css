@@ -1601,7 +1601,7 @@ g.hl text {
   margin-top: 6px;
 }
 /* A short label for a state or a kind, next to its name: neutral (a block's library, a
-   datasheet check), or .accent to stand out (the account's plan). */
+   datasheet check), or .accent to stand out (an extension's status). */
 .badge {
   display: inline-block;
   padding: 1px 6px;
@@ -2742,7 +2742,7 @@ button.sb-checks:hover {
   border-color: var(--hl);
 }
 
-/* Plans and usage (PlansPanel.tsx) */
+/* Plans and usage (an extension's dialog) */
 .plan-btn {
   gap: 6px;
 }
@@ -3240,7 +3240,7 @@ button.sb-checks:hover {
   background: var(--panel-2);
 }
 
-/* GitHub (GitHubPanel.tsx): open from a repository, and sync with one */
+/* Repository dialogs (an extension's): open a project from a repository, and sync with one */
 .modal.github {
   width: 560px;
   gap: 12px;

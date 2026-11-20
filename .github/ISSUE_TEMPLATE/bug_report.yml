@@ -1,0 +1,54 @@
+name: Bug report
+description: Something the editor does wrong, or differently from KiCad.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected (what KiCad does, if it is about a KiCad feature), and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the project …
+        2. On the board, select …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: A file that shows it
+      description: If you can, attach a small KiCad project or file (zip it). Remove anything you don't want public.
+  - type: input
+    id: version
+    attributes:
+      label: Crossprobe version
+      description: The release, or the commit if you run main. Or "core.crossprobe.ai".
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and system
+      placeholder: Chrome 142 on macOS 15
+    validations:
+      required: true
+  - type: input
+    id: kicad
+    attributes:
+      label: KiCad version of the files
+      placeholder: "10.0"
+  - type: dropdown
+    id: run
+    attributes:
+      label: How you run it
+      options:
+        - core.crossprobe.ai
+        - npm run dev
+        - docker compose
+        - A build of my own

@@ -1,12 +1,17 @@
 # Crossprobe
 
+[![Checks](https://github.com/Crossprobe-AI/crossprobe-core/actions/workflows/checks.yml/badge.svg)](https://github.com/Crossprobe-AI/crossprobe-core/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/Crossprobe-AI/crossprobe-core)](https://github.com/Crossprobe-AI/crossprobe-core/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 A KiCad editor that runs in the browser. Open a KiCad project folder, view and
 edit its schematic and board, and save it back as KiCad files: unmodified files
 are written back byte for byte, and edits produce minimal diffs. The goal is
 parity with KiCad: its behaviour is reimplemented in TypeScript and checked against
 what KiCad itself does with the same projects.
 
-Website: <https://crossprobe.dev>
+Try it in your browser: <https://core.crossprobe.ai>, the editor from this
+repository as it is. Files stay on your computer there too.
 
 ![A board in progress in Crossprobe: a KiCad project folder is opened, a part selected in the schematic is shown on the board among the unrouted connections, one track is routed by hand, Route all finishes the rest, and the 3D view turns the result](docs/media/demo.gif)
 
@@ -37,7 +42,7 @@ Then open <http://localhost:5173> in Chrome, Edge or another Chromium browser an
 choose your project's folder. Files stay on your computer: the browser reads the
 folder and saves into it.
 
-Without Docker, with Node.js 20 or later (KiCad's libraries are read from a KiCad
+Without Docker, with Node.js 22.12 or later (KiCad's libraries are read from a KiCad
 installation, or from `KICAD_SYMBOLS`, `KICAD_FOOTPRINTS` and `KICAD_DEMOS`):
 
 ```sh
@@ -45,7 +50,16 @@ npm ci
 npm run dev         # the app at http://localhost:5173
 ```
 
+To host it, build static files with `npm run build -w @crossprobe/web` (they land in
+`apps/web/dist`). A build is served under `/app/`. Set `CROSSPROBE_BASE=/` to serve
+it at the root of its own domain instead. The KiCad libraries are fetched from
+`/__demos/…`, which the dev server answers; a static host has to provide them.
+
 ## Develop
+
+How to contribute, and the rules a change follows: [CONTRIBUTING.md](CONTRIBUTING.md).
+Bugs and requests: [GitHub Issues](https://github.com/Crossprobe-AI/crossprobe-core/issues). Security problems: privately, as
+[SECURITY.md](SECURITY.md) says.
 
 ```sh
 npm run build       # @crossprobe/kicad-sexpr and @crossprobe/kicad-model
