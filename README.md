@@ -6,7 +6,8 @@ are written back byte for byte, and edits produce minimal diffs. The goal is
 parity with KiCad: its behaviour is reimplemented in TypeScript and checked against
 what KiCad itself does with the same projects.
 
-Website: <https://crossprobe.dev>
+Try it in your browser: <https://core.crossprobe.ai>, the editor from this
+repository as it is. Files stay on your computer there too.
 
 ![A board in progress in Crossprobe: a KiCad project folder is opened, a part selected in the schematic is shown on the board among the unrouted connections, one track is routed by hand, Route all finishes the rest, and the 3D view turns the result](docs/media/demo.gif)
 
@@ -44,6 +45,11 @@ installation, or from `KICAD_SYMBOLS`, `KICAD_FOOTPRINTS` and `KICAD_DEMOS`):
 npm ci
 npm run dev         # the app at http://localhost:5173
 ```
+
+To host it, build static files with `npm run build -w @crossprobe/web` (they land in
+`apps/web/dist`). A build is served under `/app/`. Set `CROSSPROBE_BASE=/` to serve
+it at the root of its own domain instead. The KiCad libraries are fetched from
+`/__demos/…`, which the dev server answers; a static host has to provide them.
 
 ## Develop
 

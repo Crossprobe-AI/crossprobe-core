@@ -331,9 +331,19 @@ function occt(): Plugin {
   };
 }
 
+/**
+ * Where a build is served: /app/ by default (beside a website at /), or the path in
+ * CROSSPROBE_BASE, e.g. "/" for the editor alone at the root of its own domain.
+ */
+function buildBase(env: NodeJS.ProcessEnv = process.env): string {
+  const base = env.CROSSPROBE_BASE?.trim() || "/app/";
+  if (!base.startsWith("/") || !base.endsWith("/")) throw new Error(`CROSSPROBE_BASE must start and end with "/": ${base}`);
+  return base;
+}
+
 export default defineConfig(({ command }) => ({
-  // A production build serves the app under /app/; the dev server stays at /.
-  base: command === "build" ? "/app/" : "/",
+  // A build serves the app under its base (buildBase); the dev server stays at /.
+  base: command === "build" ? buildBase() : "/",
   // The app's own endpoints first; backend() takes what they leave.
   plugins: [react(), demos(), blocks(), occt(), backend(), versionedFavicon()],
   resolve: { alias: { "@crossprobe/kicad-sexpr": pkg("kicad-sexpr"), "@crossprobe/kicad-model": pkg("kicad-model"), "@crossprobe/extensions": SETUP.extensions } },
