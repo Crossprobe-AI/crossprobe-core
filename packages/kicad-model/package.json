@@ -3,6 +3,27 @@
   "version": "0.2.0",
   "description": "Typed design model and connectivity (netlist) for KiCad projects",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Crossprobe-AI/crossprobe-core.git",
+    "directory": "packages/kicad-model"
+  },
+  "homepage": "https://github.com/Crossprobe-AI/crossprobe-core/tree/main/packages/kicad-model#readme",
+  "bugs": {
+    "url": "https://github.com/Crossprobe-AI/crossprobe-core/issues"
+  },
+  "keywords": [
+    "kicad",
+    "pcb",
+    "schematic",
+    "eda",
+    "drc",
+    "erc",
+    "gerber"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

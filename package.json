@@ -4,6 +4,17 @@
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Crossprobe-AI/crossprobe-core.git"
+  },
+  "homepage": "https://core.crossprobe.ai",
+  "bugs": {
+    "url": "https://github.com/Crossprobe-AI/crossprobe-core/issues"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
   "workspaces": [
     "packages/*",
     "apps/web"

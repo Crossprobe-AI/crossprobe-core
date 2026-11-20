@@ -1,5 +1,9 @@
 # Crossprobe
 
+[![Checks](https://github.com/Crossprobe-AI/crossprobe-core/actions/workflows/checks.yml/badge.svg)](https://github.com/Crossprobe-AI/crossprobe-core/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/Crossprobe-AI/crossprobe-core)](https://github.com/Crossprobe-AI/crossprobe-core/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 A KiCad editor that runs in the browser. Open a KiCad project folder, view and
 edit its schematic and board, and save it back as KiCad files: unmodified files
 are written back byte for byte, and edits produce minimal diffs. The goal is
@@ -38,7 +42,7 @@ Then open <http://localhost:5173> in Chrome, Edge or another Chromium browser an
 choose your project's folder. Files stay on your computer: the browser reads the
 folder and saves into it.
 
-Without Docker, with Node.js 20 or later (KiCad's libraries are read from a KiCad
+Without Docker, with Node.js 22.12 or later (KiCad's libraries are read from a KiCad
 installation, or from `KICAD_SYMBOLS`, `KICAD_FOOTPRINTS` and `KICAD_DEMOS`):
 
 ```sh
@@ -52,6 +56,10 @@ it at the root of its own domain instead. The KiCad libraries are fetched from
 `/__demos/…`, which the dev server answers; a static host has to provide them.
 
 ## Develop
+
+How to contribute, and the rules a change follows: [CONTRIBUTING.md](CONTRIBUTING.md).
+Bugs and requests: [GitHub Issues](https://github.com/Crossprobe-AI/crossprobe-core/issues). Security problems: privately, as
+[SECURITY.md](SECURITY.md) says.
 
 ```sh
 npm run build       # @crossprobe/kicad-sexpr and @crossprobe/kicad-model
