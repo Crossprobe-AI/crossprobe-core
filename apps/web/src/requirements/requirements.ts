@@ -14,7 +14,12 @@ export type Requirement = { id: string; title: string; note?: string } & (
   | { kind: "board_layers"; layers?: number; maxLayers?: number }
   | { kind: "net_present"; net: string; minPins?: number }
   | { kind: "connector_nets"; reference: string; nets: string[] }
-  | { kind: "part_count"; match: string; min?: number; max?: number }
+  /**
+   * Parts (DNP left out) whose reference prefix is `prefix` ("D" counts D1 and D12, not DS1) and/or
+   * where `match`, a case-insensitive regular expression, finds the reference, value, footprint,
+   * symbol or symbol description; each is tried on its own, so `^10k$` means a value of exactly 10k.
+   */
+  | { kind: "part_count"; match?: string; prefix?: string; min?: number; max?: number }
   | { kind: "power_budget"; net: string; supplyMa: number; loads: Array<{ reference: string; maxMa: number }> }
   | { kind: "min_track_width"; net: string; minWidthMm: number }
 );
@@ -48,7 +53,7 @@ export const REQUIREMENT_FIELDS: Record<Requirement["kind"], string> = {
   board_layers: "layers (exactly this many copper layers) and/or maxLayers",
   net_present: "net (name); optional minPins",
   connector_nets: "reference (the connector, e.g. \"J1\") and nets (the net names it must carry)",
-  part_count: "match (substring of reference, value or footprint) and min and/or max",
+  part_count: "match (a case-insensitive regular expression, tried on each part's reference, value, footprint, symbol and description) and/or prefix (the reference's letters: \"D\" counts D1, D2), and min and/or max",
   power_budget: "net (the rail), supplyMa (what the source can give) and loads: [{ reference, maxMa }]",
   min_track_width: "net and minWidthMm",
 };
@@ -58,7 +63,7 @@ const REQUIREMENT_KEYS: Record<Requirement["kind"], string[]> = {
   board_layers: ["layers", "maxLayers"],
   net_present: ["net", "minPins"],
   connector_nets: ["reference", "nets"],
-  part_count: ["match", "min", "max"],
+  part_count: ["match", "prefix", "min", "max"],
   power_budget: ["net", "supplyMa", "loads"],
   min_track_width: ["net", "minWidthMm"],
 };
@@ -100,8 +105,13 @@ export function validRequirement(r: unknown): Requirement | undefined {
         ? { ...base, kind: "connector_nets", reference: x.reference, nets: x.nets as string[] }
         : undefined;
     case "part_count":
-      return isStr(x.match) && optNum(x.min) && optNum(x.max) && (x.min !== undefined || x.max !== undefined)
-        ? { ...base, kind: "part_count", match: x.match, min: x.min as number | undefined, max: x.max as number | undefined }
+      return (x.match === undefined || isStr(x.match)) &&
+        (x.prefix === undefined || (isStr(x.prefix) && /^[A-Za-z_#]+$/.test(x.prefix))) &&
+        (x.match !== undefined || x.prefix !== undefined) &&
+        optNum(x.min) &&
+        optNum(x.max) &&
+        (x.min !== undefined || x.max !== undefined)
+        ? { ...base, kind: "part_count", match: x.match as string | undefined, prefix: x.prefix as string | undefined, min: x.min as number | undefined, max: x.max as number | undefined }
         : undefined;
     case "power_budget":
       return isStr(x.net) && isNum(x.supplyMa) && Array.isArray(x.loads) && x.loads.every((l) => l && isStr((l as Record<string, unknown>).reference) && isNum((l as Record<string, unknown>).maxMa))
@@ -181,18 +191,25 @@ export function checkRequirement(p: ProjectView, r: Requirement): RequirementRes
         : out("pass", `${c.reference} is connected to ${r.nets.join(", ")}.`, { references: [c.reference], nets: r.nets });
     }
     case "part_count": {
-      let re: RegExp;
+      let re: RegExp | undefined;
       try {
-        re = new RegExp(r.match, "i");
+        re = r.match === undefined ? undefined : new RegExp(r.match, "i");
       } catch {
-        return out("unknown", `"${r.match}" is not a valid pattern.`);
+        return out("unknown", `"${r.match}" is not a valid regular expression.`);
       }
-      const hits = p.components.filter((c) => !c.dnp && re.test(`${c.value} ${c.libId} ${c.description}`));
+      const prefix = r.prefix?.toUpperCase();
+      const hits = p.components.filter(
+        (c) =>
+          !c.dnp &&
+          (prefix === undefined || c.reference.replace(/[0-9?].*$/, "").toUpperCase() === prefix) &&
+          (!re || [c.reference, c.value, c.footprint, c.libId, c.description].some((f) => !!f && re.test(f))),
+      );
       const n = hits.length;
       const refs = hits.map((c) => c.reference).slice(0, 30);
-      if (r.min !== undefined && n < r.min) return out("fail", `${n} part(s) match "${r.match}", at least ${r.min} required.`, { references: refs });
-      if (r.max !== undefined && n > r.max) return out("fail", `${n} part(s) match "${r.match}", at most ${r.max} allowed.`, { references: refs });
-      return out("pass", `${n} part(s) match "${r.match}".`, { references: refs });
+      const what = [r.prefix !== undefined && `reference prefix "${r.prefix}"`, r.match !== undefined && `"${r.match}"`].filter(Boolean).join(" and ");
+      if (r.min !== undefined && n < r.min) return out("fail", `${n} part(s) match ${what}, at least ${r.min} required.`, { references: refs });
+      if (r.max !== undefined && n > r.max) return out("fail", `${n} part(s) match ${what}, at most ${r.max} allowed.`, { references: refs });
+      return out("pass", `${n} part(s) match ${what}.`, { references: refs });
     }
     case "power_budget": {
       const n = findNet(p, r.net);
@@ -229,7 +246,7 @@ export const FORM: Record<RequirementKind, { label: string; fields: Array<{ key:
   board_layers: { label: "Copper layers", fields: [{ key: "layers", label: "Exactly", type: "number" }, { key: "maxLayers", label: "At most", type: "number" }] },
   net_present: { label: "Net exists", fields: [{ key: "net", label: "Net", type: "text" }, { key: "minPins", label: "Min pins", type: "number" }] },
   connector_nets: { label: "Connector nets", fields: [{ key: "reference", label: "Reference", type: "text" }, { key: "nets", label: "Nets (comma separated)", type: "list" }] },
-  part_count: { label: "Part count", fields: [{ key: "match", label: "Matches (value, library or description)", type: "text" }, { key: "min", label: "At least", type: "number" }, { key: "max", label: "At most", type: "number" }] },
+  part_count: { label: "Part count", fields: [{ key: "prefix", label: "Reference prefix (D, LED)", type: "text" }, { key: "match", label: "Matches (pattern: reference, value, footprint, symbol or description)", type: "text" }, { key: "min", label: "At least", type: "number" }, { key: "max", label: "At most", type: "number" }] },
   power_budget: { label: "Power budget", fields: [{ key: "net", label: "Rail net", type: "text" }, { key: "supplyMa", label: "Supply (mA)", type: "number" }, { key: "loads", label: "Loads, max mA (U1:300, U2:50)", type: "loads" }] },
   min_track_width: { label: "Min track width", fields: [{ key: "net", label: "Net", type: "text" }, { key: "minWidthMm", label: "Min width (mm)", type: "number" }] },
 };
