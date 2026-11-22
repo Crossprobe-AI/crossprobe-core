@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 import "../../src/styles.css";
+import { Fill, Slot, SlotProvider } from "../../src/extensions/slots";
 import { Menu } from "../../src/ui/Menu";
 
 const details = (label: string) => document.querySelector<HTMLDetailsElement>(`summary[aria-label="${label}"]`)!.parentElement as HTMLDetailsElement;
@@ -51,6 +52,32 @@ describe("Menu", () => {
     await screen.getByRole("button", { name: "Alpha" }).click();
     expect(onA).toHaveBeenCalledOnce();
     expect(details("File").open).toBe(false);
+  });
+
+  it("closes when an item an extension filled in is chosen, and runs it", async () => {
+    // An extension's items reach the menu through a portal (Fill into a Slot), as in the project menu.
+    const store = vi.fn();
+    function Extension() {
+      return (
+        <Fill slot="sync">
+          <button onClick={store}>Store in your account…</button>
+        </Fill>
+      );
+    }
+    const screen = await render(
+      <SlotProvider>
+        <Menu summary="Project" label="Project">
+          <button>Download</button>
+          <Slot name="sync" />
+        </Menu>
+        <Extension />
+      </SlotProvider>,
+    );
+    await screen.getByLabelText("Project").click();
+    expect(details("Project").open).toBe(true);
+    await screen.getByRole("button", { name: "Store in your account…" }).click();
+    expect(store).toHaveBeenCalledOnce();
+    expect(details("Project").open).toBe(false);
   });
 
   it("stays open on a click on a label or on a disabled item, which does nothing", async () => {
