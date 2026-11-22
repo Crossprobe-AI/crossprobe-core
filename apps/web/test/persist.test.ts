@@ -2,8 +2,8 @@
  * Unsaved changes kept for a reload: only the changed files are stored, and
  * restoring gives back the same files and the same "changed since saved" set.
  */
-import { describe, expect, it } from "vitest";
-import { fromStored, syncedFromStored, toStored, upgradeStored, type PersistMeta } from "../src/persist";
+import { describe, expect, it, vi } from "vitest";
+import { clearChangesFlusher, fromStored, keepChangesNow, setChangesFlusher, syncedFromStored, toStored, upgradeStored, type PersistMeta } from "../src/persist";
 
 const meta: PersistMeta = { tab: "t1", unsaved: false };
 const original = { "a.kicad_pro": "{}", "a.kicad_sch": "(sch v1)", "a.kicad_pcb": "(pcb v1)" };
@@ -78,5 +78,40 @@ describe("kept changes", () => {
       expect(syncedFromStored(s)).toEqual({ ...original, "a.kicad_pcb": "(pcb v0)" });
       expect("git" in s || "cloud" in s).toBe(false);
     });
+  });
+});
+
+describe("storing the waiting changes at once (keepChangesNow)", () => {
+  it("asks the open session, and resolves when it has stored them", async () => {
+    const flush = vi.fn(() => Promise.resolve());
+    setChangesFlusher(flush);
+    await keepChangesNow();
+    expect(flush).toHaveBeenCalledOnce();
+    clearChangesFlusher(flush);
+  });
+
+  it("never holds a reload up: resolves after the timeout if storing hangs, or fails", async () => {
+    const hang = () => new Promise<void>(() => undefined);
+    setChangesFlusher(hang);
+    const t = Date.now();
+    await keepChangesNow(50);
+    expect(Date.now() - t).toBeLessThan(1000);
+    setChangesFlusher(() => Promise.reject(new Error("IndexedDB is gone")));
+    await expect(keepChangesNow(50)).resolves.toBeUndefined();
+    clearChangesFlusher(hang);
+  });
+
+  it("an old session's dispose doesn't drop the newer one's", async () => {
+    const older = vi.fn(() => Promise.resolve());
+    const newer = vi.fn(() => Promise.resolve());
+    setChangesFlusher(older);
+    setChangesFlusher(newer);
+    clearChangesFlusher(older);
+    await keepChangesNow();
+    expect(newer).toHaveBeenCalledOnce();
+    expect(older).not.toHaveBeenCalled();
+    clearChangesFlusher(newer);
+    await keepChangesNow();
+    expect(newer).toHaveBeenCalledOnce();
   });
 });

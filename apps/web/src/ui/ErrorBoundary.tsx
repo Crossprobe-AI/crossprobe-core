@@ -11,9 +11,12 @@
  *   notice in the corner, with Try again (or what `resetLabel` says) and Reload.
  *
  * Try again renders the part again (after `onReset`, e.g. closing the dialogs that failed).
+ * The project's unsaved changes are stored at once when anything fails, and again before
+ * Reload (persist.ts `keepChangesNow`), so a reload brings them back.
  */
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reportError } from "../errors";
+import { keepChangesNow } from "../persist";
 
 export interface ErrorBoundaryProps {
   /** Where this boundary is, in reports ("inspector", "extension:<id>", …). */
@@ -26,6 +29,8 @@ export interface ErrorBoundaryProps {
   /** Before rendering again, e.g. close what failed. */
   onReset?(): void;
   resetLabel?: string;
+  /** How to reload the page (the browser's, unless a test gives another). */
+  reload?: () => void;
   children: ReactNode;
 }
 
@@ -37,6 +42,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, { failed: boole
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
+    // The edits are in the worker, which goes on: store what is waiting now, not after its delay.
+    void keepChangesNow();
     reportError(error, { where: this.props.where, componentStack: info.componentStack ?? undefined });
   }
 
@@ -46,11 +53,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, { failed: boole
   };
 
   render() {
-    const { look = "panel", what, hidden, resetLabel = "Try again", children } = this.props;
+    const { look = "panel", what, hidden, resetLabel = "Try again", reload: reloadPage = () => location.reload(), children } = this.props;
     if (!this.state.failed) return children;
     if (hidden) return null;
     const reload = (
-      <button className={look === "page" ? "primary" : undefined} onClick={() => location.reload()}>
+      <button className={look === "page" ? "primary" : undefined} onClick={() => void keepChangesNow().then(reloadPage)}>
         Reload
       </button>
     );

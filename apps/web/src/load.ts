@@ -6,7 +6,7 @@ import type { ProjectView } from "./render/types";
 import { projectFromBlock } from "./block-project";
 import type { EditOp } from "./edit/ops";
 import type { BlockManifest } from "@crossprobe/kicad-model";
-import { fromStored, syncedFromStored, type PersistMeta, type StoredFolder, type StoredProject } from "./persist";
+import { clearChangesFlusher, fromStored, setChangesFlusher, syncedFromStored, type PersistMeta, type StoredFolder, type StoredProject } from "./persist";
 import type { ProjectLinks } from "./extensions/api";
 
 /** The files a project is read from (shared with extensions that load projects from elsewhere). */
@@ -354,6 +354,8 @@ export class Session {
       if (e.data.ok) p?.resolve(e.data);
       else p?.reject(new Error(e.data.error));
     };
+    // The open session is the one whose waiting changes keepChangesNow() stores (persist.ts).
+    setChangesFlusher(this.flushNow);
   }
 
   private send<T>(msg: Record<string, unknown>): Promise<T> {
@@ -410,7 +412,13 @@ export class Session {
   merge(files: Record<string, string | null>) {
     return this.send<SessionState>({ type: "merge", files });
   }
+  /** Store the waiting changes now, without the usual delay after edits. */
+  flush() {
+    return this.send<unknown>({ type: "flush" }).then(() => undefined);
+  }
+  private flushNow = () => this.flush();
   dispose() {
+    clearChangesFlusher(this.flushNow);
     this.worker.terminate();
   }
 }

@@ -9,6 +9,7 @@ import { cleanup, render } from "vitest-browser-react";
 import "../../src/styles.css";
 import { addErrorListener, installErrorListeners, isBenignError, MAX_REPORTS, reportError, resetReportedErrors, type ErrorContext } from "../../src/errors";
 import { Fill, Slot, SlotProvider } from "../../src/extensions/slots";
+import { clearChangesFlusher, setChangesFlusher } from "../../src/persist";
 import { CopyField } from "../../src/ui/CopyField";
 import { ErrorBoundary } from "../../src/ui/ErrorBoundary";
 
@@ -100,6 +101,22 @@ describe("ErrorBoundary", () => {
     await screen.getByRole("button", { name: "Close it" }).click();
     await expect.element(screen.getByText("Back to normal")).toBeVisible();
     expect(document.querySelector(".error-fallback")).toBeNull();
+  });
+
+  it("stores the unsaved changes at once when something fails, and again before Reload", async () => {
+    const flush = vi.fn(() => Promise.resolve());
+    setChangesFlusher(flush);
+    const reload = vi.fn();
+    const screen = await render(
+      <ErrorBoundary where="app" look="page" reload={reload}>
+        <Thrower />
+      </ErrorBoundary>,
+    );
+    await vi.waitFor(() => expect(flush).toHaveBeenCalledTimes(1));
+    await screen.getByRole("button", { name: "Reload" }).click();
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(flush).toHaveBeenCalledTimes(2);
+    clearChangesFlusher(flush);
   });
 
   it("shows nothing for a failed tab that is hidden behind another", async () => {

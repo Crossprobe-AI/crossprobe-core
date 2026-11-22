@@ -3,7 +3,10 @@
  *
  * The analysis worker writes the open project's changes to IndexedDB after
  * every edit, keyed by an id kept in sessionStorage, so each tab has its own
- * copy that lives about as long as the tab does. Only the changes are kept:
+ * copy that lives about as long as the tab does. A burst of edits is written
+ * about 300 ms after it ends, and at once when the tab is hidden or unloaded,
+ * when a part of the app crashes, and before the crash page's Reload
+ * (keepChangesNow), so a reload right after an edit doesn't lose it. Only the changes are kept:
  * the files as last saved, and the current text of the files that differ.
  * Undo history and the view (sheet, zoom, selection) are not kept.
  *
@@ -191,6 +194,11 @@ export function writer(delay = 300) {
         void flush();
       } else timer ??= setTimeout(flush, delay);
     },
+    /** Write what is waiting now, without the delay; resolves when it is stored. */
+    flush(): Promise<void> {
+      clearTimeout(timer);
+      return flush();
+    },
     /** Delete the tab's record now, after any write in progress; resolves when done. */
     forget(tab: string): Promise<void> {
       clearTimeout(timer);
@@ -198,4 +206,24 @@ export function writer(delay = 300) {
       return flush();
     },
   };
+}
+
+/**
+ * Store the open project's waiting changes at once, not after the writer's delay: before a
+ * reload the user asks for, when the tab is hidden (it may be closed next), and when the app
+ * has crashed (ui/ErrorBoundary.tsx). The open session registers how (load.ts); without one,
+ * or if it takes longer than `timeoutMs`, this resolves anyway, so a reload is never held up.
+ */
+let flusher: (() => Promise<void>) | undefined;
+export function setChangesFlusher(f: () => Promise<void>): void {
+  flusher = f;
+}
+/** Forget `f`, if it is still the one registered (a newer session may have replaced it). */
+export function clearChangesFlusher(f: () => Promise<void>): void {
+  if (flusher === f) flusher = undefined;
+}
+export function keepChangesNow(timeoutMs = 1000): Promise<void> {
+  const f = flusher;
+  if (!f) return Promise.resolve();
+  return Promise.race([f().catch(() => undefined), new Promise<void>((r) => setTimeout(r, timeoutMs))]);
 }
