@@ -8,6 +8,7 @@ import {
   createProjectFolder,
   downloadFile,
   downloadZip,
+  blockIndex,
   blockManifest,
   fromBlock,
   fromNewProject,
@@ -23,6 +24,7 @@ import {
   fromFileList,
   listDemos,
   Session,
+  type BlockSummary,
   type Demo,
   type LoadedProject,
   type ModelSource,
@@ -167,6 +169,8 @@ export function App() {
   const [status, setStatus] = useState<string>();
   const [error, setError] = useState<string>();
   const [demos, setDemos] = useState<Demo[]>([]);
+  /** The design blocks, offered on the start screen as examples to open. */
+  const [examples, setExamples] = useState<BlockSummary[]>([]);
   const [mode, setMode] = useState<Mode>("schematic");
   const [sheetPath, setSheetPath] = useState<string>("");
   const [selection, setSelection] = useState<Selection>(null);
@@ -479,19 +483,30 @@ export function App() {
   }, [restored, open]);
 
 
+  /** A new draft project with a design block in it: from a block's web page (?block=<id>) or the start screen's examples. */
+  const openBlock = useCallback(
+    (id: string) =>
+      blockManifest(id).then(
+        (m) =>
+          open(() => fromBlock(id), undefined, `block=${id}`).then(() => {
+            setStatus(m.status === "draft" ? `New project from “${m.title}”. This block is a draft: check its values against the datasheet.` : `New project from “${m.title}”.`);
+            setTimeout(() => setStatus(undefined), 12000);
+          }),
+        (e) => setError((e as Error).message),
+      ),
+    [open],
+  );
   // "Open in Crossprobe" on a block's web page: ?block=<id> opens a new draft project with that block.
   useEffect(() => {
     const id = new URLSearchParams(location.search).get("block");
     if (!id || startup !== "none") return;
-    blockManifest(id).then(
-      (m) =>
-        open(() => fromBlock(id), undefined, `block=${id}`).then(() => {
-          setStatus(m.status === "draft" ? `New project from “${m.title}”. This block is a draft: check its values against the datasheet.` : `New project from “${m.title}”.`);
-          setTimeout(() => setStatus(undefined), 12000);
-        }),
-      (e) => setError((e as Error).message),
-    );
-  }, [open, startup]);
+    void openBlock(id);
+  }, [openBlock, startup]);
+  // The examples on the start screen: the design blocks, each opened as a new project.
+  useEffect(() => {
+    if (startup === "checking") return;
+    blockIndex().then(setExamples);
+  }, [startup]);
 
   // Dev convenience / deep links: ?demo=<path to .kicad_pro>&view=board&sheet=<n>&net=<name>&ref=<R1>
   useEffect(() => {
@@ -1072,27 +1087,15 @@ export function App() {
         <main className="welcome">
           <div className="welcome-in">
             <header className="welcome-head">
-              <h1>Open a KiCad project</h1>
-              <p className="muted">
-                Files are read in this browser. Nothing is uploaded.{" "}
-                {canWriteFolders()
-                  ? "Edits are saved straight back into the folder you choose."
-                  : "This browser can't write folders, so saving downloads the changed files."}
-              </p>
+              <h1>Design a board</h1>
+              <p className="muted">KiCad 6 to 10 schematics and boards, in the browser. Files are read here; nothing is uploaded.</p>
             </header>
-            <div className="welcome-grid">
-              <section className="pane open-pane">
-                <h2>Drop a project folder anywhere, or choose one</h2>
-                <p className="muted">The folder with the .kicad_pro, .kicad_sch and .kicad_pcb files. KiCad 6 to 10.</p>
-                <div className="open-actions">
-                  <button className="primary big" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
-                    <Icon name="folderOpen" size={18} /> Choose folder…
-                  </button>
-                  <Slot name="start-open" />
-                </div>
-              </section>
-              <section className="pane">
-                <h2>Start an empty project</h2>
+            <div className="start-cards">
+              <section className="pane start-card">
+                <h2>
+                  <Icon name="plus" size={18} /> Start a new project
+                </h2>
+                <p className="muted">An empty schematic and a two-layer board with KiCad's default rules.</p>
                 <form
                   className="new-project"
                   onSubmit={(e) => {
@@ -1103,11 +1106,45 @@ export function App() {
                 >
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Project name" aria-label="Project name" />
                   <button className="primary" type="submit">
-                    <Icon name="plus" /> Create
+                    Create
                   </button>
                 </form>
-                <p className="muted small">An empty schematic and a two-layer board with KiCad's default rules.</p>
               </section>
+              <section className="pane start-card open-pane">
+                <h2>
+                  <Icon name="folderOpen" size={18} /> Open a project
+                </h2>
+                <p className="muted">
+                  Drop the folder with the .kicad_pro, .kicad_sch and .kicad_pcb files anywhere, or choose it.{" "}
+                  {canWriteFolders() ? "Edits are saved straight back into it." : "This browser can't write folders, so saving downloads the changed files."}
+                </p>
+                <div className="open-actions">
+                  <button className="primary" onClick={() => (canWriteFolders() ? open(fromDirectoryPicker) : fileInput.current?.click())}>
+                    <Icon name="folderOpen" /> Choose folder…
+                  </button>
+                  <Slot name="start-open" />
+                </div>
+              </section>
+              {/* Extensions add cards of their own here, between opening a project and the examples. */}
+              <Slot name="start" />
+              {examples.length > 0 && (
+                <section className="pane start-card">
+                  <h2>
+                    <Icon name="block" size={18} /> Try an example
+                  </h2>
+                  <p className="muted">Reference circuits from the design blocks, each with its board. One opens as a new project; nothing is saved until you choose to.</p>
+                  <div className="examples">
+                    {examples.map((b) => (
+                      <button key={b.id} title={b.description} onClick={() => void openBlock(b.id)}>
+                        {b.title}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="link" onClick={() => void openBlock(examples[Math.floor(Math.random() * examples.length)]!.id)}>
+                    Open one at random
+                  </button>
+                </section>
+              )}
             </div>
             {demos.length > 0 && (
               <section className="welcome-demos">
