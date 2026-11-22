@@ -9,6 +9,7 @@ import type { EditOp } from "../edit/ops";
 import type { ProjectView } from "../render/types";
 import { CompatibilitySection } from "./CompatibilitySection";
 import { RequirementsSection } from "./RequirementsSection";
+import { ErrorBoundary } from "./ErrorBoundary";
 import type { Selection } from "./selection";
 
 const sections = installed.flatMap((e) => (e.reviewSection ? [{ id: e.id, Section: e.reviewSection }] : []));
@@ -19,7 +20,9 @@ export function ReviewPanel({ project, onSelect, onEdit, hidden }: { project: Pr
       <RequirementsSection project={project} onSelect={onSelect} onEdit={onEdit} />
       <CompatibilitySection project={project} onSelect={onSelect} />
       {sections.map(({ id, Section }) => (
-        <Section key={id} project={project} onSelect={onSelect} onEdit={onEdit} />
+        <ErrorBoundary key={id} where={`review-section:${id}`} what="This section">
+          <Section project={project} onSelect={onSelect} onEdit={onEdit} />
+        </ErrorBoundary>
       ))}
     </div>
   );

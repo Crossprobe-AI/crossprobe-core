@@ -2,6 +2,7 @@ import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useS
 import { boardFrame, landPatternText, newFootprintText, newSymbolNode, withLibrarySymbol, withUuids } from "@crossprobe/kicad-model";
 import { arg as sexprArg, parse as parseSexpr, setArg as setSexprArg, str as sexprStr } from "@crossprobe/kicad-sexpr";
 import { SymbolEditor } from "./ui/SymbolEditor";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { assistant, Fill, installed, Slot, SlotProvider, type AppHost, type Cited, type Contribution, type DraftPart, type SaveAction, type ProjectLinks } from "./extensions";
 import {
   canWriteFolders,
@@ -107,7 +108,12 @@ function ExtensionRoot({ id, Root, host }: { id: string; Root: NonNullable<(type
     }),
     [id, setLink, contribute],
   );
-  return <Root host={{ ...shared, link: links[id], ...own }} />;
+  // An extension's bug (in its Root or anything it fills into the app) stays in the extension.
+  return (
+    <ErrorBoundary where={`extension:${id}`} look="notice">
+      <Root host={{ ...shared, link: links[id], ...own }} />
+    </ErrorBoundary>
+  );
 }
 
 /** The schematic editor's tools in the rail, top to bottom (ui/ToolRail.tsx). */
@@ -992,91 +998,110 @@ export function App() {
         </div>
       )}
       {installed.map((e) => e.Root && <ExtensionRoot key={e.id} id={e.id} Root={e.Root} host={host} />)}
-      {showAssign && project && <AssignFootprints components={project.components} project={() => projectRef.current!} onEdit={edit} onClose={() => setShowAssign(false)} onEditFootprint={(id) => openFootprintEditor(id)} onDraftFootprint={FootprintDraft && draftFootprintFor} />}
-      {showFields && project && <FieldsTable project={project} onEdit={edit} onClose={() => setShowFields(false)} />}
-      {showStats && project?.board && <BoardStats board={project.board} name={project.name} onClose={() => setShowStats(false)} />}
-      {pageFile && project && (
-        <PageSettingsDialog
-          file={pageFile}
-          sheetFiles={[...new Set(project.sheets.map((x) => x.file))]}
-          boardFile={project.boardFile}
-          readFiles={(paths) => session.current!.files(paths)}
-          onEdit={edit}
-          onClose={() => setPageFile(undefined)}
-          projectFile={project.projectFile}
-          intersheetRefs={project.intersheetRefs}
-        />
-      )}
-      {showNets && project?.board && (
-        <NetInspector
-          project={project}
-          onClose={() => setShowNets(false)}
-          onSelectNet={(net) => {
-            setShowNets(false);
-            setMode("board");
-            select({ kind: "net", name: net });
-          }}
-        />
-      )}
-      {showPlot && project && <PlotPanel project={project} initial={mode === "board" ? "board" : "schematic"} onClose={() => setShowPlot(false)} />}
-      {symEditing && project && project.projectSymbolLibraries[symEditing.file] && (() => {
-        const libId = `${symEditing.lib}:${symEditing.name}`;
-        const placed = project.components.filter((c) => c.libId === libId).length;
-        const sheets = [...new Set(project.sheets.map((sh) => sh.file))];
-        return (
-          <SymbolEditor
-            file={symEditing.file}
-            libText={project.projectSymbolLibraries[symEditing.file]!.text}
-            name={symEditing.name}
-            libId={libId}
-            placed={placed}
+      {/* The dialogs and floating panels: one that fails closes them all, the editor carries on. */}
+      <ErrorBoundary
+        where="dialogs"
+        look="notice"
+        what="A dialog"
+        resetLabel="Close it"
+        onReset={() => {
+          setShowAssign(false);
+          setShowFields(false);
+          setShowStats(false);
+          setPageFile(undefined);
+          setShowNets(false);
+          setShowPlot(false);
+          setSymEditing(undefined);
+          setDrafting(undefined);
+          setFpEditing(undefined);
+        }}
+      >
+        {showAssign && project && <AssignFootprints components={project.components} project={() => projectRef.current!} onEdit={edit} onClose={() => setShowAssign(false)} onEditFootprint={(id) => openFootprintEditor(id)} onDraftFootprint={FootprintDraft && draftFootprintFor} />}
+        {showFields && project && <FieldsTable project={project} onEdit={edit} onClose={() => setShowFields(false)} />}
+        {showStats && project?.board && <BoardStats board={project.board} name={project.name} onClose={() => setShowStats(false)} />}
+        {pageFile && project && (
+          <PageSettingsDialog
+            file={pageFile}
+            sheetFiles={[...new Set(project.sheets.map((x) => x.file))]}
+            boardFile={project.boardFile}
+            readFiles={(paths) => session.current!.files(paths)}
             onEdit={edit}
-            onClose={() => setSymEditing(undefined)}
-            onUpdateSchematic={() => edit([{ op: "updateSchematicSymbols", file: sheets[0]!, sheets, libFile: symEditing.file, lib: symEditing.lib, name: symEditing.name }])}
+            onClose={() => setPageFile(undefined)}
+            projectFile={project.projectFile}
+            intersheetRefs={project.intersheetRefs}
           />
-        );
-      })()}
-      {drafting && project && FootprintDraft && (
-        <FootprintDraft
-          part={drafting.part}
-          datasheet={drafting.datasheet}
-          onClose={() => {
-            drafting.done(undefined);
-            setDrafting(undefined);
-          }}
-          onUse={(libId) => {
-            drafting.done(libId);
-            setDrafting(undefined);
-          }}
-          onCreate={async (pattern, cited) => {
-            const L = footprintLibrary();
-            const file = `${L.dir}${L.libDir}/${pattern.name}.kicad_mod`;
-            await edit([{ op: "fpWrite", file, text: withUuids(landPatternText(pattern)), libTable: L.table, lib: L.lib, libDir: L.libDir }]);
-            setDraftCited((m) => ({ ...m, [file]: cited }));
-            setFpEditing({ file, libId: `${L.lib}:${pattern.name}` });
-            drafting.done(`${L.lib}:${pattern.name}`);
-            setDrafting(undefined);
-          }}
-        />
-      )}
-      {fpEditing && project && (() => {
-        const own = project.projectFootprints.find((f) => f.file === fpEditing.file);
-        if (!own) return null;
-        const placed = project.board?.footprints.filter((f) => f.libId === fpEditing.libId) ?? [];
-        return (
-          <FootprintEditor
-            models={models}
-            file={own.file}
-            text={own.text}
-            libId={own.libId}
-            placed={placed.length}
-            onEdit={edit}
-            cited={draftCited[own.file]}
-            onClose={() => setFpEditing(undefined)}
-            onUpdateBoard={project.boardFile ? () => edit([{ op: "updateFootprints", file: project.boardFile!, updates: placed.map((f) => ({ uuid: f.uuid, text: own.text })) }]) : undefined}
+        )}
+        {showNets && project?.board && (
+          <NetInspector
+            project={project}
+            onClose={() => setShowNets(false)}
+            onSelectNet={(net) => {
+              setShowNets(false);
+              setMode("board");
+              select({ kind: "net", name: net });
+            }}
           />
-        );
-      })()}
+        )}
+        {showPlot && project && <PlotPanel project={project} initial={mode === "board" ? "board" : "schematic"} onClose={() => setShowPlot(false)} />}
+        {symEditing && project && project.projectSymbolLibraries[symEditing.file] && (() => {
+          const libId = `${symEditing.lib}:${symEditing.name}`;
+          const placed = project.components.filter((c) => c.libId === libId).length;
+          const sheets = [...new Set(project.sheets.map((sh) => sh.file))];
+          return (
+            <SymbolEditor
+              file={symEditing.file}
+              libText={project.projectSymbolLibraries[symEditing.file]!.text}
+              name={symEditing.name}
+              libId={libId}
+              placed={placed}
+              onEdit={edit}
+              onClose={() => setSymEditing(undefined)}
+              onUpdateSchematic={() => edit([{ op: "updateSchematicSymbols", file: sheets[0]!, sheets, libFile: symEditing.file, lib: symEditing.lib, name: symEditing.name }])}
+            />
+          );
+        })()}
+        {drafting && project && FootprintDraft && (
+          <FootprintDraft
+            part={drafting.part}
+            datasheet={drafting.datasheet}
+            onClose={() => {
+              drafting.done(undefined);
+              setDrafting(undefined);
+            }}
+            onUse={(libId) => {
+              drafting.done(libId);
+              setDrafting(undefined);
+            }}
+            onCreate={async (pattern, cited) => {
+              const L = footprintLibrary();
+              const file = `${L.dir}${L.libDir}/${pattern.name}.kicad_mod`;
+              await edit([{ op: "fpWrite", file, text: withUuids(landPatternText(pattern)), libTable: L.table, lib: L.lib, libDir: L.libDir }]);
+              setDraftCited((m) => ({ ...m, [file]: cited }));
+              setFpEditing({ file, libId: `${L.lib}:${pattern.name}` });
+              drafting.done(`${L.lib}:${pattern.name}`);
+              setDrafting(undefined);
+            }}
+          />
+        )}
+        {fpEditing && project && (() => {
+          const own = project.projectFootprints.find((f) => f.file === fpEditing.file);
+          if (!own) return null;
+          const placed = project.board?.footprints.filter((f) => f.libId === fpEditing.libId) ?? [];
+          return (
+            <FootprintEditor
+              models={models}
+              file={own.file}
+              text={own.text}
+              libId={own.libId}
+              placed={placed.length}
+              onEdit={edit}
+              cited={draftCited[own.file]}
+              onClose={() => setFpEditing(undefined)}
+              onUpdateBoard={project.boardFile ? () => edit([{ op: "updateFootprints", file: project.boardFile!, updates: placed.map((f) => ({ uuid: f.uuid, text: own.text })) }]) : undefined}
+            />
+          );
+        })()}
+      </ErrorBoundary>
       {error && (
         <div className="error-banner" role="alert">
           {error}
@@ -1581,9 +1606,11 @@ export function App() {
               </>
             )}
             {mode === "3d" && project.board && (
-              <Suspense fallback={<div className="viewport board3d" />}>
-                <Board3DView name={project.name} board={project.board} models={models} selection={selection} onSelect={select} />
-              </Suspense>
+              <ErrorBoundary where="3d" what="The 3D view">
+                <Suspense fallback={<div className="viewport board3d" />}>
+                  <Board3DView name={project.name} board={project.board} models={models} selection={selection} onSelect={select} />
+                </Suspense>
+              </ErrorBoundary>
             )}
           </main>
           <SidePanel
@@ -1595,29 +1622,31 @@ export function App() {
             width={panels.widths.right}
             otherWidth={panels.widths.left}
           >
-          <Inspector
-            project={project}
-            editing={editing && mode === "schematic"}
-            boardEditing={editing && mode === "board"}
-            onEdit={edit}
-            onQuickFix={quickFix}
-            onNoConnectAll={noConnectAll}
-            onEditFootprint={(id) => void openFootprintEditor(id)}
-            onEditSymbol={(id) => void openSymbolEditor(id)}
-            onPlaceUnits={(c, units) => {
-              setMode("schematic");
-              setPlacing({ key: `u:${c.reference}`, source: { kind: "embedded", file: c.units[0]!.file, libId: c.libId }, prefix: c.reference.replace(/\d+$/, ""), name: c.value, reference: c.reference, units });
-              setTool("place");
-            }}
-            selection={selection}
-            openTab={inspectorTab}
-            onWide={setWideInspector}
-            onSelect={selectAndFocus}
-            onOpenSheet={(p) => {
-              setSheetPath(p);
-              setMode("schematic");
-            }}
-          />
+          <ErrorBoundary where="inspector" what="The inspector">
+            <Inspector
+              project={project}
+              editing={editing && mode === "schematic"}
+              boardEditing={editing && mode === "board"}
+              onEdit={edit}
+              onQuickFix={quickFix}
+              onNoConnectAll={noConnectAll}
+              onEditFootprint={(id) => void openFootprintEditor(id)}
+              onEditSymbol={(id) => void openSymbolEditor(id)}
+              onPlaceUnits={(c, units) => {
+                setMode("schematic");
+                setPlacing({ key: `u:${c.reference}`, source: { kind: "embedded", file: c.units[0]!.file, libId: c.libId }, prefix: c.reference.replace(/\d+$/, ""), name: c.value, reference: c.reference, units });
+                setTool("place");
+              }}
+              selection={selection}
+              openTab={inspectorTab}
+              onWide={setWideInspector}
+              onSelect={selectAndFocus}
+              onOpenSheet={(p) => {
+                setSheetPath(p);
+                setMode("schematic");
+              }}
+            />
+          </ErrorBoundary>
           </SidePanel>
         </div>
       )}

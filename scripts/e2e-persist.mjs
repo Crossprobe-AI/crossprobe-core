@@ -69,6 +69,14 @@ const back = await files();
 expect(back[root] === edited[root], "the edited schematic is back after the reload, text for text");
 expect(!!(await banner()), "the restored banner is shown");
 
+step("an edit made right before a reload is kept, without waiting for the writer's delay");
+await addNoConnect(15);
+const justEdited = await files();
+// No wait: the tab being hidden and unloaded stores the waiting changes at once (persist.ts keepChangesNow).
+await page.reload({ waitUntil: "networkidle0" });
+await opened();
+expect(noConnects((await files())[root]) === noConnects(justEdited[root]), "the last edit is back after an immediate reload");
+
 step("the start-screen link drops the kept changes");
 await page.click("a.brand");
 await page.waitForNavigation({ waitUntil: "networkidle0" }).catch(() => undefined);

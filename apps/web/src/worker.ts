@@ -29,6 +29,7 @@ export type WorkerRequest =
   | { id: number; type: "meta"; unsaved: boolean; folder?: StoredFolder }
   /** Stop keeping changes and delete what is kept; answers once it is deleted. */
   | { id: number; type: "forget" }
+  | { id: number; type: "flush" }
   /** These files now match the link's remote (reset: and no others do). */
   | { id: number; type: "synced"; paths: string[]; reset?: boolean }
   /** Files that came from the link's remote (null deletes). */
@@ -138,6 +139,10 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       case "files":
         self.postMessage({ id: req.id, ok: true, files: Object.fromEntries((req.paths ?? Object.keys(project!.files)).map((p) => [p, project!.files[p]!])) });
+        return;
+      case "flush":
+        // Store the waiting changes now (the app is about to reload, or has crashed).
+        store.flush().then(() => self.postMessage({ id: req.id, ok: true }));
         return;
       case "forget": {
         const tab = persist?.tab;

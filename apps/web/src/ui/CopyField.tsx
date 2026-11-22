@@ -46,13 +46,20 @@ export function CopyField({
     };
     fit();
     let width = el.clientWidth;
+    let frame = 0;
+    // Fitted in the next frame, not in the observer's callback: changing the observed
+    // element's size there makes the browser raise a ResizeObserver loop error.
     const ro = new ResizeObserver(() => {
       if (el.clientWidth === width) return;
       width = el.clientWidth;
-      fit();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [value, maxRows, multiline]);
   const copy = () => {
     const done = (s: "copied" | "failed") => {

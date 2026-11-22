@@ -3,11 +3,15 @@
  */
 import { extensions } from "@crossprobe/extensions";
 import type { Assistant, Extension, InspectorTab } from "./api";
+import { addErrorListener } from "../errors";
 
 export type * from "./api";
 export { Fill, Slot, SlotProvider } from "./slots";
 
 export const installed: readonly Extension[] = extensions;
+
+// Their onError hooks hear of the app's unhandled errors (errors.ts).
+for (const e of installed) if (e.onError) addErrorListener((error, context) => e.onError!(error, context));
 
 /** The inspector tabs extensions add, in order. */
 export const extensionTabs: InspectorTab[] = installed.flatMap((e) => e.inspectorTabs ?? []);
