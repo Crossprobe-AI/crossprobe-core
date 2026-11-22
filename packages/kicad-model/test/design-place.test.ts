@@ -49,6 +49,32 @@ describe("placeParts", () => {
     expect(placed.J2!.at.x).toBeLessThan(18.6);
   });
 
+  it("puts a part beside one pad of another when near names it (\"U1:1\")", () => {
+    // A module with its supply pin in one corner and its ground pin in the other: the capacitor's ground pad
+    // pulls it to the wrong corner, as a near that names only the part allows.
+    const module: PlaceItem = {
+      reference: "U1",
+      extent: { x: -9, y: -10, w: 18, h: 20 },
+      pads: [{ x: -9, y: -9, net: "+3V3", number: "1" }, { x: -9, y: 9, net: "GND", number: "9" }, { x: 9, y: 9, net: "IO", number: "10" }],
+      at: { x: 30, y: 20 },
+      rotate: 0,
+      group: "MCU",
+    };
+    const ldo: PlaceItem = { reference: "U2", extent: { x: -2, y: -2, w: 4, h: 4 }, pads: [{ x: 0, y: -1, net: "+3V3", number: "5" }, { x: -1, y: 1, net: "VIN", number: "1" }, { x: 1, y: 1, net: "EN", number: "3" }], at: { x: 30, y: 38 }, rotate: 0 };
+    const cap = (near: string): PlaceItem => ({ reference: "C1", extent: { x: -1.5, y: -0.8, w: 3, h: 1.6 }, pads: [{ x: -0.8, y: 0, net: "+3V3", number: "1" }, { x: 0.8, y: 0, net: "GND", number: "2" }], group: "MCU", near });
+    const pin1 = { x: 30 - 9, y: 20 - 9 };
+    const fromPin1 = (near: string) => {
+      const items = [module, ldo, cap(near)];
+      const { placed, unplaced } = placeParts(items, AREA);
+      expect(unplaced).toEqual([]);
+      const q = footprintPoint(cap(near).pads[0]!, placed.C1!.at, placed.C1!.rotate);
+      return Math.abs(q.x - pin1.x) + Math.abs(q.y - pin1.y);
+    };
+    expect(fromPin1("U1:1")).toBeLessThan(3);
+    // Only beside the module: the ground pin's pull wins, and the capacitor ends up a module's length away.
+    expect(fromPin1("U1")).toBeGreaterThan(10);
+  });
+
   it("follows what the spec asks for: along an edge, beside a part, out of a keep-out", () => {
     const part = (reference: string, more: Partial<PlaceItem>): PlaceItem => ({ reference, extent: { x: -3, y: -2, w: 6, h: 4 }, pads: [{ x: -2, y: 0, net: `${reference}a` }, { x: 2, y: 0, net: "BUS" }], ...more });
     const items = [

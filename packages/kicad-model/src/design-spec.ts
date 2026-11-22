@@ -51,7 +51,9 @@ export interface DesignPart {
    * `edge`: against that board edge (connectors). `rotate`: degrees, counter-clockwise, as in KiCad.
    * `align` (with `edge`): where along the edge, "start" (left or top), "center" or "end" (right or bottom).
    * `overhang` (with `edge`): how far the part may hang over that edge, mm (a module whose antenna end is to be off the board).
-   * `near`: the reference of a part to sit beside, whatever the nets say.
+   * `near`: the reference of a part to sit beside, whatever the nets say; or "U1:1", one of that
+   * part's pins, to sit as close to that pad as the courtyards allow (a decoupling capacitor at the
+   * supply pin of a large module).
    * Without it the part is placed next to what it connects to.
    */
   place?: { x?: number; y?: number; rotate?: number; edge?: "left" | "right" | "top" | "bottom"; align?: "start" | "center" | "end"; overhang?: number; near?: string };
@@ -403,7 +405,12 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (pl.rotate !== undefined && pl.rotate % 90 !== 0) problems.push(`${ref}: "place.rotate" must be a multiple of 90`);
       if (pl.align !== undefined && !["start", "center", "end"].includes(pl.align)) problems.push(`${ref}: "place.align" is start, center or end`);
       if (pl.align !== undefined && pl.edge === undefined) problems.push(`${ref}: "place.align" goes with "place.edge" (which edge to be at the start, center or end of)`);
-      if (pl.near !== undefined && (pl.near === ref || !spec.parts.some((p) => p.ref === pl.near))) problems.push(`${ref}: "place.near" must be the reference of another part (${JSON.stringify(pl.near)} is not)`);
+      if (pl.near !== undefined) {
+        const [nearRef, nearPin] = String(pl.near).split(":");
+        const other = spec.parts.find((p) => p.ref === nearRef);
+        if (nearRef === ref || !other) problems.push(`${ref}: "place.near" must be the reference of another part, or one of its pins as "U1:1" (${JSON.stringify(pl.near)} is not)`);
+        else if (nearPin !== undefined && !Object.hasOwn(other.pins ?? {}, nearPin)) problems.push(`${ref}: "place.near" names pin ${JSON.stringify(nearPin)} of ${nearRef}, which is not among its connected pins (${Object.keys(other.pins ?? {}).join(", ")})`);
+      }
       if (pl.overhang !== undefined && (typeof pl.overhang !== "number" || !(pl.overhang >= 0) || pl.overhang > 20)) problems.push(`${ref}: "place.overhang" is a distance in mm (0 to 20)`);
       if (pl.overhang !== undefined && pl.edge === undefined) problems.push(`${ref}: "place.overhang" goes with "place.edge" (which edge to hang over)`);
       if (pl.near !== undefined && pl.x !== undefined) problems.push(`${ref}: "place.near" has no effect with a fixed x and y; give one or the other`);
@@ -627,8 +634,8 @@ export interface PlaceItem {
   reference: string;
   /** The footprint's extent around its anchor, unrotated (footprintExtent). */
   extent: { x: number; y: number; w: number; h: number };
-  /** Pads relative to the anchor, unrotated, with their nets. */
-  pads: Array<{ x: number; y: number; net: string }>;
+  /** Pads relative to the anchor, unrotated, with their nets (and numbers, for a `near` that names one). */
+  pads: Array<{ x: number; y: number; net: string; number?: string }>;
   group?: string;
   /** A fixed anchor position (board coordinates). */
   at?: Point;
@@ -638,7 +645,7 @@ export interface PlaceItem {
   rotate?: number;
   /** Where along its edge: the start (left or top), the middle or the end. */
   align?: "start" | "center" | "end";
-  /** The reference of a part to sit beside. */
+  /** The reference of a part to sit beside, or "U1:1" for one of its pads. */
   near?: string;
   /** How far the part's box may reach over its edge, mm. */
   overhang?: number;
@@ -716,6 +723,9 @@ export function placeParts(
   };
 
   const area2 = (it: PlaceItem) => it.extent.w * it.extent.h;
+  /** The part a `near` names, and the pad when it names one ("U1:1"). */
+  const nearRef = (it: PlaceItem) => it.near?.split(":")[0];
+  const nearPad = (it: PlaceItem) => (it.near?.includes(":") ? it.near.slice(it.near.indexOf(":") + 1) : undefined);
   const attempt = (edgeOrder: PlaceItem[]): { placed: Record<string, PartPlacement>; unplaced: string[] } => {
     const placed: Record<string, PartPlacement> = {};
     let boxes: Array<Box & { ref: string }> = [];
@@ -723,6 +733,8 @@ export function placeParts(
     const netPads = new Map<string, Array<Point & { ref: string; group?: string; big: boolean }>>();
     const groupAt = new Map<string, Array<Point & { ref: string }>>();
     const unplaced: string[] = [];
+    /** Placed parts' numbered pads, on the board. */
+    const padAt = new Map<string, Map<string, Point & { net: string }>>();
     const apart = (b: Box, p: Box, gap: number) => b.x1 + gap <= p.x0 || p.x1 + gap <= b.x0 || b.y1 + gap <= p.y0 || p.y1 + gap <= b.y0;
     const clear = (b: Box, gap: number) => boxes.every((p) => apart(b, p, gap)) && keepouts.every((k) => apart(b, k, 0));
     const commit = (it: PlaceItem, at: Point, rotate: number) => {
@@ -730,6 +742,7 @@ export function placeParts(
       boxes.push({ ...boxOf(it, at, rotate), ref: it.reference });
       for (const p of it.pads) if (p.net) (netPads.get(p.net) ?? netPads.set(p.net, []).get(p.net)!).push({ ...footprintPoint(p, at, rotate), ref: it.reference, group: it.group, big: it.pads.length > 2 });
       if (it.group) (groupAt.get(it.group) ?? groupAt.set(it.group, []).get(it.group)!).push({ ...at, ref: it.reference });
+      padAt.set(it.reference, new Map(it.pads.filter((p) => p.number !== undefined).map((p) => [p.number!, { ...footprintPoint(p, at, rotate), net: p.net }])));
     };
     /** Take a placed part off again, to place it anew knowing what came after it. */
     const lift = (it: PlaceItem) => {
@@ -737,6 +750,7 @@ export function placeParts(
       boxes = boxes.filter((b) => b.ref !== it.reference);
       for (const [net, pads] of netPads) netPads.set(net, pads.filter((q) => q.ref !== it.reference));
       for (const [g, at] of groupAt) groupAt.set(g, at.filter((q) => q.ref !== it.reference));
+      padAt.delete(it.reference);
     };
 
     const cost = (it: PlaceItem, at: Point, deg: number): number => {
@@ -766,8 +780,18 @@ export function placeParts(
       }
       // What the spec asks for outweighs what the nets suggest.
       const b = boxOf(it, at, deg);
-      const beside = it.near ? boxes.find((p) => p.ref === it.near) : undefined;
-      if (beside) c += ASKED * (Math.max(0, beside.x0 - b.x1, b.x0 - beside.x1) + Math.max(0, beside.y0 - b.y1, b.y0 - beside.y1));
+      const beside = it.near ? boxes.find((p) => p.ref === nearRef(it)) : undefined;
+      const target = beside && nearPad(it) !== undefined ? padAt.get(beside.ref)?.get(nearPad(it)!) : undefined;
+      if (target) {
+        // Beside that pad: the nearest of this part's pads on the same net (its other pads if none are).
+        const mine = it.pads.filter((p) => p.net === target.net);
+        let d = Infinity;
+        for (const p of mine.length ? mine : it.pads) {
+          const q = footprintPoint(p, at, deg);
+          d = Math.min(d, Math.abs(q.x - target.x) + Math.abs(q.y - target.y));
+        }
+        if (Number.isFinite(d)) c += ASKED * d;
+      } else if (beside) c += ASKED * (Math.max(0, beside.x0 - b.x1, b.x0 - beside.x1) + Math.max(0, beside.y0 - b.y1, b.y0 - beside.y1));
       if (it.align && it.edge) {
         const [lo, hi, from, to] = it.edge === "top" || it.edge === "bottom" ? [b.x0, b.x1, inner.x0, inner.x1] : [b.y0, b.y1, inner.y0, inner.y1];
         c += ASKED * (it.align === "start" ? lo - from : it.align === "end" ? to - hi : Math.abs((lo + hi) / 2 - (from + to) / 2));
@@ -870,7 +894,7 @@ export function placeParts(
       let next: PlaceItem | undefined;
       let score = -1;
       // A part that is to sit beside another waits for it.
-      const waiting = (it: PlaceItem) => !!it.near && !placed[it.near] && [...todo].some((t) => t.reference === it.near);
+      const waiting = (it: PlaceItem) => !!it.near && !placed[nearRef(it)!] && [...todo].some((t) => t.reference === nearRef(it));
       const ready = [...todo].filter((it) => !waiting(it));
       for (const it of ready.length ? ready : todo) {
         // How strongly it is tied to what is placed; before anything is placed, its pad count.
@@ -878,7 +902,7 @@ export function placeParts(
         for (const p of it.pads) if (netPads.get(p.net)?.length) s += weight(p.net);
         s = s * 1000 + it.pads.length + area2(it) * 1e-3;
         // A part asked to sit beside one that is down goes next, while there is still room there.
-        if (it.near && placed[it.near]) s += 1e9;
+        if (it.near && placed[nearRef(it)!]) s += 1e9;
         if (s > score) {
           score = s;
           next = it;
