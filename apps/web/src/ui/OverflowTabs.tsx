@@ -55,7 +55,18 @@ export function splitTabs(widths: number[], avail: number, activeIndex: number):
   return shown;
 }
 
-export function OverflowTabs<T extends string>({ items, active, onSelect }: { items: TabItem<T>[]; active: T; onSelect: (id: T) => void }) {
+export function OverflowTabs<T extends string>({
+  items,
+  active,
+  onSelect,
+  label,
+}: {
+  items: TabItem<T>[];
+  active: T;
+  onSelect: (id: T) => void;
+  /** What the tabs choose between, for screen readers (the tab list's accessible name). */
+  label?: string;
+}) {
   const bar = useRef<HTMLDivElement>(null);
   const measure = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLDivElement>(null);
@@ -140,7 +151,7 @@ export function OverflowTabs<T extends string>({ items, active, onSelect }: { it
   };
 
   return (
-    <nav className="tabs" ref={bar} role="tablist">
+    <nav className="tabs" ref={bar} role="tablist" aria-label={label}>
       <div className="tabs-measure" ref={measure} aria-hidden="true" inert>
         {items.map((t) => (
           <span key={t.id} className={t.className}>

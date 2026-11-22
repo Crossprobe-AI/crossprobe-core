@@ -234,6 +234,62 @@ describe("CopyField", () => {
   });
 });
 
+describe("CopyField, multiline", () => {
+  const CONFIG = JSON.stringify({ servers: { example: { type: "http", url: "https://app.example.com/connect", headers: { Authorization: `Bearer ${"x".repeat(48)}` } } } }, null, 2);
+
+  it("shows every line, long ones wrapped, without scrolling, and Copy at its top", async () => {
+    await render(
+      <div className="modal github" style={{ position: "static", width: 420 }}>
+        <CopyField label="Config" value={CONFIG} multiline />
+      </div>,
+    );
+    const area = document.querySelector<HTMLTextAreaElement>(".copy-field textarea")!;
+    const button = document.querySelector<HTMLButtonElement>(".copy-field button")!;
+    expect(area.value).toBe(CONFIG);
+    expect(getComputedStyle(area).fontFamily).toMatch(/IBM Plex Mono/);
+    // As tall as the wrapped value: nothing hidden, no scroll bar.
+    expect(area.scrollHeight).toBeLessThanOrEqual(area.clientHeight + 1);
+    expect(area.scrollWidth).toBeLessThanOrEqual(area.clientWidth);
+    expect(Math.abs(box(button).top - box(area).top)).toBeLessThanOrEqual(0.5);
+    expect(browserDefault(area)).toBe(false);
+    expectContained(document.querySelector(".modal")!);
+  });
+
+  it("grows when it gets narrower and its lines wrap again", async () => {
+    await render(
+      <div className="modal github" style={{ position: "static", width: 520 }}>
+        <CopyField label="Config" value={CONFIG} multiline maxRows={40} />
+      </div>,
+    );
+    const area = document.querySelector<HTMLTextAreaElement>(".copy-field textarea")!;
+    const wide = box(area).height;
+    document.querySelector<HTMLElement>(".modal")!.style.width = "300px";
+    await vi.waitFor(() => expect(box(area).height).toBeGreaterThan(wide));
+    expect(area.scrollHeight).toBeLessThanOrEqual(area.clientHeight + 1);
+  });
+
+  it("stops growing at maxRows and scrolls the rest", async () => {
+    const long = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");
+    await render(<CopyField label="Log" value={long} multiline maxRows={5} />);
+    const area = document.querySelector<HTMLTextAreaElement>(".copy-field textarea")!;
+    const lineHeight = parseFloat(getComputedStyle(area).lineHeight);
+    expect(area.clientHeight).toBeLessThan(lineHeight * 6 + 20);
+    expect(area.scrollHeight).toBeGreaterThan(area.clientHeight);
+  });
+
+  it("copies the value exactly, line breaks included, and selects it whole on focus", async () => {
+    const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const screen = await render(<CopyField label="Config" value={CONFIG} multiline />);
+    await screen.getByRole("button", { name: "Copy Config" }).click();
+    expect(write).toHaveBeenCalledWith(CONFIG);
+    await expect.element(screen.getByRole("status")).toHaveTextContent("Copied");
+    await screen.getByLabelText("Config", { exact: true }).click();
+    const area = document.querySelector<HTMLTextAreaElement>(".copy-field textarea")!;
+    expect([area.selectionStart, area.selectionEnd]).toEqual([0, CONFIG.length]);
+    expect(area.readOnly).toBe(true);
+  });
+});
+
 describe("floating panels with rows of fields", () => {
   const sheet = { path: "/", file: "a.kicad_sch", name: "a", children: [] } as unknown as SheetView;
   const board = parseBoard(boardText);

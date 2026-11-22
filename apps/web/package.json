@@ -26,6 +26,7 @@
     "./ui/CopyField": "./src/ui/CopyField.tsx",
     "./ui/FootprintChooser": "./src/ui/FootprintChooser.tsx",
     "./ui/Menu": "./src/ui/Menu.tsx",
+    "./ui/OverflowTabs": "./src/ui/OverflowTabs.tsx",
     "./ui/fields": "./src/ui/fields.ts",
     "./ui/icons": "./src/ui/icons.tsx",
     "./ui/selection": "./src/ui/selection.ts"

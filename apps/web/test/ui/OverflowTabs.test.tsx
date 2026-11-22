@@ -140,4 +140,9 @@ describe("OverflowTabs", () => {
     // Only the selected tab is in the Tab order; the arrows move within the bar.
     expect(shownTabs().map((b) => b.tabIndex)).toEqual([0, -1, -1, -1, -1]);
   });
+
+  it("names the tab list when given a label", async () => {
+    const screen = await render(<OverflowTabs<Id> items={ITEMS} active="parts" onSelect={() => undefined} label="Inspector" />);
+    await expect.element(screen.getByRole("tablist", { name: "Inspector" })).toBeVisible();
+  });
 });

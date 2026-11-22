@@ -212,7 +212,7 @@ button:disabled {
 :where(.update-pcb) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select) {
   height: calc(13px * 1.4 + 8px);
 }
-/* A value to copy (ui/CopyField.tsx): label, then the field and Copy on one centred row. */
+/* A value to copy (ui/CopyField.tsx): label, then the field and Copy on one centred row (or Copy at the top of several lines). */
 .copy-field {
   display: grid;
   gap: 4px;
@@ -232,6 +232,20 @@ button:disabled {
 .copy-row button {
   flex: none;
   min-width: 64px;
+}
+/* Several lines: the text area as tall as its rows, long lines wrapped, Copy at the top. */
+.copy-row.multiline {
+  align-items: flex-start;
+}
+.copy-row textarea {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .visually-hidden {
   position: absolute;
