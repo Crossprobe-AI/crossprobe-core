@@ -8,6 +8,19 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 export function Menu({ className = "", summary, title, label, onOpen, children }: { className?: string; summary: ReactNode; title?: string; label: string; onOpen?: () => void; children: ReactNode }) {
   const details = useRef<HTMLDetailsElement>(null);
+  const items = useRef<HTMLDivElement>(null);
+  // Choosing an item (a button or a link) closes the menu; a click on text in it doesn't. A DOM
+  // listener, not React's onClick: items an extension fills in through a portal (extensions/slots)
+  // send React's click events up the extension's tree, never through this menu.
+  useEffect(() => {
+    const list = items.current;
+    if (!list) return;
+    const chosen = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.("button, a") && details.current) details.current.open = false;
+    };
+    list.addEventListener("click", chosen);
+    return () => list.removeEventListener("click", chosen);
+  }, []);
   useEffect(() => {
     const close = (e: Event) => {
       const el = details.current;
@@ -39,8 +52,7 @@ export function Menu({ className = "", summary, title, label, onOpen, children }
       <summary title={title} aria-label={label}>
         {summary}
       </summary>
-      {/* Choosing an item (a button or a link) closes the menu; a click on text in it doesn't. */}
-      <div className="menu-items" onClick={(e) => (e.target as HTMLElement).closest("button, a") && details.current && (details.current.open = false)}>
+      <div className="menu-items" ref={items}>
         {children}
       </div>
     </details>
