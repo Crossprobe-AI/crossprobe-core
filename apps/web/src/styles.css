@@ -517,6 +517,25 @@ button.big {
 .start-card .new-project {
   width: min(100%, 360px);
 }
+/* What an extension shows before a new project (the "start-new" slot). With something there, the
+   new-project part is compact: a smaller heading, no description, the form right under it. */
+/* Empty: only the slot's own (display: contents) span is there. */
+.start-new-before:not(:has(> * > *)) {
+  display: none;
+}
+.start-new-before {
+  align-self: stretch;
+}
+.start-card:has(.start-new-before > * > *) .start-new-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.start-card:has(.start-new-before > * > *) .start-new-desc {
+  display: none;
+}
+.start-card:has(.start-new-before > * > *) > form {
+  margin-top: 0;
+}
 /* The examples: the design blocks, a button each. */
 .examples {
   display: flex;
