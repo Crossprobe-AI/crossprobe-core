@@ -6,12 +6,14 @@
  *
  * Slots: "toolbar" (the editor's buttons in the top bar), "topbar" (the right
  * end of the top bar), "open" (the project menu's Open items), "sync" (its
- * Keep in sync items), and "start-open" (the start screen's Open buttons).
+ * Keep in sync items), "start-open" (the start screen's Open buttons), and "start"
+ * (cards of their own on the start screen, after Open and before the examples; give
+ * each the classes `pane start-card`).
  */
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-export type SlotName = "toolbar" | "topbar" | "open" | "sync" | "start-open";
+export type SlotName = "toolbar" | "topbar" | "open" | "sync" | "start-open" | "start";
 
 interface Slots {
   targets: Partial<Record<SlotName, HTMLElement>>;

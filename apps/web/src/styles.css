@@ -375,14 +375,15 @@ button.big {
   gap: 4px 14px;
 }
 
-/* Welcome: open a project (the main path), start a new one, or try a KiCad demo. */
+/* Welcome: what you can do on arriving, one card each: start a project, open one,
+   what extensions add (the "start" slot), and try an example; KiCad's demos below. */
 .welcome {
   flex: 1;
   overflow: auto;
-  padding: 72px 32px 48px;
+  padding: 64px 32px 48px;
 }
 .welcome-in {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
 }
 .label {
@@ -399,16 +400,11 @@ button.big {
   font-size: 14px;
   max-width: 44em;
 }
-.welcome-grid {
+/* Two cards a row where there is room; each as tall as its row. */
+.start-cards {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  border: 1px solid var(--line-strong);
-  background: var(--panel);
-  border-radius: 4px;
-}
-@media (max-width: 760px) {
-  /* minmax(0, …): the column stays as wide as the card, not as wide as its widest row. */
-  .welcome-grid { grid-template-columns: minmax(0, 1fr); }
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
 }
 .pane {
   padding: 24px;
@@ -416,11 +412,19 @@ button.big {
   flex-direction: column;
   gap: 12px;
 }
-.pane + .pane {
-  border-left: 1px solid var(--border);
+.start-card {
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  border-radius: 4px;
+  align-items: flex-start;
 }
-@media (max-width: 760px) {
-  .pane + .pane { border-left: 0; border-top: 1px solid var(--border); }
+.start-card > p {
+  max-width: 40em;
+}
+/* What a card offers sits at its foot, so the cards of a row line up. */
+.start-card > :is(form, .open-actions, .examples):last-of-type,
+.start-card > .start-card-actions {
+  margin-top: auto;
 }
 /* The ways to open a project: one column of buttons, all as wide and as tall, the
    folder first and filled, the others (extensions add them) outlined. */
@@ -433,12 +437,13 @@ button.big {
   width: 100%;
 }
 .open-pane {
-  align-items: flex-start;
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
   background-size: 12px 12px;
 }
-.open-pane h2,
 .pane h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 17px;
   font-weight: 500;
@@ -446,6 +451,18 @@ button.big {
 }
 .pane p {
   margin: 0;
+}
+.start-card .new-project {
+  width: min(100%, 360px);
+}
+/* The examples: the design blocks, a button each. */
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.examples button {
+  font-size: 12px;
 }
 .welcome-demos {
   margin-top: 40px;
