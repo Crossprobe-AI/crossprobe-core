@@ -47,8 +47,33 @@ describe("requirements", () => {
     expect(run({ kind: "connector_nets", reference: "j1", nets: ["+5V", "D+"] }).status).toBe("pass");
     expect(run({ kind: "connector_nets", reference: "J1", nets: ["D-"] }).status).toBe("fail");
     expect(run({ kind: "part_count", match: "regulator", min: 1, max: 1 }).status).toBe("pass");
-    expect(run({ kind: "part_count", match: "^10k$", min: 1 }).status).toBe("fail"); // DNP parts don't count
-    expect(run({ kind: "part_count", match: "(", min: 1 }).status).toBe("unknown");
+    expect(run({ kind: "part_count", match: "/^10k$/", min: 1 }).status).toBe("fail"); // DNP parts don't count
+    expect(run({ kind: "part_count", match: "/(/", min: 1 }).status).toBe("unknown");
+  });
+  it("part count: a substring of the reference, value, footprint, symbol or description, a /regex/, or a prefix", () => {
+    const parts = [
+      { reference: "D1", value: "Green", footprint: "LED_SMD:LED_0603_1608Metric", libId: "Device:LED", description: "Light emitting diode", dnp: false },
+      { reference: "D12", value: "Red", footprint: "LED_SMD:LED_0603_1608Metric", libId: "Device:LED", description: "Light emitting diode", dnp: false },
+      { reference: "DS1", value: "Display", footprint: "Display:LCD", libId: "Display:LCD-016N002L", description: "LCD module", dnp: false },
+      { reference: "C1", value: "100n", footprint: "Capacitor_SMD:C_0402_1005Metric", libId: "Device:C", description: "Unpolarized capacitor", dnp: false },
+      { reference: "C2", value: "10u", footprint: "Capacitor_SMD:C_0805_2012Metric", libId: "Device:C", description: "Unpolarized capacitor", dnp: true },
+    ];
+    const count = (r: { match?: string; prefix?: string }) => {
+      const res = checkRequirement({ ...project, components: parts } as unknown as ProjectView, { id: "r", title: "t", kind: "part_count", ...r, min: 0 });
+      return res.references ?? [];
+    };
+    expect(count({ match: "led_0603" })).toEqual(["D1", "D12"]); // footprint, case-insensitive
+    expect(count({ match: "Device:C" })).toEqual(["C1"]); // symbol; the DNP part doesn't count
+    expect(count({ match: "green" })).toEqual(["D1"]); // value
+    expect(count({ match: "D12" })).toEqual(["D12"]); // reference
+    expect(count({ match: "(" })).toEqual([]); // a plain substring, not a pattern
+    expect(count({ prefix: "D" })).toEqual(["D1", "D12"]); // not DS1, not C1 through its description
+    expect(count({ prefix: "ds" })).toEqual(["DS1"]);
+    expect(count({ prefix: "D", match: "red" })).toEqual(["D12"]);
+    expect(count({ match: "/^capacitor_smd:c_0402/" })).toEqual(["C1"]); // a regular expression, on each field, case-insensitive
+    expect(count({ match: "/^d1$/" })).toEqual(["D1"]); // anchored to one field, not the fields run together
+    expect(validRequirement({ id: "x", title: "y", kind: "part_count", prefix: "U", max: 2 })).toMatchObject({ prefix: "U", max: 2 });
+    expect(validRequirement({ id: "x", title: "y", kind: "part_count", min: 1 })).toBeUndefined(); // neither match nor prefix
   });
   it("power budget and track width", () => {
     expect(run({ kind: "power_budget", net: "+5V", supplyMa: 500, loads: [{ reference: "U1", maxMa: 300 }] }).status).toBe("pass");
