@@ -9,6 +9,7 @@ import { FootprintChooser, footprintOps } from "./FootprintChooser";
 import { DatasheetPanel } from "./DatasheetPanel";
 import { fieldOps } from "./fields";
 import { ReviewPanel } from "./ReviewPanel";
+import { ErrorBoundary } from "./ErrorBoundary";
 import type { Selection } from "./selection";
 import { extensionTabs, installed } from "../extensions";
 
@@ -569,8 +570,11 @@ export function Inspector({
 
       <ReviewPanel project={project} onSelect={onSelect} onEdit={onEdit} hidden={tab !== "review"} />
       <DatasheetPanel project={project} selection={selection} onEdit={onEdit} hidden={tab !== "datasheet"} />
+      {/* An extension's tab that fails shows a message in its place; the inspector's own tabs go on. */}
       {extensionTabs.map(({ id, Panel }) => (
-        <Panel key={id} project={project} selection={selection} selectedComponent={selectedComponent} onSelect={onSelect} onEdit={onEdit} hidden={tab !== id} />
+        <ErrorBoundary key={id} where={`inspector-tab:${id}`} what="This tab" hidden={tab !== id}>
+          <Panel project={project} selection={selection} selectedComponent={selectedComponent} onSelect={onSelect} onEdit={onEdit} hidden={tab !== id} />
+        </ErrorBoundary>
       ))}
       {!PANEL_TABS.has(tab) && (
             <div className="search-box">

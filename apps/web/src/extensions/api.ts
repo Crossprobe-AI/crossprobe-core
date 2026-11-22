@@ -25,6 +25,7 @@ import type { DatasheetIndex, Hit, Passage } from "../datasheet/types";
 import type { ComponentInfo, ProjectView } from "../render/types";
 import type { IconName } from "../ui/icons";
 import type { Selection } from "../ui/selection";
+import type { ErrorContext } from "../errors";
 
 /** An extension's link to the open project (a repository and commit, a stored project and revision), by extension id. */
 export type ProjectLinks = Record<string, unknown>;
@@ -236,4 +237,10 @@ export interface Extension {
   /** The Review tab's label and title when this extension adds to it. */
   reviewTab?: { label: ReactNode; menuLabel: ReactNode; title: string; className?: string };
   assistant?: Assistant;
+  /**
+   * Hear of errors the app didn't handle: caught by an error boundary (with React's component
+   * stack) or seen by `window` ("window", "promise"). Benign browser noise is left out, and each
+   * error comes once per page (errors.ts). The editor itself reports nowhere.
+   */
+  onError?(error: unknown, context: ErrorContext): void;
 }

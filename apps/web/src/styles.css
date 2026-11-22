@@ -247,6 +247,54 @@ button:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* What shows when a part of the app fails (ui/ErrorBoundary.tsx). */
+.error-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  margin: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--error);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.error-fallback p {
+  margin: 0;
+}
+.error-fallback-actions {
+  display: flex;
+  gap: 8px;
+}
+/* For what has no place of its own (an extension, the dialogs): in the corner, over the app. */
+.error-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  z-index: var(--z-popover, 50);
+  max-width: min(360px, calc(100vw - 32px));
+  box-shadow: var(--surface-shadow, 0 4px 16px rgb(0 0 0 / 0.15));
+}
+/* The last resort, in place of the whole editor. */
+.error-page {
+  max-width: 36em;
+  margin: 15vh auto 0;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.error-page h1 {
+  margin: 0;
+  font: 400 32px/1.15 "Routed Gothic", var(--sans);
+  color: var(--ink);
+}
+.error-page p {
+  margin: 0;
+}
 .visually-hidden {
   position: absolute;
   width: 1px;
