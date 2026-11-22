@@ -1117,10 +1117,15 @@ export function App() {
             </header>
             <div className="start-cards">
               <section className="pane start-card">
-                <h2>
+                {/* Extensions put what comes before a new project here, e.g. the projects stored in an account;
+                    with something there, the new-project part below is compact (styles.css). */}
+                <div className="start-new-before">
+                  <Slot name="start-new" />
+                </div>
+                <h2 className="start-new-title">
                   <Icon name="plus" size={18} /> Start a new project
                 </h2>
-                <p className="muted">An empty schematic and a two-layer board with KiCad's default rules.</p>
+                <p className="muted start-new-desc">An empty schematic and a two-layer board with KiCad's default rules.</p>
                 <form
                   className="new-project"
                   onSubmit={(e) => {
