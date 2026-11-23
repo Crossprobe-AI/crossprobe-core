@@ -5,9 +5,11 @@ import type { ProjectView } from "../src/render/types";
 
 const project = {
   components: [
-    { reference: "U1", value: "AP9999", libId: "Regulator:AP9999", description: "LDO", dnp: false },
-    { reference: "J1", value: "USB_C", libId: "Connector:USB_C", description: "", dnp: false },
-    { reference: "R1", value: "10k", libId: "Device:R", description: "", dnp: true },
+    { reference: "U1", value: "AP9999", libId: "Regulator:AP9999", footprint: "Package_TO_SOT_SMD:SOT-23-5", description: "LDO", dnp: false },
+    { reference: "J1", value: "USB_C", libId: "Connector:USB_C", footprint: "Connector_USB:USB_C_Receptacle", description: "", dnp: false },
+    { reference: "R1", value: "10k", libId: "Device:R", footprint: "Resistor_SMD:R_0402_1005Metric", description: "", dnp: true },
+    { reference: "D1", value: "Green", libId: "Device:LED", footprint: "LED_SMD:LED_0603_1608Metric", description: "Light emitting diode", dnp: false },
+    { reference: "C1", value: "100n", libId: "Device:C", footprint: "Capacitor_SMD:C_0402_1005Metric", description: "Unpolarized capacitor", dnp: false },
   ],
   nets: [
     { name: "+5V", aliases: [], nodes: [{ reference: "J1", pin: "1" }, { reference: "U1", pin: "1" }] },
@@ -49,6 +51,29 @@ describe("requirements", () => {
     expect(run({ kind: "part_count", match: "regulator", min: 1, max: 1 }).status).toBe("pass");
     expect(run({ kind: "part_count", match: "^10k$", min: 1 }).status).toBe("fail"); // DNP parts don't count
     expect(run({ kind: "part_count", match: "(", min: 1 }).status).toBe("unknown");
+  });
+  it("part count: each field on its own, by reference prefix", () => {
+    const refs = (r: object) => run({ kind: "part_count", min: 0, ...r }).references;
+    expect(refs({ match: "LED_0603" })).toEqual(["D1"]); // the footprint
+    expect(refs({ match: "^J1$" })).toEqual(["J1"]); // the reference
+    expect(refs({ match: "^green$" })).toEqual(["D1"]); // the value, whole
+    expect(refs({ match: "Device:C$" })).toEqual(["C1"]); // the symbol
+    expect(refs({ match: "capacitor" })).toEqual(["C1"]); // the description
+    expect(refs({ match: "0402" })).toEqual(["C1"]); // R1 is DNP
+    expect(refs({ prefix: "D" })).toEqual(["D1"]); // not every part with a "d" somewhere
+    expect(refs({ prefix: "c", match: "100n" })).toEqual(["C1"]);
+    expect(run({ kind: "part_count", prefix: "D", max: 0 }).detail).toBe('1 part(s) match reference prefix "D", at most 0 allowed.');
+    expect(validRequirement({ id: "x", title: "y", kind: "part_count", min: 1 })).toBeUndefined(); // needs match or prefix
+    expect(validRequirement({ id: "x", title: "y", kind: "part_count", prefix: "D1", min: 1 })).toBeUndefined(); // letters only
+  });
+  it("part count: a reference prefix in linear time", () => {
+    const long = { reference: "0".repeat(40000) + "\n", value: "", libId: "", footprint: "", description: "", dnp: false };
+    const many = { ...project, components: [...project.components, long, { ...long, reference: "#PWR01" }, { ...long, reference: "U?" }] } as ProjectView;
+    const start = performance.now();
+    const hits = (prefix: string) => checkRequirement(many, { id: "r", title: "t", kind: "part_count", prefix, min: 0 }).references;
+    expect(hits("U")).toEqual(["U1", "U?"]);
+    expect(hits("#PWR")).toEqual(["#PWR01"]);
+    expect(performance.now() - start).toBeLessThan(200); // a backtracking pattern took ~700 ms on the long reference
   });
   it("power budget and track width", () => {
     expect(run({ kind: "power_budget", net: "+5V", supplyMa: 500, loads: [{ reference: "U1", maxMa: 300 }] }).status).toBe("pass");

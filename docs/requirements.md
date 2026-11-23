@@ -19,6 +19,13 @@ Kinds: `board_size`, `board_layers`, `net_present`, `connector_nets`,
 `part_count`, `power_budget`, `min_track_width`. Malformed entries and
 duplicate ids are dropped when the file is read.
 
+`part_count` counts the parts that are not DNP, by `prefix` (the reference's
+letters: `"D"` counts D1 and D12, not DS1) and/or `match`, a case-insensitive
+regular expression tried on each part's reference, value, footprint, symbol and
+symbol description one at a time (so `^10k$` is a value of exactly 10k). With
+both, a part must meet both. `{ "prefix": "D", "match": "LED", "min": 1 }`
+counts the LEDs.
+
 The Requirements tab shows these results. Power-budget currents are
 the engineer's numbers, not read from datasheets (yet).
 
