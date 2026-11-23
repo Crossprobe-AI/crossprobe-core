@@ -52,6 +52,8 @@ export interface BlockPart {
   footprint?: string;
   /** Millimetres, on the 2.54 grid. */
   at: [number, number];
+  /** Which unit of a multi-unit symbol this places (1 when not given); each unit is its own entry with the same `ref`. */
+  unit?: number;
   rotate?: 0 | 90 | 180 | 270;
   dnp?: boolean;
   /** Further symbol fields, e.g. MPN or Datasheet. */
@@ -141,15 +143,23 @@ export interface LibPinGeom {
   tip: Point;
   /** KiCad's pin angle: the direction the pin line runs from its tip toward the symbol body. */
   angle: number;
+  /** The unit the pin is drawn in; 0 for a pin common to all units. */
+  unit: number;
 }
 
-/** The pins of a library symbol's first unit, in library coordinates (Y up). */
-export function libPins(def: List): LibPinGeom[] {
+/**
+ * The pins of one unit of a library symbol (with the pins common to all units), or of every unit
+ * with "all", in library coordinates (Y up). Only the normal body style: a De Morgan alternate
+ * draws the same pins again.
+ */
+export function libPins(def: List, unit: number | "all" = 1): LibPinGeom[] {
   const out: LibPinGeom[] = [];
-  for (const unit of findChildren(def, "symbol")) {
-    const m = /_(\d+)_(\d+)$/.exec(String(arg(unit, 0)));
-    if (m && m[1] !== "0" && m[1] !== "1") continue; // first unit only
-    for (const pin of findChildren(unit, "pin")) {
+  for (const u of findChildren(def, "symbol")) {
+    const m = /_(\d+)_(\d+)$/.exec(String(arg(u, 0)));
+    const n = m ? Number(m[1]) : 0;
+    if (m && m[2] !== "0" && m[2] !== "1") continue;
+    if (unit !== "all" && n !== 0 && n !== unit) continue;
+    for (const pin of findChildren(u, "pin")) {
       const at = findChild(pin, "at");
       out.push({
         type: String(arg(pin, 0) ?? ""),
@@ -157,6 +167,7 @@ export function libPins(def: List): LibPinGeom[] {
         name: String(arg(findChild(pin, "name"), 0) ?? ""),
         tip: { x: Number(arg(at, 0)), y: Number(arg(at, 1)) },
         angle: Number(arg(at, 2) ?? 0),
+        unit: n,
       });
     }
   }
@@ -237,7 +248,7 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
     const d = def(part.symbol);
     const rotation = part.rotate ?? 0;
     const at = { x: part.at[0], y: part.at[1] };
-    const id = placeSymbol(root, d, { at, reference: part.ref, sheetPaths, projectName: spec.id });
+    const id = placeSymbol(root, d, { at, reference: part.ref, unit: part.unit, sheetPaths, projectName: spec.id });
     const node = findItem(root, id)!;
     setSymbolField(node, "Value", part.value);
     if (part.footprint) setSymbolField(node, "Footprint", part.footprint);
@@ -258,7 +269,7 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
     }
     if (part.dnp) setArg(findChild(node, "dnp")!, 0, sym("yes")); // a bare keyword, not a string
 
-    const pins = libPins(d);
+    const pins = libPins(d, part.unit ?? 1);
     const nets = new Map<string, string>(); // tip position → net, so stacked pins (several GND) connect once
     const wanted: Array<{ pin: LibPinGeom; net: string }> = [];
     for (const [key, net] of Object.entries(part.pins)) {
@@ -396,7 +407,7 @@ export function verifyBlock(spec: BlockSpec, schematicText: string, symbols: Sym
   const noConnect = new Set<string>();
   for (const part of spec.parts) {
     const [lib, name] = part.symbol.split(":");
-    const pins = libPins(resolveLibrarySymbol(symbols(lib!), lib!, name!));
+    const pins = libPins(resolveLibrarySymbol(symbols(lib!), lib!, name!), part.unit ?? 1);
     const used = new Set<string>();
     for (const [key, net] of Object.entries(part.pins)) {
       const matches = pins.filter((p) => p.number === key);
@@ -483,7 +494,7 @@ export function blockManifest(spec: BlockSpec, symbols?: SymbolLibraryText): Blo
   const pins: ManifestPin[] = [];
   for (const part of spec.parts) {
     const [lib, name] = part.symbol.split(":");
-    const geom = symbols ? libPins(resolveLibrarySymbol(symbols(lib!), lib!, name!)) : [];
+    const geom = symbols ? libPins(resolveLibrarySymbol(symbols(lib!), lib!, name!), part.unit ?? 1) : [];
     for (const [key, net] of Object.entries(part.pins)) {
       const byNumber = geom.filter((p) => p.number === key);
       const found = byNumber.length ? byNumber : geom.filter((p) => p.name === key);
