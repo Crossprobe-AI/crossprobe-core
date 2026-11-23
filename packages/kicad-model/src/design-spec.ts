@@ -51,6 +51,7 @@ export interface DesignPart {
    * `edge`: against that board edge (connectors). `rotate`: degrees, counter-clockwise, as in KiCad.
    * `align` (with `edge`): where along the edge, "start" (left or top), "center" or "end" (right or bottom).
    * `overhang` (with `edge`): how far the part may hang over that edge, mm (a module whose antenna end is to be off the board).
+   * It hangs less where that much would bring its pads closer to the edge than the board's copper edge clearance.
    * `near`: the reference of a part to sit beside, whatever the nets say; or "U1:1", one of that
    * part's pins, to sit as close to that pad as the courtyards allow (a decoupling capacitor at the
    * supply pin of a large module).
@@ -649,6 +650,8 @@ export interface PlaceItem {
   near?: string;
   /** How far the part's box may reach over its edge, mm. */
   overhang?: number;
+  /** The box round its pads' copper, footprint-local and unrotated: an overhang stops where they would come closer to the edge than `edgeClearance`. */
+  padExtent?: { x: number; y: number; w: number; h: number };
   /** The footprint's body without its reference text, when `extent` includes that: what its pads are judged against. */
   body?: { x: number; y: number; w: number; h: number };
   /**
@@ -667,6 +670,8 @@ export interface PartPlacement {
   at: Point;
   /** Degrees, counter-clockwise on screen, as KiCad's footprint angle. */
   rotate: number;
+  /** For a part given an overhang: how far its box reaches over its edge, mm. Less than asked when its pads keep the edge clearance. */
+  overhang?: number;
 }
 
 /** A footprint-local point on the board, for a footprint at `at` turned by `deg` (KiCad's angle: counter-clockwise with Y down). */
@@ -710,7 +715,7 @@ function turned(e: { x: number; y: number; w: number; h: number }, at: Point, de
 export function placeParts(
   items: PlaceItem[],
   area: { x: number; y: number; w: number; h: number },
-  o: { margin?: number; gap?: number; weakNets?: string[]; keepouts?: Array<{ x: number; y: number; w: number; h: number }> } = {},
+  o: { margin?: number; gap?: number; weakNets?: string[]; keepouts?: Array<{ x: number; y: number; w: number; h: number }>; edgeClearance?: number } = {},
 ): { placed: Record<string, PartPlacement>; unplaced: string[] } {
   const margin = o.margin ?? 1;
   const gap = o.gap ?? 0.5;
@@ -767,6 +772,11 @@ export function placeParts(
     const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => apart(s, k, 0));
     const commit = (it: PlaceItem, at: Point, rotate: number) => {
       placed[it.reference] = { at: { x: round(at.x), y: round(at.y) }, rotate };
+      if (it.edge && it.overhang) {
+        const b = boxOf(it, at, rotate);
+        const by = { left: area.x - b.x0, right: b.x1 - area.x - area.w, top: area.y - b.y0, bottom: b.y1 - area.y - area.h }[it.edge];
+        placed[it.reference]!.overhang = round(Math.max(0, by));
+      }
       boxes.push(shapes(it, at, rotate));
       for (const p of it.pads) if (p.net) (netPads.get(p.net) ?? netPads.set(p.net, []).get(p.net)!).push({ ...footprintPoint(p, at, rotate), ref: it.reference, group: it.group, big: it.pads.length > 2 });
       if (it.group) (groupAt.get(it.group) ?? groupAt.set(it.group, []).get(it.group)!).push({ ...at, ref: it.reference });
@@ -868,13 +878,23 @@ export function placeParts(
         const along = it.edge ? 0.25 : step;
         let xs = range(inner.x0 - b0.x0, inner.x1 - b0.x1, along);
         let ys = range(inner.y0 - b0.y0, inner.y1 - b0.y1, along);
-        // Over the edge by its overhang: the box starts that far outside the margin.
+        // Over the edge by its overhang: the box starts that far outside the margin. But no further than
+        // keeps its pads the edge clearance inside the board (then on a 0.01 mm step, inwards).
         const over = it.edge && it.overhang ? it.overhang + margin : 0;
         if (over) {
-          if (it.edge === "left") xs = [round(inner.x0 - b0.x0 - over)];
-          if (it.edge === "right") xs = [round(inner.x1 - b0.x1 + over)];
-          if (it.edge === "top") ys = [round(inner.y0 - b0.y0 - over)];
-          if (it.edge === "bottom") ys = [round(inner.y1 - b0.y1 + over)];
+          const pb = it.padExtent ? turned(it.padExtent, { x: 0, y: 0 }, deg) : undefined;
+          const ec = o.edgeClearance ?? 0;
+          // The anchor asked for, the one that keeps the pads in, and the one with no overhang at all.
+          // On a left or top edge a larger anchor is further in (sign 1); on a right or bottom edge, a smaller one.
+          const within = (asked: number, keep: number | undefined, none: number, sign: 1 | -1) => {
+            if (keep === undefined || sign * (keep - asked) <= 0) return round(asked);
+            const snapped = sign > 0 ? Math.ceil(round(keep) * 100) / 100 : Math.floor(round(keep) * 100) / 100;
+            return sign > 0 ? Math.min(none, snapped) : Math.max(none, snapped);
+          };
+          if (it.edge === "left") xs = [within(inner.x0 - b0.x0 - over, pb && area.x + ec - pb.x0, inner.x0 - b0.x0, 1)];
+          if (it.edge === "right") xs = [within(inner.x1 - b0.x1 + over, pb && area.x + area.w - ec - pb.x1, inner.x1 - b0.x1, -1)];
+          if (it.edge === "top") ys = [within(inner.y0 - b0.y0 - over, pb && area.y + ec - pb.y0, inner.y0 - b0.y0, 1)];
+          if (it.edge === "bottom") ys = [within(inner.y1 - b0.y1 + over, pb && area.y + area.h - ec - pb.y1, inner.y1 - b0.y1, -1)];
         }
         if (it.edge === "left") xs = xs.slice(0, 1);
         if (it.edge === "right") xs = xs.slice(-1);

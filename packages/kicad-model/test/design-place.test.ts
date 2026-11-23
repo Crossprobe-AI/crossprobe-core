@@ -100,6 +100,28 @@ describe("placeParts", () => {
     expect(placeParts([plain(part("U1", { at: { x: 6, y: 4 } })), plain(part("U2", {}))], area, { margin: 0.5, gap: 0.5 }).unplaced).toEqual(["U2"]);
   });
 
+  it("hangs a part over its edge only as far as keeps its pads the edge clearance", () => {
+    // A module whose box includes an 11.5 mm antenna zone past its antenna end, with pads 0.4 mm in from that end:
+    // hung 11.5 mm over the top edge, its pads would be 0.4 mm from the edge.
+    const module = (overhang: number): PlaceItem => ({
+      reference: "U1",
+      extent: { x: -9, y: -21, w: 18, h: 31 },
+      padExtent: { x: -9, y: -9.1, w: 18, h: 19 },
+      pads: [{ x: -8, y: -8, net: "A" }],
+      edge: "top",
+      rotate: 0,
+      overhang,
+    });
+    const place = (overhang: number, edgeClearance?: number) => placeParts([module(overhang)], AREA, { edgeClearance }).placed.U1!;
+    expect(place(11.5)).toMatchObject({ at: { y: 9.5 }, overhang: 11.5 }); // no clearance given: as asked
+    expect(place(11.5, 0.5)).toMatchObject({ at: { y: 9.6 }, overhang: 11.4 }); // the pads' top at 0.5 mm
+    expect(place(5, 0.5)).toMatchObject({ at: { y: 16 }, overhang: 5 }); // well clear: as asked
+    // Turned, on the right edge: the same 0.5 mm.
+    const right = placeParts([{ ...module(11.5), edge: "right", rotate: 270 }], AREA, { edgeClearance: 0.5 }).placed.U1!;
+    expect(right.overhang).toBe(11.4);
+    expect(right.at.x).toBe(60 - 9.6);
+  });
+
   it("follows what the spec asks for: along an edge, beside a part, out of a keep-out", () => {
     const part = (reference: string, more: Partial<PlaceItem>): PlaceItem => ({ reference, extent: { x: -3, y: -2, w: 6, h: 4 }, pads: [{ x: -2, y: 0, net: `${reference}a` }, { x: 2, y: 0, net: "BUS" }], ...more });
     const items = [
