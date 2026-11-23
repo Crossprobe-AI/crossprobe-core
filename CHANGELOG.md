@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.0](https://github.com/Crossprobe-AI/crossprobe-core/compare/v0.2.0...v0.3.0) (2026-11-23)
+
+
+### Features
+
+* a link to the source in the top bar, with GitHub's mark ([#119](https://github.com/Crossprobe-AI/crossprobe-core/issues/119)) ([290aa65](https://github.com/Crossprobe-AI/crossprobe-core/commit/290aa659affee3e5159bf7f69e60b448974b2fa2))
+* a start-new slot at the top of the start screen's new-project card ([#111](https://github.com/Crossprobe-AI/crossprobe-core/issues/111)) ([28054b8](https://github.com/Crossprobe-AI/crossprobe-core/commit/28054b8ddd7746a34c97da2b7d20f8b756fffca3))
+* CopyField for values of several lines; OverflowTabs exported, with a label ([#106](https://github.com/Crossprobe-AI/crossprobe-core/issues/106)) ([4a6e44f](https://github.com/Crossprobe-AI/crossprobe-core/commit/4a6e44f1c46187a584ea9deea8fa8e16febf254b))
+* error boundaries, and an onError hook for extensions ([#108](https://github.com/Crossprobe-AI/crossprobe-core/issues/108)) ([57366ec](https://github.com/Crossprobe-AI/crossprobe-core/commit/57366ec93d2b7fa7afd04bafa34805a5c6c7b5a2))
+* hosted at the root of its own domain; contributing and security guides, issue forms, package metadata ([#97](https://github.com/Crossprobe-AI/crossprobe-core/issues/97)) ([7bd3f29](https://github.com/Crossprobe-AI/crossprobe-core/commit/7bd3f2911f42705f37f38d3b8759d7c49a542110))
+* place.near can name a pin ("U1:1"), to sit a part beside that pad ([#113](https://github.com/Crossprobe-AI/crossprobe-core/issues/113)) ([5d6907d](https://github.com/Crossprobe-AI/crossprobe-core/commit/5d6907dd1d721332303ba8365851714f0e57535f))
+* start screen with a card for each way in, and the design blocks as examples ([#105](https://github.com/Crossprobe-AI/crossprobe-core/issues/105)) ([984f3f6](https://github.com/Crossprobe-AI/crossprobe-core/commit/984f3f678ac8956387834bc673cbf8a61ccda7ad))
+
+
+### Bug Fixes
+
+* a menu closes when an extension's item in it is chosen ([#109](https://github.com/Crossprobe-AI/crossprobe-core/issues/109)) ([0efca4c](https://github.com/Crossprobe-AI/crossprobe-core/commit/0efca4c91a45d3207d8043a053a5773ed4146122))
+* an overhanging part keeps its pads the edge clearance ([#117](https://github.com/Crossprobe-AI/crossprobe-core/issues/117)) ([ff47852](https://github.com/Crossprobe-AI/crossprobe-core/commit/ff47852c1340c0a420dbab06ab37b5ae03837fed))
+* part_count matches each field on its own, and counts by reference prefix ([#112](https://github.com/Crossprobe-AI/crossprobe-core/issues/112)) ([aa37a50](https://github.com/Crossprobe-AI/crossprobe-core/commit/aa37a509601644ecc5dffa9e24ba3d19e3c0cfce))
+* the design placer keeps parts apart by their bodies, not their reference texts ([#115](https://github.com/Crossprobe-AI/crossprobe-core/issues/115)) ([627f624](https://github.com/Crossprobe-AI/crossprobe-core/commit/627f6243dbfde637e9f8e4ec0a10f782f82e29d3))
+
 ## [0.2.0](https://github.com/Crossprobe-AI/crossprobe-core/compare/v0.1.1...v0.2.0) (2026-11-19)
 
 
