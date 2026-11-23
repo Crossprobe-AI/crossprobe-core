@@ -243,4 +243,6 @@ export interface Extension {
    * error comes once per page (errors.ts). The editor itself reports nowhere.
    */
   onError?(error: unknown, context: ErrorContext): void;
+  /** Leave out the top bar's link to the editor's source (ui/SourceLink.tsx). */
+  hidesSourceLink?: boolean;
 }

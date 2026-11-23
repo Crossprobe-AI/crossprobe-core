@@ -3,6 +3,7 @@ import { boardFrame, landPatternText, newFootprintText, newSymbolNode, withLibra
 import { arg as sexprArg, parse as parseSexpr, setArg as setSexprArg, str as sexprStr } from "@crossprobe/kicad-sexpr";
 import { SymbolEditor } from "./ui/SymbolEditor";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
+import { SourceLink } from "./ui/SourceLink";
 import { assistant, Fill, installed, Slot, SlotProvider, type AppHost, type Cited, type Contribution, type DraftPart, type SaveAction, type ProjectLinks } from "./extensions";
 import {
   canWriteFolders,
@@ -975,6 +976,7 @@ export function App() {
           onChange={(e) => e.target.files && open(() => fromFileList(e.target.files!))}
         />
         <Slot name="topbar" />
+        {!installed.some((e) => e.hidesSourceLink) && <SourceLink />}
       </header>
 
       {status && <div className="status">{status}</div>}
