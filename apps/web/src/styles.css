@@ -4070,3 +4070,34 @@ button[aria-haspopup][aria-expanded="true"] {
 .topbar .project-control:not(.alone) .project-menu > summary {
   border-radius: 0 var(--control-radius) var(--control-radius) 0;
 }
+
+/* The top bar's link to the source (ui/SourceLink.tsx): GitHub's mark, the bar's last button. */
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--control-radius);
+  color: var(--muted);
+}
+.source-link:hover {
+  color: var(--text);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+}
+.source-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.source-link .source-mark {
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+}
