@@ -66,6 +66,15 @@ describe("requirements", () => {
     expect(validRequirement({ id: "x", title: "y", kind: "part_count", min: 1 })).toBeUndefined(); // needs match or prefix
     expect(validRequirement({ id: "x", title: "y", kind: "part_count", prefix: "D1", min: 1 })).toBeUndefined(); // letters only
   });
+  it("part count: a reference prefix in linear time", () => {
+    const long = { reference: "0".repeat(40000) + "\n", value: "", libId: "", footprint: "", description: "", dnp: false };
+    const many = { ...project, components: [...project.components, long, { ...long, reference: "#PWR01" }, { ...long, reference: "U?" }] } as ProjectView;
+    const start = performance.now();
+    const hits = (prefix: string) => checkRequirement(many, { id: "r", title: "t", kind: "part_count", prefix, min: 0 }).references;
+    expect(hits("U")).toEqual(["U1", "U?"]);
+    expect(hits("#PWR")).toEqual(["#PWR01"]);
+    expect(performance.now() - start).toBeLessThan(200); // a backtracking pattern took ~700 ms on the long reference
+  });
   it("power budget and track width", () => {
     expect(run({ kind: "power_budget", net: "+5V", supplyMa: 500, loads: [{ reference: "U1", maxMa: 300 }] }).status).toBe("pass");
     expect(run({ kind: "power_budget", net: "+5V", supplyMa: 200, loads: [{ reference: "U1", maxMa: 300 }] }).status).toBe("fail");

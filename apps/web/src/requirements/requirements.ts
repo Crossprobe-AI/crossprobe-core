@@ -201,7 +201,7 @@ export function checkRequirement(p: ProjectView, r: Requirement): RequirementRes
       const hits = p.components.filter(
         (c) =>
           !c.dnp &&
-          (prefix === undefined || c.reference.replace(/[0-9?].*$/, "").toUpperCase() === prefix) &&
+          (prefix === undefined || (/^[^0-9?]*/.exec(c.reference)?.[0] ?? "").toUpperCase() === prefix) &&
           (!re || [c.reference, c.value, c.footprint, c.libId, c.description].some((f) => !!f && re.test(f))),
       );
       const n = hits.length;
