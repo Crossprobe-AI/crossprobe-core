@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse, serialize } from "@crossprobe/kicad-sexpr";
-import { addTrack, addVia, boardRoot, copperItems, deleteBoardItem, fillZones, findBoardItem, findUnconnected, fracture, netClassOf, parseBoard, projectDesignRules, routeConnection, routeWithVias, setZoneFills } from "../src/index.js";
+import { addTrack, addVia, autorouteAll, boardRoot, copperItems, deleteBoardItem, fillZones, findBoardItem, findUnconnected, fracture, netClassOf, parseBoard, projectDesignRules, routeConnection, routeWithVias, setZoneFills } from "../src/index.js";
 
 const DEMO = `${process.env.KICAD_DEMOS}/pic_programmer`;
 const KICAD_CLI = process.env.KICAD_CLI!;
@@ -61,6 +61,20 @@ describe.skipIf(!ok)("autorouter", () => {
     execFileSync(KICAD_CLI, ["pcb", "drc", "--format", "json", "-o", out, pcb], { stdio: "ignore" });
     const types = (JSON.parse(readFileSync(out, "utf8")).violations as Array<{ type: string }>).map((v) => v.type);
     expect(types.filter((t) => ["clearance", "shorting_items", "tracks_crossing", "copper_edge_clearance", "track_dangling"].includes(t))).toEqual([]);
+  }, 180_000);
+
+  it("stops at its deadline: nothing is started after it, and a search running then gives up", () => {
+    const rules = projectDesignRules(readFileSync(join(DEMO, "pic_programmer.kicad_pro"), "utf8"));
+    const doc = parse(readFileSync(join(DEMO, "pic_programmer.kicad_pcb"), "utf8"));
+    for (const t of parseBoard(serialize(doc)).tracks) deleteBoardItem(boardRoot(doc), t.uuid);
+    const board = parseBoard(serialize(doc));
+    const todo = findUnconnected(board).slice(0, 10).map((u) => ({ from: u.a.at, to: u.b.at, net: u.net }));
+    expect(autorouteAll(board, rules, todo, Date.now()).filter(Boolean)).toEqual([]);
+    // With time, the same connections route; the deadline is lifted again after the run.
+    const started = Date.now();
+    expect(autorouteAll(board, rules, todo, Date.now() + 60_000).filter(Boolean).length).toBeGreaterThanOrEqual(8);
+    expect(Date.now() - started).toBeLessThan(60_000);
+    expect(routeWithVias(board, rules, { from: todo[0]!.from, to: todo[0]!.to, net: todo[0]!.net, width: netClassOf(rules, todo[0]!.net).trackWidth, via: { size: 0.6, drill: 0.3 }, layers: board.copperLayers }, copperItems(board))).toBeDefined();
   }, 180_000);
 
   it("changes layers through vias when it has to (SMD parts on both sides), KiCad-DRC-clean", () => {

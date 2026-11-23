@@ -282,6 +282,12 @@ function reachable(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, st
  * the true distance to the goal round every obstacle is worked out and the search is run again with
  * that as its guide, so it heads straight for the way round.
  */
+/**
+ * When routing must stop (a `Date.now()` time): a search still running then gives up as if it had
+ * looked as far as it may. autorouteAll sets it for the length of its run.
+ */
+let stopAt = Infinity;
+
 function search(
   g: Grid,
   masks: Uint8Array[],
@@ -293,6 +299,7 @@ function search(
   maxExpanded?: number,
   layerCost?: number[],
 ): Array<[number, number]> | undefined {
+  if (Date.now() > stopAt) return undefined;
   // A flood fill first (no directions, no costs): an unreachable goal is found out cheaply.
   if (!reachable(g, masks, via, start, goal)) return undefined;
   if (maxExpanded !== undefined) {
@@ -300,7 +307,7 @@ function search(
     return within === "capped" ? undefined : within;
   }
   const quick = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, QUICK);
-  if (quick !== "capped") return quick;
+  if (quick !== "capped" || Date.now() > stopAt) return quick === "capped" ? undefined : quick;
   const map = distanceToGoal(g, masks, via, viaCost, goal, layerCost);
   const informed = searchWith(g, masks, via, viaCost, start, goal, layerCost, map, 8 * g.W * g.H * masks.length);
   return informed === "capped" ? undefined : informed;
@@ -480,6 +487,7 @@ function searchWith(
       break;
     }
     if (++expanded > cap) return "capped";
+    if ((expanded & 4095) === 0 && Date.now() > stopAt) return "capped";
     const base = gs[st]!;
     const i = c % W;
     const j = Math.floor(c / W);
@@ -786,8 +794,22 @@ export function routingLayers(board: Board, net: string): string[] {
  * "Route all": every connection in turn (see autorouteConnection), then one round of rip-up and
  * reroute: a connection that failed may lift one of the routes made before it nearby, take the
  * room, and route the lifted one again; that is kept only if both succeed.
+ *
+ * `deadline` (a `Date.now()` time): no connection is started after it, and the rip-up round is cut
+ * short; what is not routed by then stays unrouted. The routes made are kept.
  */
-export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>): Array<MultiLayerRoute | undefined> {
+export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity): Array<MultiLayerRoute | undefined> {
+  const before = stopAt;
+  stopAt = Math.min(stopAt, deadline);
+  try {
+    return routeAll(board, rules, connections, deadline);
+  } finally {
+    stopAt = before;
+  }
+}
+
+function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline: number): Array<MultiLayerRoute | undefined> {
+  const late = () => Date.now() > deadline;
   const base = copperItems(board);
   const routes: Array<MultiLayerRoute | undefined> = [];
   const made = new Map<number, CopperItem[]>();
@@ -803,13 +825,14 @@ export function autorouteAll(board: Board, rules: DesignRules, connections: Arra
     ];
   };
   connections.forEach((c, i) => {
+    if (late()) return;
     const r = autorouteConnection(board, rules, c, all());
     routes[i] = r;
     if (r) made.set(i, itemsOf(r, c.net));
   });
   const near = (r: MultiLayerRoute, p: Point) => Math.min(...r.runs.flatMap((run) => run.points.map((q) => Math.hypot(q.x - p.x, q.y - p.y))));
   connections.forEach((c, i) => {
-    if (routes[i]) return;
+    if (routes[i] || late()) return;
     // One that cannot be made on an empty board (a pad shut inside a keep-out) is not helped by
     // lifting other routes: say so at once, without trying.
     // (Through any pad of its two pieces, as it would be routed: the nearest pair may be shut in.)
