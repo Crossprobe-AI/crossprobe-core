@@ -22,6 +22,7 @@ import type { List } from "@crossprobe/kicad-sexpr";
 import { findChildren, arg } from "@crossprobe/kicad-sexpr";
 import type { BlockPart, BlockSpec } from "./design-block.js";
 import { libPins, type LibPinGeom } from "./design-block.js";
+import { symbolUnits } from "./symbol-edit.js";
 import type { Point } from "./geometry.js";
 import { resolveLibrarySymbol } from "./library.js";
 import { PAPER_SIZES } from "./page-settings.js";
@@ -35,7 +36,10 @@ export interface DesignPart {
   value: string;
   /** "Library:Footprint", from KiCad's footprint libraries. */
   footprint: string;
-  /** Pin number (or pin name) → net name. */
+  /**
+   * Pin number (or pin name) → net name. A multi-unit symbol's pins are listed together, whatever
+   * unit they are in: every unit is placed on the sheet, each with its own pins.
+   */
   pins: Record<string, string>;
   /** Pins not listed: `no_connect` flags them as unused; the default leaves them open, so ERC reports them. */
   otherPins?: "no_connect" | "ignore";
@@ -260,19 +264,24 @@ function symbolResolver(libs: Pick<DesignLibraries, "symbol">) {
   };
 }
 
-/** Units of a library symbol (a dual op-amp has 3: two amplifiers and the supply). */
-function unitCount(def: List): number {
-  let n = 1;
-  for (const u of findChildren(def, "symbol")) {
-    const m = /_(\d+)_(\d+)$/.exec(String(arg(u, 0)));
-    if (m) n = Math.max(n, Number(m[1]));
-  }
-  return n;
-}
-
 function pinsFor(pins: LibPinGeom[], key: string): LibPinGeom[] {
   const byNumber = pins.filter((p) => p.number === key);
   return byNumber.length ? byNumber : pins.filter((p) => p.name === key);
+}
+
+/**
+ * A part as the units it is drawn in. A single-unit symbol is one, with the spec's pins as given. A
+ * multi-unit symbol is every unit, an unused one too (KiCad's ERC wants them all on the sheet), each
+ * with the pins it draws, by number; a pin common to all units is wired in the first. `key` is
+ * where the unit is in the sheet layout: the reference, then "U1:2", "U1:3" for the other units.
+ */
+function partUnits(part: Pick<DesignPart, "ref" | "pins">, def: List): Array<{ unit: number; key: string; pins: Record<string, string> }> {
+  const n = symbolUnits(def).count;
+  if (n === 1) return [{ unit: 1, key: part.ref, pins: part.pins }];
+  const all = libPins(def, "all");
+  const out = Array.from({ length: n }, (_, i) => ({ unit: i + 1, key: i ? `${part.ref}:${i + 1}` : part.ref, pins: {} as Record<string, string> }));
+  for (const [key, net] of Object.entries(part.pins)) for (const p of pinsFor(all, key)) out[Math.max(p.unit, 1) - 1]!.pins[p.number] = net;
+  return out;
 }
 
 /** The symbol ids a spec may need, for callers that fetch symbols one by one: its parts', a power symbol per net name, and PWR_FLAG. Not all of them exist. */
@@ -341,6 +350,12 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
   const resolve = symbolResolver(libs);
   const refs = new Set<string>();
   const netPins = new Map<string, string[]>();
+  // Nets of parts whose pins could not all be counted (no symbol, a pin it doesn't have): that such a
+  // net then has one pin, or none, follows from the problem already reported, and is not repeated.
+  const uncounted = new Set<string>();
+  const skip = (pins: unknown) => {
+    if (pins && typeof pins === "object") for (const net of Object.values(pins)) if (typeof net === "string") uncounted.add(net);
+  };
   for (const part of spec.parts) {
     const ref = part?.ref;
     if (typeof ref !== "string" || !/^[A-Za-z]+[0-9]+$/.test(ref)) {
@@ -357,13 +372,10 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
     const def = typeof part.symbol === "string" ? resolve(part.symbol) : undefined;
     if (!def) {
       if (typeof spec.libraries?.symbols?.[part.symbol] !== "string") problems.push(`${ref}: no symbol ${JSON.stringify(part.symbol)} in the libraries (find one with search_symbols, or carry the part's own .kicad_sym in "libraries.symbols")`);
+      skip(part.pins);
       continue;
     }
-    if (unitCount(def) > 1) {
-      problems.push(`${ref}: ${part.symbol} has several units, which a design spec cannot place yet. Use a single-unit symbol`);
-      continue;
-    }
-    const pins = libPins(def);
+    const pins = libPins(def, "all");
     const used = new Set<string>();
     for (const [key, net] of Object.entries(part.pins)) {
       if (typeof net !== "string" || !net.trim()) {
@@ -373,6 +385,7 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       const found = pinsFor(pins, key);
       if (!found.length) {
         problems.push(`${ref} (${part.symbol}) has no pin "${key}". Its pins: ${pins.map((p) => `${p.number} ${p.name}`).join(", ")}`);
+        uncounted.add(net);
         continue;
       }
       for (const p of found) {
@@ -417,9 +430,9 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (pl.near !== undefined && pl.x !== undefined) problems.push(`${ref}: "place.near" has no effect with a fixed x and y; give one or the other`);
     }
   }
-  for (const [net, pins] of netPins) if (pins.length < 2) problems.push(`Net ${net} has only one pin (${pins[0]}): connect it, or leave the pin out`);
-  for (const net of spec.powerFlags ?? []) if (!netPins.has(net)) problems.push(`"powerFlags" names ${net}, which no pin is on`);
-  if (b && typeof b.pour === "string" && !netPins.has(b.pour)) problems.push(`"board.pour" names ${b.pour}, which no pin is on`);
+  for (const [net, pins] of netPins) if (pins.length < 2 && !uncounted.has(net)) problems.push(`Net ${net} has only one pin (${pins[0]}): connect it, or leave the pin out`);
+  for (const net of spec.powerFlags ?? []) if (!netPins.has(net) && !uncounted.has(net)) problems.push(`"powerFlags" names ${net}, which no pin is on`);
+  if (b && typeof b.pour === "string" && !netPins.has(b.pour) && !uncounted.has(b.pour)) problems.push(`"board.pour" names ${b.pour}, which no pin is on`);
   return problems;
 }
 
@@ -543,7 +556,7 @@ export function layoutDesignSheet(spec: DesignSpec, libs: Pick<DesignLibraries, 
   for (const part of spec.parts) {
     const def = resolve(part.symbol);
     if (!def) throw new Error(`No symbol ${part.symbol}`);
-    cells.push(cellOf(part.ref, group(part.group ?? ""), part.value, libPins(def), part.pins, power));
+    for (const u of partUnits(part, def)) cells.push(cellOf(u.key, group(part.group ?? ""), part.value, libPins(def, u.unit), u.pins, power));
   }
   const flag = resolve(`${POWER_LIB}:PWR_FLAG`);
   for (const f of designPowerFlags(spec)) {
@@ -567,25 +580,27 @@ export function layoutDesignSheet(spec: DesignSpec, libs: Pick<DesignLibraries, 
 
 /** The spec as a block spec, for generateBlockSchematic: laid out, with power symbols and PWR_FLAGs. */
 export function designBlockSpec(spec: DesignSpec, libs: Pick<DesignLibraries, "symbol">, layout = layoutDesignSheet(spec, libs)): BlockSpec {
-  const parts: BlockPart[] = spec.parts.map((p) => ({
+  const resolve = symbolResolver(libs);
+  const units = spec.parts.map((p) => ({ part: p, def: resolve(p.symbol)! })).flatMap(({ part, def }) => partUnits(part, def).map((u) => ({ ...u, part, def, multi: symbolUnits(def).count > 1 })));
+  const parts: BlockPart[] = units.map(({ part: p, unit, key, pins, multi }) => ({
     ref: p.ref,
     symbol: p.symbol,
     value: p.value,
     footprint: p.footprint,
-    at: layout.at[p.ref]!,
+    at: layout.at[key]!,
+    unit: multi ? unit : undefined,
     dnp: p.dnp,
     fields: p.fields,
-    pins: p.pins,
+    pins,
     otherPins: p.otherPins ?? "ignore",
     basis: "convention",
   }));
   for (const f of designPowerFlags(spec)) parts.push({ ref: f.ref, symbol: `${POWER_LIB}:PWR_FLAG`, value: "PWR_FLAG", at: layout.at[f.ref]!, pins: { "1": f.net }, basis: "convention" });
   // Neighbouring pins on one side that share a net are wired together and labelled once (VIN and EN, several GND pins).
-  const resolve = symbolResolver(libs);
   const join: string[][] = [];
-  for (const part of spec.parts) {
-    const pins = libPins(resolve(part.symbol)!);
-    const netOf = (p: LibPinGeom) => part.pins[p.number] ?? part.pins[p.name];
+  for (const { part, def, unit, pins: given } of units) {
+    const pins = libPins(def, unit);
+    const netOf = (p: LibPinGeom) => given[p.number] ?? given[p.name];
     const sides = new Map<string, LibPinGeom[]>();
     for (const p of pins) {
       const vertical = p.angle === 90 || p.angle === 270; // the pin runs up or down, so its side's tips share a y
