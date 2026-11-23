@@ -651,6 +651,14 @@ export interface PlaceItem {
   overhang?: number;
   /** The footprint's body without its reference text, when `extent` includes that: what its pads are judged against. */
   body?: { x: number; y: number; w: number; h: number };
+  /**
+   * The reference text's box, when `extent` includes it. Then parts are kept apart by their bodies, as
+   * KiCad's courtyard check does, and a text only has to stay off other texts and off what `textKeepOff`
+   * lists of other parts: it may lie over another part's body, as long as it misses its pads and silkscreen.
+   */
+  label?: { x: number; y: number; w: number; h: number };
+  /** What another part's reference text must not cover (its pads and silkscreen), footprint-local and unrotated. */
+  textKeepOff?: Array<{ x: number; y: number; w: number; h: number }>;
   /** The side a connector opens to (where the wire or the plug goes in), as a direction in the footprint's own axes, when known. */
   opening?: Point;
 }
@@ -676,7 +684,11 @@ interface Box {
 }
 
 function boxOf(it: PlaceItem, at: Point, deg: number): Box {
-  const e = it.extent;
+  return turned(it.extent, at, deg);
+}
+
+/** A footprint-local box, unrotated, on the board for a footprint at `at` turned by `deg`. */
+function turned(e: { x: number; y: number; w: number; h: number }, at: Point, deg: number): Box {
   const pts = [
     { x: e.x, y: e.y },
     { x: e.x + e.w, y: e.y },
@@ -728,7 +740,8 @@ export function placeParts(
   const nearPad = (it: PlaceItem) => (it.near?.includes(":") ? it.near.slice(it.near.indexOf(":") + 1) : undefined);
   const attempt = (edgeOrder: PlaceItem[]): { placed: Record<string, PartPlacement>; unplaced: string[] } => {
     const placed: Record<string, PartPlacement> = {};
-    let boxes: Array<Box & { ref: string }> = [];
+    /** Placed parts: the whole box, and, for a part with a separate label, its body, label and what texts keep off. */
+    let boxes: Array<Box & { ref: string; body: Box; label?: Box; keepOff?: Box[] }> = [];
     // Placed pads by net, with what they belong to: its part and group, and whether it is more than a two-pad part.
     const netPads = new Map<string, Array<Point & { ref: string; group?: string; big: boolean }>>();
     const groupAt = new Map<string, Array<Point & { ref: string }>>();
@@ -736,10 +749,25 @@ export function placeParts(
     /** Placed parts' numbered pads, on the board. */
     const padAt = new Map<string, Map<string, Point & { net: string }>>();
     const apart = (b: Box, p: Box, gap: number) => b.x1 + gap <= p.x0 || p.x1 + gap <= b.x0 || b.y1 + gap <= p.y0 || p.y1 + gap <= b.y0;
-    const clear = (b: Box, gap: number) => boxes.every((p) => apart(b, p, gap)) && keepouts.every((k) => apart(b, k, 0));
+    /** A part's boxes at a spot: whole, body, label and what other texts keep off. */
+    const shapes = (it: PlaceItem, at: Point, deg: number) => {
+      const whole = boxOf(it, at, deg);
+      if (!it.label || !it.body) return { ...whole, ref: it.reference, body: whole };
+      return { ...whole, ref: it.reference, body: turned(it.body, at, deg), label: turned(it.label, at, deg), keepOff: (it.textKeepOff ?? [it.body]).map((k) => turned(k, at, deg)) };
+    };
+    const TEXT_GAP = 0.2;
+    const separate = (a: (typeof boxes)[number], p: (typeof boxes)[number], gap: number) => {
+      if (!a.label && !p.label) return apart(a, p, gap);
+      if (!apart(a.body, p.body, gap)) return false;
+      if (a.label && p.label && !apart(a.label, p.label, TEXT_GAP)) return false;
+      if (a.label && (p.keepOff ?? [p.body]).some((k) => !apart(a.label!, k, TEXT_GAP))) return false;
+      if (p.label && (a.keepOff ?? [a.body]).some((k) => !apart(p.label!, k, TEXT_GAP))) return false;
+      return true;
+    };
+    const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => apart(s, k, 0));
     const commit = (it: PlaceItem, at: Point, rotate: number) => {
       placed[it.reference] = { at: { x: round(at.x), y: round(at.y) }, rotate };
-      boxes.push({ ...boxOf(it, at, rotate), ref: it.reference });
+      boxes.push(shapes(it, at, rotate));
       for (const p of it.pads) if (p.net) (netPads.get(p.net) ?? netPads.set(p.net, []).get(p.net)!).push({ ...footprintPoint(p, at, rotate), ref: it.reference, group: it.group, big: it.pads.length > 2 });
       if (it.group) (groupAt.get(it.group) ?? groupAt.set(it.group, []).get(it.group)!).push({ ...at, ref: it.reference });
       padAt.set(it.reference, new Map(it.pads.filter((p) => p.number !== undefined).map((p) => [p.number!, { ...footprintPoint(p, at, rotate), net: p.net }])));
@@ -791,7 +819,11 @@ export function placeParts(
           d = Math.min(d, Math.abs(q.x - target.x) + Math.abs(q.y - target.y));
         }
         if (Number.isFinite(d)) c += ASKED * d;
-      } else if (beside) c += ASKED * (Math.max(0, beside.x0 - b.x1, b.x0 - beside.x1) + Math.max(0, beside.y0 - b.y1, b.y0 - beside.y1));
+      } else if (beside) {
+        // Beside its body: a label in between doesn't count as distance.
+        const [o, m] = [beside.body, it.label && it.body ? turned(it.body, at, deg) : b];
+        c += ASKED * (Math.max(0, o.x0 - m.x1, m.x0 - o.x1) + Math.max(0, o.y0 - m.y1, m.y0 - o.y1));
+      }
       if (it.align && it.edge) {
         const [lo, hi, from, to] = it.edge === "top" || it.edge === "bottom" ? [b.x0, b.x1, inner.x0, inner.x1] : [b.y0, b.y1, inner.y0, inner.y1];
         c += ASKED * (it.align === "start" ? lo - from : it.align === "end" ? to - hi : Math.abs((lo + hi) / 2 - (from + to) / 2));
@@ -851,8 +883,7 @@ export function placeParts(
         for (const x of xs)
           for (const y of ys) {
             const at = { x, y };
-            const b = { x0: b0.x0 + x, y0: b0.y0 + y, x1: b0.x1 + x, y1: b0.y1 + y };
-            if (!clear(b, it.edge ? tight : gap)) continue;
+            if (!clear(shapes(it, at, deg), it.edge ? tight : gap)) continue;
             const c = cost(it, at, deg);
             if (!best || c < best.c - 1e-9) best = { at, deg, c };
           }

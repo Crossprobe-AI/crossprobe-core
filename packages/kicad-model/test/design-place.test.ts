@@ -75,6 +75,31 @@ describe("placeParts", () => {
     expect(fromPin1("U1")).toBeGreaterThan(10);
   });
 
+  it("keeps parts apart by their bodies; a reference text may lie over another body, not over its pads or text", () => {
+    // Two 10 mm parts in a 25 mm strip: they fit side by side only if U1's label, sticking out 2 mm on
+    // its right, may lie over U2's body. It must still miss U2's pads (at U2's far end) and its label.
+    const body = { x: -5, y: -3, w: 10, h: 6 };
+    const part = (reference: string, more: Partial<PlaceItem>): PlaceItem => ({
+      reference,
+      body,
+      label: { x: 5, y: -0.5, w: 2, h: 1 },
+      extent: { x: -5, y: -3, w: 12, h: 6 },
+      pads: [{ x: 4, y: 0, net: "N" }],
+      textKeepOff: [{ x: 3.5, y: -0.5, w: 1, h: 1 }],
+      rotate: 0,
+      ...more,
+    });
+    const area = { x: 0, y: 0, w: 25, h: 8 };
+    const { placed, unplaced } = placeParts([part("U1", { at: { x: 6, y: 4 } }), part("U2", { pads: [{ x: 4, y: 0, net: "N" }] })], area, { margin: 0.5, gap: 0.5 });
+    expect(unplaced).toEqual([]);
+    expect(placed.U2!.at.x).toBeGreaterThanOrEqual(16.5); // U1's body ends at 11, U2's starts 0.5 mm on
+    // A pad at U2's near end would be under U1's label: then there is no room.
+    expect(placeParts([part("U1", { at: { x: 6, y: 4 } }), part("U2", { textKeepOff: [{ x: -5, y: -0.5, w: 1, h: 1 }] })], area, { margin: 0.5, gap: 0.5 }).unplaced).toEqual(["U2"]);
+    // Without a separate label, the whole boxes collide and U2 has no room.
+    const plain = (it: PlaceItem): PlaceItem => ({ ...it, label: undefined, textKeepOff: undefined });
+    expect(placeParts([plain(part("U1", { at: { x: 6, y: 4 } })), plain(part("U2", {}))], area, { margin: 0.5, gap: 0.5 }).unplaced).toEqual(["U2"]);
+  });
+
   it("follows what the spec asks for: along an edge, beside a part, out of a keep-out", () => {
     const part = (reference: string, more: Partial<PlaceItem>): PlaceItem => ({ reference, extent: { x: -3, y: -2, w: 6, h: 4 }, pads: [{ x: -2, y: 0, net: `${reference}a` }, { x: 2, y: 0, net: "BUS" }], ...more });
     const items = [
