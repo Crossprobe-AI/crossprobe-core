@@ -181,7 +181,10 @@ function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[
     const slack = slackOf(g);
     for (const it of parts.extra) {
       if (!it.layers.has(layer) || it.item.kind === "zone" || (it.item.net === net && net)) continue;
-      for (const k of cellsOf(g, it, gap(rules, it, mine, half, slack))) blocked[k] = 1;
+      // A via made in this run keeps the hole clearance from its hole too (the board's vias do, in the owner map).
+      const sh = it.shapes[0];
+      const hole = it.item.kind === "via" && sh?.kind === "seg" ? netClassOf(rules, it.item.net).viaDrill / 2 + (rules.holeClearance ?? 0) - sh.r + half + slack : 0;
+      for (const k of cellsOf(g, it, Math.max(gap(rules, it, mine, half, slack), hole))) blocked[k] = 1;
     }
   }
   return { blocked, hard };
@@ -297,6 +300,8 @@ function owners(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], 
         if (d) holes.push({ at: pad.at, r: d / 2, net: pad.net, clr: holeClearanceOf(rules, pad, fp) });
       }
     for (const v of board.vias) holes.push({ at: v.at, r: v.drill / 2, net: v.net, clr: hc });
+    // And the vias of routes made but not on the board yet, among the items (viaHoles).
+    for (const v of viaHoles(rules, items)) holes.push({ ...v, clr: hc });
     for (const h of holes) {
       if (h.clr <= 0) continue;
       const r = h.r + h.clr + half + slack;
@@ -820,8 +825,12 @@ export function routeWithVias(board: Board, rules: DesignRules, req: MultiLayerR
   if (allowVias && layers.length > 1 && req.via.size > 0) {
     // A via fits where its pad clears other nets' copper on every layer.
     via = new Uint8Array(g.W * g.H).fill(1);
+    // Its hole keeps the hole clearance from other nets' copper as well: with a thin ring, that reaches
+    // further. A via sits on its cell, so the grid's slack (added to the copper clearance) is taken off
+    // that; the exact check at the end (holeClearOfCopper) has the last word.
+    const reach = Math.max(req.via.size / 2, req.via.drill / 2 + (rules.holeClearance ?? 0) - netClassOf(rules, req.net).clearance - slackOf(g));
     for (const l of layers) {
-      const m = cachedObstacles(g, board, rules, items, req.net, l, req.via.size / 2);
+      const m = cachedObstacles(g, board, rules, items, req.net, l, reach);
       for (let k = 0; k < via.length; k++) if (m.blocked[k]) via[k] = 0;
     }
   }
@@ -885,11 +894,11 @@ export function routeWithVias(board: Board, rules: DesignRules, req: MultiLayerR
   for (const run of runs)
     for (let k = 1; k < run.points.length; k++) {
       if (trackConflicts(solid, rules, { a: run.points[k - 1]!, b: run.points[k]!, width: req.width, layer: run.layer, net: req.net }).length) return undefined;
-      if (!trackClearsHoles(board, rules, run.points[k - 1]!, run.points[k]!, req.width, req.net) || inNoTrackArea(board, run.points[k - 1]!, run.points[k]!, req.width, run.layer)) return undefined;
+      if (!trackClearsHoles(board, rules, run.points[k - 1]!, run.points[k]!, req.width, req.net, madeVias) || inNoTrackArea(board, run.points[k - 1]!, run.points[k]!, req.width, run.layer)) return undefined;
     }
   for (const v of vias) {
     for (const l of layers) if (trackConflicts(solid, rules, { a: v, b: v, width: req.via.size, layer: l, net: req.net }).length) return undefined;
-    if (!holesClear(board, rules, v, req.via, vias.filter((o) => o !== v), madeVias)) return undefined;
+    if (!holesClear(board, rules, v, req.via, vias.filter((o) => o !== v), madeVias) || !holeClearOfCopper(solid, rules, v, req.via.drill, req.net)) return undefined;
   }
   return { runs: runs.filter((r) => r.points.length > 1), vias };
 }
@@ -1209,6 +1218,7 @@ export function stitchToPours(board: Board, rules: DesignRules, net: string): Mu
     fills.some((f) => f.layer !== layer && insidePolygon(f.points, v)) &&
     !inNoViaArea(board, v, cls.viaDiameter / 2) &&
     holesClear(board, rules, v, { size: cls.viaDiameter, drill: cls.viaDrill }, out.flatMap((o) => o.vias)) &&
+    holeClearOfCopper(others, rules, v, cls.viaDrill, net) &&
     !board.copperLayers.some((l) => trackConflicts(others, rules, { a: v, b: v, width: cls.viaDiameter, layer: l, net }).length);
   for (const isl of islands) {
     if (isl === main) continue;
@@ -1304,6 +1314,7 @@ export function fanoutPours(board: Board, rules: DesignRules, net: string): Mult
         zones.some((z) => z.layers.some((l) => l !== layer && board.copperLayers.includes(l)) && insidePolygon(z.outline, v)) &&
         !inNoViaArea(board, v, cls.viaDiameter / 2) &&
     holesClear(board, rules, v, { size: cls.viaDiameter, drill: cls.viaDrill }, out.flatMap((o) => o.vias)) &&
+        holeClearOfCopper(others, rules, v, cls.viaDrill, net) &&
         !board.copperLayers.some((l) => trackConflicts(others, rules, { a: v, b: v, width: cls.viaDiameter, layer: l, net }).length);
       const b = viaBeside(pad, cls, rules, net, others, ok, board.copperLayers, 1.5);
       if (!b) continue;
@@ -1334,6 +1345,7 @@ function cutCorners(board: Board, rules: DesignRules, items: CopperItem[], solid
     return false;
   };
   const same = (m: Point, n: Point) => Math.hypot(m.x - n.x, m.y - n.y) < 1e-6;
+  const made = viaHoles(rules, items);
   for (let k = 1; k < pts.length - 1; k++) {
     const p = pts[k - 1]!, q = pts[k]!, r = pts[k + 1]!;
     const u = { x: p.x - q.x, y: p.y - q.y }, v = { x: r.x - q.x, y: r.y - q.y };
@@ -1344,7 +1356,7 @@ function cutCorners(board: Board, rules: DesignRules, items: CopperItem[], solid
     const room = Math.min(k === 1 ? lu / 2 : lu, k === pts.length - 2 ? lv / 2 : lv);
     for (const d of [1, 0.5, 0.25].map((x) => Math.min(x, room)).filter((x, n, all) => x >= 0.2 && all.indexOf(x) === n)) {
       const a = { x: q.x + (u.x / lu) * d, y: q.y + (u.y / lu) * d }, b = { x: q.x + (v.x / lv) * d, y: q.y + (v.y / lv) * d };
-      if (trackConflicts(solid, rules, { a, b, width, layer: run.layer, net }).length || !trackClearsHoles(board, rules, a, b, width, net) || inNoTrackArea(board, a, b, width, run.layer) || shut(a, b)) continue;
+      if (trackConflicts(solid, rules, { a, b, width, layer: run.layer, net }).length || !trackClearsHoles(board, rules, a, b, width, net, made) || inNoTrackArea(board, a, b, width, run.layer) || shut(a, b)) continue;
       pts.splice(k, 1, ...(same(a, p) ? [] : [a]), ...(same(b, r) ? [] : [b]));
       if (!same(a, p)) k++;
       break;
@@ -1357,7 +1369,7 @@ function cutCorners(board: Board, rules: DesignRules, items: CopperItem[], solid
  * already keeps routes away from them, but not the first and last stretch beside a pad, nor a pad's
  * fan-out stub: a USB-C contact next to the shell's locating hole.
  */
-function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, width: number, net: string): boolean {
+function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, width: number, net: string, made: Array<{ at: Point; r: number; net: string }> = []): boolean {
   const hc = rules.holeClearance ?? 0;
   const dx = b.x - a.x, dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
@@ -1372,6 +1384,7 @@ function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, 
       if (d && clr > 0 && !(pad.net && pad.net === net) && dist(pad.at) - d / 2 - width / 2 < clr - 1e-6) return false;
     }
   if (hc > 0) for (const v of board.vias) if (!(v.net && v.net === net) && dist(v.at) - v.drill / 2 - width / 2 < hc - 1e-6) return false;
+  if (hc > 0) for (const v of made) if (!(v.net && v.net === net) && dist(v.at) - v.r - width / 2 < hc - 1e-6) return false;
   return true;
 }
 
@@ -1399,13 +1412,28 @@ function drilledHoles(board: Pick<Board, "footprints" | "vias">): Array<{ at: Po
 }
 
 /** The holes of vias among copper items: routes made but not on the board yet. Their drill is their net class's. */
-function viaHoles(rules: DesignRules, items: CopperItem[]): Array<{ at: Point; r: number }> {
-  const out: Array<{ at: Point; r: number }> = [];
+function viaHoles(rules: DesignRules, items: CopperItem[]): Array<{ at: Point; r: number; net: string }> {
+  const out: Array<{ at: Point; r: number; net: string }> = [];
   for (const it of items) {
     const sh = it.shapes[0];
-    if (it.item.kind === "via" && sh?.kind === "seg") out.push({ at: sh.a, r: netClassOf(rules, it.item.net ?? "").viaDrill / 2 });
+    // The board's own vias are its (board.vias, with their drill); a made one has no file uuid.
+    if (it.item.kind === "via" && sh?.kind === "seg" && !it.item.uuid) out.push({ at: sh.a, r: netClassOf(rules, it.item.net ?? "").viaDrill / 2, net: it.item.net ?? "" });
   }
   return out;
+}
+
+/** A new via's hole keeps the board's hole clearance from other nets' copper (tracks, pads, vias; not zones, refilled round it). */
+function holeClearOfCopper(items: CopperItem[], rules: DesignRules, v: Point, drill: number, net: string): boolean {
+  const hc = rules.holeClearance ?? 0;
+  if (hc <= 0) return true;
+  const hole: Shape = { kind: "seg", a: v, b: v, r: drill / 2 };
+  const reach = drill / 2 + hc;
+  for (const it of items) {
+    if (it.item.kind === "zone" || (net && it.item.net === net)) continue;
+    if (it.box.x0 > v.x + reach || it.box.x1 < v.x - reach || it.box.y0 > v.y + reach || it.box.y1 < v.y - reach) continue;
+    if (it.shapes.some((sh) => shapeDistance(hole, sh, hc).dist < hc - 1e-6)) return false;
+  }
+  return true;
 }
 
 /** A via's hole keeps the hole-to-hole distance from every other hole, and its copper the hole clearance from bare holes. */
@@ -1538,7 +1566,7 @@ function padStubs(board: Board, rules: DesignRules, items: CopperItem[], at: Poi
       for (const sign of k > 0 ? [1, -1] : [-1, 1]) {
         const end = { x: pad.at.x + sign * along.x * len, y: pad.at.y + sign * along.y * len };
         const layer = layers.find((l) => !trackConflicts(solid, rules, { a: pad.at, b: end, width, layer: l, net }).length);
-        if (layer && trackClearsHoles(board, rules, pad.at, end, width, net) && !inNoTrackArea(board, pad.at, end, width, layer)) out.push({ start: pad.at, end, layer });
+        if (layer && trackClearsHoles(board, rules, pad.at, end, width, net, viaHoles(rules, items)) && !inNoTrackArea(board, pad.at, end, width, layer)) out.push({ start: pad.at, end, layer });
       }
     }
   return out;
