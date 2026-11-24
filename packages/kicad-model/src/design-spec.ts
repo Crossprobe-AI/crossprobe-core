@@ -56,6 +56,9 @@ export interface DesignPart {
    * Where the footprint goes. `x`, `y`: its anchor in mm from the board's top-left corner (fixed).
    * `edge`: against that board edge (connectors). `rotate`: degrees, counter-clockwise, as in KiCad.
    * `align` (with `edge`): where along the edge, "start" (left or top), "center" or "end" (right or bottom).
+   * `along` (with `edge`, instead of `align`): where along the edge the part's middle goes, mm from the
+   * board's top-left corner (its x on the top or bottom edge, its y on the left or right): connectors
+   * on opposite edges level with each other.
    * `overhang` (with `edge`): how far the part may hang over that edge, mm (a module whose antenna end is to be off the board).
    * It hangs less where that much would bring its pads closer to the edge than the board's copper edge clearance.
    * `near`: the reference of a part to sit beside, whatever the nets say; or "U1:1", one of that
@@ -63,7 +66,7 @@ export interface DesignPart {
    * supply pin of a large module).
    * Without it the part is placed next to what it connects to.
    */
-  place?: { x?: number; y?: number; rotate?: number; edge?: "left" | "right" | "top" | "bottom"; align?: "start" | "center" | "end"; overhang?: number; near?: string };
+  place?: { x?: number; y?: number; rotate?: number; edge?: "left" | "right" | "top" | "bottom"; align?: "start" | "center" | "end"; along?: number; overhang?: number; near?: string };
 }
 
 export interface DesignBoard {
@@ -451,6 +454,12 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (pl.rotate !== undefined && pl.rotate % 90 !== 0) problems.push(`${ref}: "place.rotate" must be a multiple of 90`);
       if (pl.align !== undefined && !["start", "center", "end"].includes(pl.align)) problems.push(`${ref}: "place.align" is start, center or end`);
       if (pl.align !== undefined && pl.edge === undefined) problems.push(`${ref}: "place.align" goes with "place.edge" (which edge to be at the start, center or end of)`);
+      if (pl.along !== undefined) {
+        const span = pl.edge === "top" || pl.edge === "bottom" ? spec.board?.width : spec.board?.height;
+        if (pl.edge === undefined) problems.push(`${ref}: "place.along" goes with "place.edge" (which edge it is a position along)`);
+        else if (typeof pl.along !== "number" || !(pl.along >= 0) || (typeof span === "number" && pl.along > span)) problems.push(`${ref}: "place.along" is a position in mm along the ${pl.edge} edge, from the board's ${pl.edge === "top" || pl.edge === "bottom" ? "left" : "top"} (0 to ${span ?? "the board's size"})`);
+        if (pl.align !== undefined) problems.push(`${ref}: give "place.align" or "place.along", not both`);
+      }
       if (pl.near !== undefined) {
         const [nearRef, nearPin] = String(pl.near).split(":");
         const other = spec.parts.find((p) => p.ref === nearRef);
@@ -721,6 +730,8 @@ export interface PlaceItem {
   rotate?: number;
   /** Where along its edge: the start (left or top), the middle or the end. */
   align?: "start" | "center" | "end";
+  /** Where along its edge its middle goes (board coordinates: x on the top or bottom edge, y on the left or right). */
+  along?: number;
   /** The reference of a part to sit beside, or "U1:1" for one of its pads. */
   near?: string;
   /** How far the part's box may reach over its edge, mm. */
@@ -975,8 +986,14 @@ export function placeParts(
         const [lo, hi, from, to] = it.edge === "top" || it.edge === "bottom" ? [b.x0, b.x1, inner.x0, inner.x1] : [b.y0, b.y1, inner.y0, inner.y1];
         c += ASKED * (it.align === "start" ? lo - from : it.align === "end" ? to - hi : Math.abs((lo + hi) / 2 - (from + to) / 2));
       }
+      if (it.along !== undefined && it.edge) {
+        // The middle of its body, not of its reference text.
+        const body = it.body ? boxOf({ ...it, extent: it.body }, at, deg) : b;
+        const [lo, hi] = it.edge === "top" || it.edge === "bottom" ? [body.x0, body.x1] : [body.y0, body.y1];
+        c += ASKED * Math.abs((lo + hi) / 2 - it.along);
+      }
       // Nothing to be near yet: towards the middle. Always a small pull there, to break ties compactly.
-      c += (pulled || mates?.length || beside || it.align ? 0.01 : 1) * (Math.abs(centre.x - at.x) + Math.abs(centre.y - at.y));
+      c += (pulled || mates?.length || beside || it.align || it.along !== undefined ? 0.01 : 1) * (Math.abs(centre.x - at.x) + Math.abs(centre.y - at.y));
       return c;
     };
 
