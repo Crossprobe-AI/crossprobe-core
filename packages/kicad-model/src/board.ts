@@ -361,7 +361,7 @@ function primitivesOf(pad: List): Pad["primitives"] {
         : kind === "circle"
           ? [pt(findChild(c, "center")), pt(findChild(c, "end"))]
           : kind === "arc"
-            ? [pt(findChild(c, "start")), pt(findChild(c, "mid")), pt(findChild(c, "end"))]
+            ? arcThreePoints(c)
             : [pt(findChild(c, "start")), pt(findChild(c, "end"))];
     out.push({ kind, points, width, fill });
   }
@@ -430,13 +430,34 @@ function toBoard(local: Point, origin: Point, degrees: number): Point {
 }
 const round = (v: number) => Math.round(v * 1e6) / 1e6;
 
+/**
+ * An arc's start, mid and end points. Files from KiCad 5 (and footprint libraries saved by it) give an
+ * arc as its centre ("start"), the point it begins at ("end") and the angle it sweeps ("angle", in
+ * degrees, clockwise on the board) where later ones give three points on it. An arc with a negative
+ * sweep comes out the other way round, from its far end, as KiCad reads it.
+ */
+export function arcThreePoints(node: List): [Point, Point, Point] {
+  const mid = findChild(node, "mid");
+  const angle = findChild(node, "angle");
+  if (mid || !angle) return [pt(findChild(node, "start")), pt(mid), pt(findChild(node, "end"))];
+  const c = pt(findChild(node, "start"));
+  const from = pt(findChild(node, "end"));
+  const sweep = (Number(arg(angle, 0) ?? 0) * Math.PI) / 180;
+  const r = Math.hypot(from.x - c.x, from.y - c.y);
+  const t0 = Math.atan2(from.y - c.y, from.x - c.x);
+  const at = (t: number) => ({ x: c.x + r * Math.cos(t), y: c.y + r * Math.sin(t) });
+  const to = at(t0 + sweep);
+  const m = at(t0 + sweep / 2);
+  return sweep < 0 ? [to, m, from] : [from, m, to];
+}
+
 function shapePoints(node: List, kind: OutlineShape["kind"]): Point[] {
   switch (kind) {
     case "line":
     case "rect":
       return [pt(findChild(node, "start")), pt(findChild(node, "end"))];
     case "arc":
-      return [pt(findChild(node, "start")), pt(findChild(node, "mid")), pt(findChild(node, "end"))];
+      return arcThreePoints(node);
     case "circle":
       return [pt(findChild(node, "center")), pt(findChild(node, "end"))];
     default:

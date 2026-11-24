@@ -677,6 +677,11 @@ export interface PlaceItem {
   label?: { x: number; y: number; w: number; h: number };
   /** What another part's reference text must not cover (its pads and silkscreen), footprint-local and unrotated. */
   textKeepOff?: Array<{ x: number; y: number; w: number; h: number }>;
+  /**
+   * Pads and holes outside the body (a module's mounting holes, when its courtyard covers only its
+   * connectors), footprint-local and unrotated: other parts' bodies keep off them as they do off the body.
+   */
+  outside?: Array<{ x: number; y: number; w: number; h: number }>;
   /** The side a connector opens to (where the wire or the plug goes in), as a direction in the footprint's own axes, when known. */
   opening?: Point;
 }
@@ -761,7 +766,7 @@ export function placeParts(
   const attempt = (edgeOrder: PlaceItem[]): { placed: Record<string, PartPlacement>; unplaced: string[] } => {
     const placed: Record<string, PartPlacement> = {};
     /** Placed parts: the whole box, and, for a part with a separate label, its body, label and what texts keep off. */
-    let boxes: Array<Box & { ref: string; body: Box; label?: Box; keepOff?: Box[] }> = [];
+    let boxes: Array<Box & { ref: string; body: Box; label?: Box; keepOff?: Box[]; outside?: Box[] }> = [];
     // Placed pads by net, with what they belong to: its part and group, and whether it is more than a two-pad part.
     const netPads = new Map<string, Array<Point & { ref: string; group?: string; big: boolean }>>();
     const groupAt = new Map<string, Array<Point & { ref: string }>>();
@@ -772,11 +777,14 @@ export function placeParts(
     /** A part's boxes at a spot: whole, body, label and what other texts keep off. */
     const shapes = (it: PlaceItem, at: Point, deg: number) => {
       const whole = boxOf(it, at, deg);
-      if (!it.label || !it.body) return { ...whole, ref: it.reference, body: whole };
-      return { ...whole, ref: it.reference, body: turned(it.body, at, deg), label: turned(it.label, at, deg), keepOff: (it.textKeepOff ?? [it.body]).map((k) => turned(k, at, deg)) };
+      const outside = it.outside?.length ? it.outside.map((k) => turned(k, at, deg)) : undefined;
+      if (!it.label || !it.body) return { ...whole, ref: it.reference, body: whole, outside };
+      return { ...whole, ref: it.reference, body: turned(it.body, at, deg), label: turned(it.label, at, deg), keepOff: (it.textKeepOff ?? [it.body]).map((k) => turned(k, at, deg)), outside };
     };
     const TEXT_GAP = 0.2;
     const separate = (a: (typeof boxes)[number], p: (typeof boxes)[number], gap: number) => {
+      // A body keeps off the other part's pads and holes outside its body too.
+      if (a.outside?.some((h) => !apart(p.body, h, gap)) || p.outside?.some((h) => !apart(a.body, h, gap))) return false;
       if (!a.label && !p.label) return apart(a, p, gap);
       if (!apart(a.body, p.body, gap)) return false;
       if (a.label && p.label && !apart(a.label, p.label, TEXT_GAP)) return false;
@@ -784,7 +792,9 @@ export function placeParts(
       if (p.label && (a.keepOff ?? [a.body]).some((k) => !apart(p.label!, k, TEXT_GAP))) return false;
       return true;
     };
-    const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => apart(s, k, 0));
+    // An area that keeps parts out keeps out their bodies (KiCad's rule area checks courtyards): a
+    // reference text may lie over it.
+    const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => apart(s.body, k, 0) && !s.outside?.some((h) => !apart(h, k, 0)));
     const commit = (it: PlaceItem, at: Point, rotate: number) => {
       placed[it.reference] = { at: { x: round(at.x), y: round(at.y) }, rotate };
       if (it.edge && it.overhang) {

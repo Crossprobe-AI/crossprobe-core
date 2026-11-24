@@ -147,6 +147,23 @@ describe("placeParts", () => {
     }
   });
 
+  it("keeps parts off a module's holes outside its courtyard", () => {
+    // A module whose courtyard covers its connector only, with a grounded mounting hole 10 mm to its
+    // right. R1 is asked to sit beside that hole's pad, and C1 beside R1.
+    const items: PlaceItem[] = [
+      { reference: "M1", extent: { x: -2, y: -5, w: 4, h: 10 }, pads: [{ x: 1.5, y: 0, net: "SIG", number: "1" }, { x: 10, y: 0, net: "GND", number: "MH" }], outside: [{ x: 8.5, y: -1.5, w: 3, h: 3 }], at: { x: 30, y: 20 }, rotate: 0 },
+      { reference: "R1", extent: { x: -1, y: -0.5, w: 2, h: 1 }, pads: [{ x: -0.5, y: 0, net: "GND" }, { x: 0.5, y: 0, net: "X" }], near: "M1:MH" },
+      { reference: "C1", extent: { x: -1, y: -0.5, w: 2, h: 1 }, pads: [{ x: 0, y: 0, net: "X" }], near: "R1" },
+    ];
+    const hole = { x0: 38.5, y0: 18.5, x1: 41.5, y1: 21.5 };
+    const { placed, unplaced } = placeParts(items, AREA, { gap: 0.5 });
+    expect(unplaced).toEqual([]);
+    for (const ref of ["R1", "C1"]) {
+      const { at } = placed[ref]!;
+      expect(at.x + 1 + 0.5 <= hole.x0 || at.x - 1 - 0.5 >= hole.x1 || at.y + 0.5 + 0.5 <= hole.y0 || at.y - 0.5 - 0.5 >= hole.y1, `${ref} at ${at.x}, ${at.y}`).toBe(true);
+    }
+  });
+
   it("lays a row of pins along its edge and turns a connector's opening outwards", () => {
     const items: PlaceItem[] = [
       // A pin header: its reference text at one end makes the box lopsided, which must not turn it across the board.
