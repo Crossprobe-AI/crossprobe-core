@@ -472,6 +472,8 @@ function search(
   /** For a caller that would sooner have no route than wait (routing as the pointer moves): give up after this many states. */
   maxExpanded?: number,
   layerCost?: number[],
+  /** A cost for entering each cell, per layer, on top of the distance (see crossings). */
+  soft?: Float32Array[],
 ): Array<[number, number]> | undefined {
   if (Date.now() > stopAt) return undefined;
   // A goal that is itself shut (a pad inside a keep-out) is known without looking further.
@@ -479,7 +481,7 @@ function search(
   if (maxExpanded !== undefined) {
     // Routing as the pointer moves: a goal it can't reach is found out before looking at all it may.
     if (!reachable(g, masks, via, start, goal)) return undefined;
-    const within = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, maxExpanded);
+    const within = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, maxExpanded, soft);
     return within === "capped" ? undefined : within;
   }
   // A flood fill (no directions, no costs) says cheaply whether there is a way at all. Without it, a
@@ -487,10 +489,10 @@ function search(
   // searches and 40 % of all the states looked at. It finds what the search could reach, so the
   // routes are the same.
   if (!reachable(g, masks, via, start, goal)) return undefined;
-  const quick = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, QUICK);
+  const quick = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, QUICK, soft);
   if (quick !== "capped" || Date.now() > stopAt) return quick === "capped" ? undefined : quick;
-  const map = distanceToGoal(g, masks, via, viaCost, goal, layerCost);
-  const informed = searchWith(g, masks, via, viaCost, start, goal, layerCost, map, 8 * g.W * g.H * masks.length);
+  const map = distanceToGoal(g, masks, via, viaCost, goal, layerCost, soft);
+  const informed = searchWith(g, masks, via, viaCost, start, goal, layerCost, map, 8 * g.W * g.H * masks.length, soft);
   return informed === "capped" ? undefined : informed;
 }
 
@@ -565,7 +567,7 @@ class Heap {
  * It runs only as far as it is asked: a state's cost is final once it comes off the heap, so the
  * search it guides, which keeps near the cheapest way, rarely needs the far side of the board.
  */
-function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, viaCost: number, goal: { cell: number; layers: number[] }, layerCost?: number[]): (st: number) => number {
+function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, viaCost: number, goal: { cell: number; layers: number[] }, layerCost?: number[], soft?: Float32Array[]): (st: number) => number {
   const { W, H } = g;
   const C = W * H;
   const L = masks.length;
@@ -589,6 +591,8 @@ function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefine
     const j = (c - i) / W;
     const mask = masks[l]!;
     const dear = layerCost?.[l] ?? 1;
+    // Outwards from the goal: the way forward goes from the neighbour into this cell, and pays for entering it.
+    const enter = soft ? soft[l]![c]! : 0;
     for (const [dx, dy, step] of DIRS) {
       const ni = i + dx;
       const nj = j + dy;
@@ -596,7 +600,7 @@ function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefine
       const nc = nj * W + ni;
       if (mask[nc]) continue;
       if (dx && dy && (mask[j * W + ni] || mask[nj * W + i])) continue;
-      const nd = d + step * dear;
+      const nd = d + step * dear + enter;
       if (nd < dist[l * C + nc]!) {
         dist[l * C + nc] = nd;
         heap.push(nd, l * C + nc);
@@ -605,7 +609,7 @@ function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefine
     if (via && via[c])
       for (let nl = 0; nl < L; nl++) {
         if (nl === l || masks[nl]![c]) continue;
-        const nd = d + viaCost;
+        const nd = d + viaCost + enter;
         if (nd < dist[nl * C + c]!) {
           dist[nl * C + c] = nd;
           heap.push(nd, nl * C + c);
@@ -630,6 +634,8 @@ function searchWith(
   toGoal: ((st: number) => number) | undefined,
   /** Give up after this many states (and say so), to try again better informed. */
   cap: number,
+  /** A cost for entering each cell, per layer (none: only the distance, turns and vias count). */
+  soft?: Float32Array[],
 ): Array<[number, number]> | undefined | "capped" {
   const { W, H } = g;
   const C = W * H;
@@ -695,6 +701,7 @@ function searchWith(
       const j = Math.floor(c / W);
       const mask = masks[l]!;
       const dear = layerCost?.[l] ?? 1;
+      const sl = soft?.[l];
       for (let nd = 0; nd < 8; nd++) {
         const [dx, dy, step] = DIRS[nd]!;
         const cost = step * dear;
@@ -705,7 +712,7 @@ function searchWith(
         if (mask[nc]) continue;
         // No squeezing diagonally between two blocked cells.
         if (dx && dy && (mask[j * W + ni] || mask[nj * W + i])) continue;
-        const ng = base + cost + (nd === d ? 0 : TURN);
+        const ng = base + cost + (nd === d ? 0 : TURN) + (sl ? sl[nc]! : 0);
         const ns = state(l, nc, nd);
         if (ng < gs[ns]!) {
           if (gs[ns] === Infinity) touched?.push(ns);
@@ -719,7 +726,7 @@ function searchWith(
         for (let nl = 0; nl < L; nl++) {
           if (nl === l || masks[nl]![c]) continue;
           const ns = state(nl, c, d);
-          const ng = base + viaCost;
+          const ng = base + viaCost + (soft ? soft[nl]![c]! : 0);
           if (ng < gs[ns]!) {
             if (gs[ns] === Infinity) touched?.push(ns);
             gs[ns] = ng;
@@ -1068,6 +1075,94 @@ export function pairConnections(board: Board, connections: Array<{ from: Point; 
 }
 
 /**
+ * Negotiated rip-up, as in PathFinder (McMurchie and Ebeling): the way a connection would take if the
+ * routes made earlier in this run (`soft`, each with its index) were not walls but cost something to
+ * cross. Each cell of one costs NEGOTIATE.penalty, and more where routes have been fought over before
+ * (`history`, per layer). Pads, the board's own copper and `hard` routes stay walls. Returns the
+ * routes the way crosses, and the cells where it does; undefined when there is no way even so.
+ */
+export function crossings(
+  board: Board,
+  rules: DesignRules,
+  c: { from: Point; to: Point; net: string },
+  hard: CopperItem[],
+  soft: Array<{ it: CopperItem; idx: number }>,
+  history: Map<string, Float32Array>,
+): { victims: Set<number>; cells: Array<[string, number]> } | undefined {
+  const g = makeGrid(board, 0.1);
+  if (!g) return undefined;
+  const cls = netClassOf(rules, c.net);
+  const half = cls.trackWidth / 2;
+  const layers = routingLayers(board, c.net);
+  const C = g.W * g.H;
+  // Where it may start and end: at the pads, or (a pad too fine-pitched for the grid) at the end of a
+  // stub out of it, as autorouteConnection leaves such a pad.
+  const ends = (p: Point) => [
+    { cell: cellOf(g, p), layers: layers.map((l, k) => (reaches(hard, c.net, l, p) ? k : -1)).filter((k) => k >= 0) },
+    ...padStubs(board, rules, hard, p, c.net, cls.trackWidth).map((st) => ({ cell: cellOf(g, st.end), layers: [layers.indexOf(st.layer)].filter((k) => k >= 0) })),
+  ].filter((e) => e.cell >= 0 && e.layers.length);
+  const froms = ends(c.from), tos = ends(c.to);
+  const hardMasks = layers.map((l) => cachedObstacles(g, board, rules, hard, c.net, l, half));
+  const via = new Uint8Array(C).fill(1);
+  const reach = Math.max(cls.viaDiameter / 2, cls.viaDrill / 2 + (rules.holeClearance ?? 0) - cls.clearance - slackOf(g));
+  for (const l of layers) {
+    const o = cachedObstacles(g, board, rules, hard, c.net, l, reach);
+    for (let k = 0; k < C; k++) if (o.blocked[k]) via[k] = 0;
+  }
+  // The soft routes' cells: what entering one costs, and whose it is.
+  const slack = slackOf(g);
+  const cost = layers.map(() => new Float32Array(C));
+  const who = layers.map(() => new Int32Array(C).fill(-1));
+  layers.forEach((l, li) => {
+    const h = history.get(l);
+    for (const { it, idx } of soft) {
+      if (!it.layers.has(l) || it.item.kind === "zone" || (it.item.net === c.net && c.net)) continue;
+      const sh = it.shapes[0];
+      const hole = it.item.kind === "via" && sh?.kind === "seg" ? netClassOf(rules, it.item.net).viaDrill / 2 + (rules.holeClearance ?? 0) - sh.r + half + slack : 0;
+      for (const k of cellsOf(g, it, Math.max(gap(rules, it, cls.clearance, half, slack), hole))) {
+        cost[li]![k] = NEGOTIATE.penalty * (1 + (h?.[k] ?? 0));
+        who[li]![k] = idx;
+      }
+    }
+  });
+  const dear = layers.map((l) => (pouredLayers(board, c.net).includes(l) ? POUR_COST : 1));
+  let path: Array<[number, number]> | undefined;
+  for (const a of froms) {
+    for (const z of tos) {
+      const masks = hardMasks.map((o) => {
+        const m = { blocked: o.blocked.slice(), hard: o.hard };
+        freeAround(g, m, a.cell, half);
+        freeAround(g, m, z.cell, half);
+        return m.blocked;
+      });
+      path = search(g, masks, via, 25, a, z, undefined, dear, cost);
+      if (path) break;
+    }
+    if (path) break;
+  }
+  if (!path) return undefined;
+  const victims = new Set<number>();
+  const cells: Array<[string, number]> = [];
+  path.forEach(([li, k], n) => {
+    // A via stands on every layer.
+    const at = n > 0 && path[n - 1]![0] !== li ? layers.map((_, x) => x) : [li];
+    for (const x of at) {
+      const v = who[x]![k]!;
+      if (v < 0) continue;
+      victims.add(v);
+      cells.push([layers[x]!, k]);
+    }
+  });
+  return { victims, cells };
+}
+
+/**
+ * Negotiated rip-up (crossings): the cost of a cell of another route, what is added to it each time
+ * it is fought over (as a multiple), how many routes one connection may lift, and how many tries in all.
+ */
+const NEGOTIATE = { penalty: 5, history: 2, victims: 6, steps: 60 };
+
+/**
  * One connection as "Route all" does it: on one layer (the front first), else through vias. A pad
  * too fine-pitched for the grid (a USB-C contact, a QFP pin between its neighbours) first gets a
  * straight fan-out stub along its length, away from its part, checked exactly; the grid route
@@ -1322,6 +1417,79 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
     }
     for (const [j, it] of saved) made.set(j, it);
   });
+
+  // Negotiated rip-up for what is still open (crossings): the way it would take if the routes made
+  // so far cost something to cross shows which of them are in its way. Those are lifted, it is
+  // routed, and they are routed again; one that can't be then waits its own turn. Where routes were
+  // fought over, crossing costs more the next time (history), so two connections don't take turns
+  // forever. It ends on the best state seen: never with fewer connections routed, and as it started
+  // when it routed none more.
+  {
+    const history = new Map<string, Float32Array>();
+    const grid = makeGrid(board, 0.1);
+    const cellCount = grid ? grid.W * grid.H : 0;
+    const count = () => routes.filter(Boolean).length;
+    let best = { n: count(), routes: [...routes], made: new Map(made) };
+    const queue = connections.map((_, i) => i).filter((i) => !routes[i]);
+    // It stops when it has gone a while without routing more than its best (connections taking turns).
+    const patience = 2 * queue.length + 4;
+    // Two connections that have each lifted the other want the same room: they would take turns for
+    // ever, so neither lifts the other again.
+    const lifts = new Set<string>();
+    // A connection with no way even through other routes has none later either (the walls don't move).
+    const walled = new Set<number>();
+    let sinceBest = 0;
+    for (let step = 0; queue.length && step < NEGOTIATE.steps && sinceBest <= patience && !late(); step++, sinceBest++) {
+      const i = queue.shift()!;
+      if (routes[i] || walled.has(i)) continue;
+      const c = connections[i]!;
+      const hard = plus(base, [...made].filter(([j]) => fixed.has(j)).flatMap(([, its]) => its));
+      const soft = [...made].filter(([j]) => !fixed.has(j)).flatMap(([j, its]) => its.map((it) => ({ it, idx: j })));
+      const way = crossings(board, rules, c, hard, soft, history);
+      if (!way) walled.add(i);
+      if (!way || !way.victims.size || way.victims.size > NEGOTIATE.victims) continue;
+      if ([...way.victims].some((v) => lifts.has(`${v}>${i}`) && lifts.has(`${i}>${v}`))) continue;
+      for (const v of way.victims) lifts.add(`${i}>${v}`);
+      // Fought over: the next way through here costs more.
+      for (const [l, k] of way.cells) {
+        let h = history.get(l);
+        if (!h) history.set(l, (h = new Float32Array(cellCount)));
+        h[k]! += NEGOTIATE.history;
+      }
+      const lifted = [...way.victims].map((v) => ({ v, route: routes[v]!, items: made.get(v)! }));
+      for (const { v } of lifted) {
+        made.delete(v);
+        routes[v] = undefined;
+      }
+      const ri = autorouteConnection(board, rules, c, all());
+      if (!ri) {
+        for (const { v, route, items } of lifted) {
+          routes[v] = route;
+          made.set(v, items);
+        }
+        continue;
+      }
+      routes[i] = ri;
+      made.set(i, itemsOf(ri, c.net));
+      for (const { v } of lifted) {
+        const rv = autorouteConnection(board, rules, connections[v]!, all());
+        if (rv) {
+          routes[v] = rv;
+          made.set(v, itemsOf(rv, connections[v]!.net));
+        } else queue.push(v);
+      }
+      if (count() > best.n) {
+        best = { n: count(), routes: [...routes], made: new Map(made) };
+        sinceBest = 0;
+      }
+    }
+    // The best state, which is where it started unless it routed more: routes lifted and routed again
+    // without a gain stay as they were.
+    routes.length = 0;
+    routes.push(...best.routes);
+    made.clear();
+    for (const [j, its] of best.made) made.set(j, its);
+  }
 
   // Last, connections that got through but the long way round: the routes in the way of the path
   // each would take on an empty board are lifted, it is routed first, and they are routed again.
