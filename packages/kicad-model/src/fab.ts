@@ -8,7 +8,7 @@
  * Y-down). Simple pads are flashed with standard apertures; other pad shapes
  * and zone fills are regions. Text is plotted in KiCad's stroke font (see stroke-font.ts).
  */
-import { flashChecker, type Board, type BoardText, type Footprint, type Graphic, type Pad, type Via } from "./board.js";
+import { flashChecker, unplatedCopper, type Board, type BoardText, type Footprint, type Graphic, type Pad, type Via } from "./board.js";
 import { arcPoints, projectDesignRules, type DesignRules } from "./drc.js";
 import { gerberJob, gerberProjectGuid } from "./gbrjob.js";
 import { ipcD356 } from "./ipc356.js";
@@ -441,7 +441,7 @@ export function plotLayer(g: Plotter, board: Board, layer: string): void {
     for (const pad of fp.pads) {
       if (!onLayer(pad.layers, layer)) continue;
       if (copper) {
-        if (pad.type === "np_thru_hole" && Math.max(pad.size.x, pad.size.y) <= (pad.drill ?? 0) + 1e-9) continue;
+        if (pad.type === "np_thru_hole" && !unplatedCopper(pad)) continue;
         if (pad.type !== "smd" && pad.type !== "connect" && flashed && !flashed(pad, layer)) continue;
         plotPad(g, pad, 0);
       } else if (mask) {
