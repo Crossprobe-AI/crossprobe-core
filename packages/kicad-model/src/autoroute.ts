@@ -1253,7 +1253,7 @@ export function stitchToPours(board: Board, rules: DesignRules, net: string): Mu
     if (route) {
       out.push(route);
       for (const v of route.vias) placed.push({ shapes: [{ kind: "seg", a: v, b: v, r }], layers: new Set(board.copperLayers), item: { kind: "via", net, description: `Via [${net}]` }, box: { x0: v.x - r, y0: v.y - r, x1: v.x + r, y1: v.y + r } });
-      for (const run of route.runs) placed.push(itemOf(net, run.layer, run.points, cls.trackWidth));
+      for (const run of route.runs) placed.push(itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth));
     }
   }
   return out;
