@@ -819,8 +819,12 @@ export function checkClearance(board: Board, rules: DesignRules, limit = 5000): 
 
   // Copper to holes (KiCad's hole_clearance): every drilled hole (plated, unplated, via) against
   // other items' copper on other nets, measured to the hole itself. Zone fills keep it already.
+  // An unplated hole's own clearance (its pad's or footprint's) applies to it when it is more, as in
+  // KiCad, and so does the other item's: an unplated hole has no copper of its own to keep it.
   const hc = rules.holeClearance ?? 0;
-  const holes: Array<{ shape: Shape; net: string; item: DrcItem; owner?: string; layers?: Set<string> }> = [];
+  const holes: Array<{ shape: Shape; net: string; item: DrcItem; owner?: string; layers?: Set<string>; override?: number }> = [];
+  let mostOverride = 0;
+  for (const it of items) mostOverride = Math.max(mostOverride, it.override ?? 0);
   for (const fp of board.footprints)
     for (const pad of fp.pads) {
       if (!pad.drill && !pad.drillSize) continue;
@@ -833,14 +837,15 @@ export function checkClearance(board: Board, rules: DesignRules, limit = 5000): 
       const shape: Shape = { kind: "seg", a: { x: c.x - dir.x * half, y: c.y - dir.y * half }, b: { x: c.x + dir.x * half, y: c.y + dir.y * half }, r };
       const npth = pad.type === "np_thru_hole";
       const description = npth ? `NPTH pad${pad.number ? ` ${pad.number}` : ""} of ${fp.reference || "?"}` : `Pad ${pad.number} [${pad.net || "<no net>"}] of ${fp.reference || "?"}`;
-      holes.push({ shape, net: pad.net, owner: pad.number ? `${fp.uuid}\0${pad.number}` : `${fp.uuid}\0@${pad.at.x},${pad.at.y}`, item: { kind: "pad", net: pad.net, reference: fp.reference, pad: pad.number, uuid: pad.uuid, description } });
+      holes.push({ shape, net: pad.net, owner: pad.number ? `${fp.uuid}\0${pad.number}` : `${fp.uuid}\0@${pad.at.x},${pad.at.y}`, item: { kind: "pad", net: pad.net, reference: fp.reference, pad: pad.number, uuid: pad.uuid, description }, override: npth ? (pad.clearance ?? fp.clearance ?? 0) : undefined });
     }
   for (const v of board.vias) holes.push({ shape: { kind: "seg", a: v.at, b: v.at, r: v.drill / 2 }, net: v.net, owner: v.uuid, item: { kind: "via", net: v.net, at: v.at, uuid: v.uuid, description: `Via [${v.net || "<no net>"}]` } });
   for (const H of holes) {
     if (out.length >= limit) break;
     const hb = shapeBox(H.shape);
     const seenHole = new Set<CopperItem>();
-    for (const c of cells({ x0: hb.x0, y0: hb.y0, x1: hb.x1, y1: hb.y1 }, hc)) {
+    const reach = H.override === undefined ? hc : Math.max(hc, H.override, mostOverride);
+    for (const c of cells({ x0: hb.x0, y0: hb.y0, x1: hb.x1, y1: hb.y1 }, reach)) {
       for (const j of grid.get(c) ?? []) {
         const B = items[j]!;
         if (B.item.kind === "zone") continue;
@@ -848,21 +853,22 @@ export function checkClearance(board: Board, rules: DesignRules, limit = 5000): 
         // The hole's own pad or via.
         if ((B.logicalPad && B.logicalPad === H.owner) || (B.item.uuid && B.item.uuid === H.item.uuid)) continue;
         if (B.item.kind === "pad" && B.item.reference === H.item.reference && B.item.pad === H.item.pad && Math.abs((B.box.x0 + B.box.x1) / 2 - (hb.x0 + hb.x1) / 2) < 0.01 && Math.abs((B.box.y0 + B.box.y1) / 2 - (hb.y0 + hb.y1) / 2) < 0.01) continue;
-        if (B.box.x0 > hb.x1 + hc || hb.x0 > B.box.x1 + hc || B.box.y0 > hb.y1 + hc || hb.y0 > B.box.y1 + hc) continue;
+        const need = H.override === undefined ? hc : Math.max(hc, H.override, B.override ?? 0);
+        if (B.box.x0 > hb.x1 + need || hb.x0 > B.box.x1 + need || B.box.y0 > hb.y1 + need || hb.y0 > B.box.y1 + need) continue;
         if (seenHole.has(B)) continue;
         seenHole.add(B);
         let best = { dist: Infinity, at: { x: 0, y: 0 } };
         for (const sb of B.shapes) {
-          const d = shapeDistance(H.shape, sb, hc);
+          const d = shapeDistance(H.shape, sb, need);
           if (d.dist < best.dist) best = d;
         }
-        if (best.dist >= hc - 0.0005 && best.dist > 0) continue;
+        if (best.dist >= need - 0.0005 && best.dist > 0) continue;
         out.push({
           type: "hole",
           layer: [...B.layers][0] ?? "",
           at: { x: Math.round(best.at.x * 1e4) / 1e4, y: Math.round(best.at.y * 1e4) / 1e4 },
           actual: Math.max(0, Math.round(best.dist * 1e4) / 1e4),
-          required: hc,
+          required: need,
           nets: [B.item.net, H.net],
           items: [B.item, H.item],
         });
