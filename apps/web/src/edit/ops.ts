@@ -1043,7 +1043,7 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
         const net = op.connections[i]!.net;
         if (!r) return;
         const cls = netClassOf(rules, net);
-        for (const run of r.runs) for (let k = 1; k < run.points.length; k++) addTrack(root, { start: run.points[k - 1]!, end: run.points[k]!, width: cls.trackWidth, layer: run.layer, net });
+        for (const run of r.runs) for (let k = 1; k < run.points.length; k++) addTrack(root, { start: run.points[k - 1]!, end: run.points[k]!, width: run.width ?? cls.trackWidth, layer: run.layer, net });
         for (const v of r.vias) addVia(root, { at: v, size: cls.viaDiameter, drill: cls.viaDrill, layers: span, net });
       });
       break;
