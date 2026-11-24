@@ -24,6 +24,8 @@ import type { BlockPart, BlockSpec } from "./design-block.js";
 import { libPins, type LibPinGeom } from "./design-block.js";
 import { symbolUnits } from "./symbol-edit.js";
 import type { Point } from "./geometry.js";
+import type { Footprint } from "./board.js";
+import { chainOutlines } from "./outline-chain.js";
 import { resolveLibrarySymbol } from "./library.js";
 import { PAPER_SIZES } from "./page-settings.js";
 import { rectangleOutline, type RectCutout } from "./zone-fill.js";
@@ -670,6 +672,12 @@ export interface PlaceItem {
   /** The footprint's body without its reference text, when `extent` includes that: what its pads are judged against. */
   body?: { x: number; y: number; w: number; h: number };
   /**
+   * The body as rectangles, footprint-local and unrotated, when its courtyard isn't one rectangle (a
+   * module whose antenna end is wider, two connectors): parts are kept apart by these, as KiCad's
+   * courtyard check does, and not by the box round them all (courtyardBoxes).
+   */
+  courtyard?: Array<{ x: number; y: number; w: number; h: number }>;
+  /**
    * The reference text's box, when `extent` includes it. Then parts are kept apart by their bodies, as
    * KiCad's courtyard check does, and a text only has to stay off other texts and off what `textKeepOff`
    * lists of other parts: it may lie over another part's body, as long as it misses its pads and silkscreen.
@@ -724,6 +732,46 @@ function turned(e: { x: number; y: number; w: number; h: number }, at: Point, de
 }
 
 /**
+ * A footprint's courtyard as rectangles, footprint-local (PlaceItem.courtyard), when it is drawn as one
+ * straight-sided outline that isn't a rectangle (a module whose antenna end is wider than its body):
+ * cut into strips across x. Otherwise undefined, and the box round the courtyard stands for it: a
+ * rectangle says it all, and a courtyard drawn as several outlines (a module's two connectors) has the
+ * module's body above them, which it doesn't draw.
+ */
+export function courtyardBoxes(fp: Pick<Footprint, "graphics">): Array<{ x: number; y: number; w: number; h: number }> | undefined {
+  const outlines = ["F.CrtYd", "B.CrtYd"].flatMap((side) => chainOutlines(fp.graphics.filter((g) => g.layer === side && g.points.length)).outlines).filter((o) => o.length >= 3);
+  if (outlines.length !== 1) return undefined;
+  const out: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const eps = 1e-6;
+  for (const o of outlines) {
+    const edges = o.map((a, k) => [a, o[(k + 1) % o.length]!] as const).filter(([a, b]) => Math.hypot(b.x - a.x, b.y - a.y) > eps);
+    if (!edges.every(([a, b]) => Math.abs(a.x - b.x) < eps || Math.abs(a.y - b.y) < eps)) {
+      const xs = o.map((p) => p.x), ys = o.map((p) => p.y);
+      out.push({ x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) });
+      continue;
+    }
+    // Strips between the outline's corners' x: inside each, where the outline is along y.
+    const xs = [...new Set(o.map((p) => Math.round(p.x * 1e6) / 1e6))].sort((a, b) => a - b);
+    let open: { x0: number; x1: number; spans: number[] } | undefined;
+    const close = () => {
+      const r = (v: number) => Math.round(v * 1e6) / 1e6;
+      if (open) for (let k = 0; k + 1 < open.spans.length; k += 2) out.push({ x: r(open.x0), y: r(open.spans[k]!), w: r(open.x1 - open.x0), h: r(open.spans[k + 1]! - open.spans[k]!) });
+    };
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const mid = (xs[i]! + xs[i + 1]!) / 2;
+      const spans = edges.filter(([a, b]) => Math.abs(a.y - b.y) < eps && Math.min(a.x, b.x) < mid && mid < Math.max(a.x, b.x)).map(([a]) => a.y).sort((a, b) => a - b);
+      if (open && open.x1 === xs[i] && open.spans.length === spans.length && open.spans.every((y, k) => Math.abs(y - spans[k]!) < eps)) open.x1 = xs[i + 1]!;
+      else {
+        close();
+        open = { x0: xs[i]!, x1: xs[i + 1]!, spans };
+      }
+    }
+    close();
+  }
+  return out.length > 1 ? out : undefined;
+}
+
+/**
  * Place footprints inside `area` (the board outline's rectangle), without
  * overlaps. Fixed parts go first, then parts bound to an edge, then the part
  * with the most pads in the middle; after that, always the part most
@@ -766,7 +814,7 @@ export function placeParts(
   const attempt = (edgeOrder: PlaceItem[]): { placed: Record<string, PartPlacement>; unplaced: string[] } => {
     const placed: Record<string, PartPlacement> = {};
     /** Placed parts: the whole box, and, for a part with a separate label, its body, label and what texts keep off. */
-    let boxes: Array<Box & { ref: string; body: Box; label?: Box; keepOff?: Box[]; outside?: Box[] }> = [];
+    let boxes: Array<Box & { ref: string; body: Box; parts?: Box[]; label?: Box; keepOff?: Box[]; outside?: Box[] }> = [];
     // Placed pads by net, with what they belong to: its part and group, and whether it is more than a two-pad part.
     const netPads = new Map<string, Array<Point & { ref: string; group?: string; big: boolean }>>();
     const groupAt = new Map<string, Array<Point & { ref: string }>>();
@@ -774,27 +822,31 @@ export function placeParts(
     /** Placed parts' numbered pads, on the board. */
     const padAt = new Map<string, Map<string, Point & { net: string }>>();
     const apart = (b: Box, p: Box, gap: number) => b.x1 + gap <= p.x0 || p.x1 + gap <= b.x0 || b.y1 + gap <= p.y0 || p.y1 + gap <= b.y0;
-    /** A part's boxes at a spot: whole, body, label and what other texts keep off. */
+    /** A part's boxes at a spot: whole, body (and its courtyard's rectangles), label and what other texts keep off. */
     const shapes = (it: PlaceItem, at: Point, deg: number) => {
       const whole = boxOf(it, at, deg);
       const outside = it.outside?.length ? it.outside.map((k) => turned(k, at, deg)) : undefined;
-      if (!it.label || !it.body) return { ...whole, ref: it.reference, body: whole, outside };
-      return { ...whole, ref: it.reference, body: turned(it.body, at, deg), label: turned(it.label, at, deg), keepOff: (it.textKeepOff ?? [it.body]).map((k) => turned(k, at, deg)), outside };
+      const parts = it.courtyard?.length ? it.courtyard.map((k) => turned(k, at, deg)) : undefined;
+      if (!it.label || !it.body) return { ...whole, ref: it.reference, body: whole, parts, outside };
+      return { ...whole, ref: it.reference, body: turned(it.body, at, deg), parts, label: turned(it.label, at, deg), keepOff: (it.textKeepOff ?? it.courtyard ?? [it.body]).map((k) => turned(k, at, deg)), outside };
     };
+    /** A placed part's body: its courtyard's rectangles, or the one box. */
+    const bodyOf = (a: (typeof boxes)[number]) => a.parts ?? [a.body];
+    const bodiesApart = (a: (typeof boxes)[number], p: (typeof boxes)[number], gap: number) => bodyOf(a).every((x) => bodyOf(p).every((y) => apart(x, y, gap)));
     const TEXT_GAP = 0.2;
     const separate = (a: (typeof boxes)[number], p: (typeof boxes)[number], gap: number) => {
       // A body keeps off the other part's pads and holes outside its body too.
-      if (a.outside?.some((h) => !apart(p.body, h, gap)) || p.outside?.some((h) => !apart(a.body, h, gap))) return false;
-      if (!a.label && !p.label) return apart(a, p, gap);
-      if (!apart(a.body, p.body, gap)) return false;
+      if (a.outside?.some((h) => bodyOf(p).some((b) => !apart(b, h, gap))) || p.outside?.some((h) => bodyOf(a).some((b) => !apart(b, h, gap)))) return false;
+      if (!a.label && !p.label) return a.parts || p.parts ? bodiesApart(a, p, gap) : apart(a, p, gap);
+      if (!bodiesApart(a, p, gap)) return false;
       if (a.label && p.label && !apart(a.label, p.label, TEXT_GAP)) return false;
-      if (a.label && (p.keepOff ?? [p.body]).some((k) => !apart(a.label!, k, TEXT_GAP))) return false;
-      if (p.label && (a.keepOff ?? [a.body]).some((k) => !apart(p.label!, k, TEXT_GAP))) return false;
+      if (a.label && (p.keepOff ?? bodyOf(p)).some((k) => !apart(a.label!, k, TEXT_GAP))) return false;
+      if (p.label && (a.keepOff ?? bodyOf(a)).some((k) => !apart(p.label!, k, TEXT_GAP))) return false;
       return true;
     };
     // An area that keeps parts out keeps out their bodies (KiCad's rule area checks courtyards): a
     // reference text may lie over it.
-    const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => apart(s.body, k, 0) && !s.outside?.some((h) => !apart(h, k, 0)));
+    const clear = (s: (typeof boxes)[number], gap: number) => boxes.every((p) => separate(s, p, gap)) && keepouts.every((k) => bodyOf(s).every((b) => apart(b, k, 0)) && !s.outside?.some((h) => !apart(h, k, 0)));
     const commit = (it: PlaceItem, at: Point, rotate: number) => {
       placed[it.reference] = { at: { x: round(at.x), y: round(at.y) }, rotate };
       if (it.edge && it.overhang) {
@@ -855,9 +907,11 @@ export function placeParts(
         }
         if (Number.isFinite(d)) c += ASKED * d;
       } else if (beside) {
-        // Beside its body: a label in between doesn't count as distance.
-        const [o, m] = [beside.body, it.label && it.body ? turned(it.body, at, deg) : b];
-        c += ASKED * (Math.max(0, o.x0 - m.x1, m.x0 - o.x1) + Math.max(0, o.y0 - m.y1, m.y0 - o.y1));
+        // Beside its body (the nearest of its courtyard's rectangles): a label in between doesn't count as distance.
+        const mine = it.courtyard?.length ? it.courtyard.map((k) => turned(k, at, deg)) : [it.label && it.body ? turned(it.body, at, deg) : b];
+        let d = Infinity;
+        for (const o of bodyOf(beside)) for (const m of mine) d = Math.min(d, Math.max(0, o.x0 - m.x1, m.x0 - o.x1) + Math.max(0, o.y0 - m.y1, m.y0 - o.y1));
+        c += ASKED * d;
       }
       if (it.align && it.edge) {
         const [lo, hi, from, to] = it.edge === "top" || it.edge === "bottom" ? [b.x0, b.x1, inner.x0, inner.x1] : [b.y0, b.y1, inner.y0, inner.y1];
