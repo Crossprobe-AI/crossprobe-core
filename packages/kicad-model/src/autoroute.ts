@@ -12,7 +12,7 @@
  * Results are checked again with the clearance checker before they are used.
  */
 import type { Board, Pad } from "./board.js";
-import { copperItems, diffPairBase, netClassOf, shapeBox, shapeDistance, slotted, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
+import { copperItems, netClassOf, shapeBox, shapeDistance, slotted, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 import { boardArea } from "./zone-fill.js";
 import { netIslands, type CopperAnchor } from "./copper.js";
@@ -920,16 +920,26 @@ export function autoroutePair(board: Board, rules: DesignRules, p: { from: Point
   };
   const [p0, n0, p1, n1] = [padAt(p.from, p.net), padAt(n.from, n.net), padAt(p.to, p.net), padAt(n.to, n.net)];
   if (!p0 || !n0 || !p1 || !n1 || p0.fp !== n0.fp || p1.fp !== n1.fp) return undefined;
-  const beside = (a: { pad: Pad }, b: { pad: Pad }) => partnerPads(board, a.pad, b.pad.net).some((o) => o.pad === b.pad);
+  // Side by side: the partner's nearest pad, with no other pad between them. A pin between a pair's
+  // two (an HDMI connector's shield pin) would be shut in by the pair, with no way left to its net.
+  const between = (fp: Board["footprints"][number], a: Pad, b: Pad) =>
+    fp.pads.some((q) => {
+      if (q === a || q === b) return false;
+      const dx = b.at.x - a.at.x, dy = b.at.y - a.at.y, l2 = dx * dx + dy * dy;
+      const t = l2 ? ((q.at.x - a.at.x) * dx + (q.at.y - a.at.y) * dy) / l2 : 0;
+      const off = l2 ? Math.abs((q.at.x - a.at.x) * dy - (q.at.y - a.at.y) * dx) / Math.sqrt(l2) : Infinity;
+      return t > 0 && t < 1 && off < Math.max(q.size.x, q.size.y) / 2;
+    });
+  const beside = (a: { pad: Pad; fp: Board["footprints"][number] }, b: { pad: Pad }) => partnerPads(board, a.pad, b.pad.net).some((o) => o.pad === b.pad) && !between(a.fp, a.pad, b.pad);
   if (!beside(p0, n0) || !beside(p1, n1)) return undefined;
   const sz = diffPairSizes(rules, p.net);
   const viaPitch = sz.via.size + sz.viaGap;
   const clearance = netClassOf(rules, p.net).clearance;
   const midOf = (a: Pad, b: Pad) => ({ x: (a.at.x + b.at.x) / 2, y: (a.at.y + b.at.y) / 2 });
   // A pair's fan-out at each end. The tracks run from the pads into the pair's first stretch, which
-  // goes straight out from between them; or, where another pin sits between the pads (an HDMI
-  // connector's shield pin), each leaves its pad straight out past the row's ends by the clearance,
-  // and then turns in at 45°. The first stretch is made long enough for that.
+  // goes straight out from between them; or, where the pads are further apart than the pair (a pin
+  // header's), each leaves its pad straight out past the row's ends by the clearance, and then turns
+  // in at 45°. The first stretch is made long enough for that.
   const fanOf = (a: Pad, b: Pad, esc: { mid: Point; escape: Point }) => {
     const l = Math.hypot(esc.escape.x - esc.mid.x, esc.escape.y - esc.mid.y) || 1;
     const e = { x: (esc.escape.x - esc.mid.x) / l, y: (esc.escape.y - esc.mid.y) / l };
@@ -1001,20 +1011,6 @@ export function autoroutePair(board: Board, rules: DesignRules, p: { from: Point
     return { p: routeOf(P), n: routeOf(N) };
   };
   return attempt(false) ?? attempt(true);
-}
-
-/** Whether a pad lies between two pads of its part that make a differential pair, on the line through them. */
-function betweenPair(fp: Board["footprints"][number], pad: Pad): boolean {
-  for (const a of fp.pads)
-    for (const b of fp.pads) {
-      if (a === pad || b === pad || a === b || !a.net || !b.net || a.net > b.net || diffPairBase(a.net, b.net) === undefined) continue;
-      const dx = b.at.x - a.at.x, dy = b.at.y - a.at.y, l2 = dx * dx + dy * dy;
-      if (!l2 || l2 > 9) continue;
-      const t = ((pad.at.x - a.at.x) * dx + (pad.at.y - a.at.y) * dy) / l2;
-      const off = Math.abs((pad.at.x - a.at.x) * dy - (pad.at.y - a.at.y) * dx) / Math.sqrt(l2);
-      if (t > 0 && t < 1 && off < 0.05) return true;
-    }
-  return false;
 }
 
 /**
@@ -1222,12 +1218,12 @@ export function routingLayers(board: Board, net: string): string[] {
  * `deadline` (a `Date.now()` time): no connection is started after it, and the rip-up round is cut
  * short; what is not routed by then stays unrouted. The routes made are kept.
  */
-export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity, o: { pairsOnly?: boolean } = {}): Array<MultiLayerRoute | undefined> {
+export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity): Array<MultiLayerRoute | undefined> {
   const before = { stopAt, pooling };
   stopAt = Math.min(stopAt, deadline);
   pooling = true;
   try {
-    return routeAll(board, rules, connections, deadline, o.pairsOnly);
+    return routeAll(board, rules, connections, deadline);
   } finally {
     stopAt = before.stopAt;
     pooling = before.pooling;
@@ -1235,7 +1231,7 @@ export function autorouteAll(board: Board, rules: DesignRules, connections: Arra
   }
 }
 
-function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline: number, pairsOnly = false): Array<MultiLayerRoute | undefined> {
+function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline: number): Array<MultiLayerRoute | undefined> {
   const late = () => Date.now() > deadline;
   const base = copperItems(board);
   const routes: Array<MultiLayerRoute | undefined> = [];
@@ -1266,8 +1262,6 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
     fixed.add(pr.p);
     fixed.add(pr.n);
   }
-  // Pairs only: routed before a pour's pins are fanned out, so the fan-out vias keep clear of them.
-  if (pairsOnly) return routes;
   connections.forEach((c, i) => {
     if (late() || routes[i]) return;
     const r = autorouteConnection(board, rules, c, all());
@@ -1493,9 +1487,6 @@ export function fanoutPours(board: Board, rules: DesignRules, net: string): Mult
     for (const pad of fp.pads) {
       if (pad.net !== net || pad.type !== "smd" || used(pad.at)) continue;
       if (!fp.pads.some((q) => q !== pad && Math.hypot(q.at.x - pad.at.x, q.at.y - pad.at.y) < 1)) continue;
-      // A pin between a differential pair's two (an HDMI connector's shield pin): its via would sit
-      // where the pair fans out. Stitching to the pour after routing reaches it if it needs one.
-      if (betweenPair(fp, pad)) continue;
       const others = [...items, ...placed];
       const ok = (v: Point, layer: string) =>
         zones.some((z) => z.layers.some((l) => l !== layer && board.copperLayers.includes(l)) && insidePolygon(z.outline, v)) &&
