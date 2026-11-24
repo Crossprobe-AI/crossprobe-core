@@ -51,7 +51,12 @@ export interface MultiLayerRequest {
 }
 
 export interface MultiLayerRoute {
-  runs: Array<{ layer: string; points: Point[] }>;
+  /**
+   * The route's tracks: a run for each layer, joined by `vias` where the layer changes. A run with
+   * a `width` is a neck, narrower than the net's track, from a pad the full width can't leave out to
+   * where it can (autorouteConnection); it joins the next run on the same layer, without a via.
+   */
+  runs: Array<{ layer: string; points: Point[]; width?: number }>;
   vias: Point[];
 }
 
@@ -937,7 +942,50 @@ export function autorouteConnection(board: Board, rules: DesignRules, c: { from:
       if (sb && (!sa || r.runs.length > 1)) cutCorners(board, rules, items, solid, r.runs.at(-1)!, width, c.net);
       return r;
     }
+    // A pad the net's track can't leave for its neighbours (a power pin of a fine-pitch connector)
+    // is left by a neck, as KiCad's router does: see `necks`.
+    const na = as.length ? [] : necks(from);
+    const nb = bs.length ? [] : necks(to);
+    if (!na.length && !nb.length) return undefined;
+    const solid = items.filter((it) => it.item.kind !== "zone");
+    for (const sa of na.length ? na : [undefined, ...as])
+      for (const sb of nb.length ? nb : [undefined, ...bs]) {
+        const r = attempt(sa?.end ?? from, sb?.end ?? to, sa && [sa.layer], sb && [sb.layer]);
+        if (!r?.runs.length) continue;
+        if (sa?.width) r.runs.unshift({ layer: sa.layer, points: [sa.start, sa.end], width: sa.width });
+        else if (sa) {
+          r.runs[0]!.points.unshift(sa.start);
+          cutCorners(board, rules, items, solid, r.runs[0]!, width, c.net);
+        }
+        if (sb?.width) r.runs.push({ layer: sb.layer, points: [sb.end, sb.start], width: sb.width });
+        else if (sb) {
+          r.runs.at(-1)!.points.push(sb.start);
+          cutCorners(board, rules, items, solid, r.runs.at(-1)!, width, c.net);
+        }
+        return r;
+      }
     return undefined;
+  };
+  /**
+   * Stubs out of the pad at `at` at the widest width that fits (in 0.05 mm steps, not below the
+   * board's minimum track width, nor 0.1 mm), out to where the full width clears its neighbours.
+   * Only for a pad the net's track can't leave for the other pads of its own footprint: a neck is
+   * for a fine pitch, not for routes crowding a pad, which are routed round or lifted instead.
+   */
+  const necks = (at: Point): Stub[] => {
+    const fp = board.footprints.find((f) => f.pads.some((p) => p.net === c.net && Math.hypot(p.at.x - at.x, p.at.y - at.y) < 1e-6));
+    if (!fp) return [];
+    const own = items.filter((it) => it.logicalPad?.startsWith(`${fp.uuid}\0`));
+    if (padStubs(board, rules, own, at, c.net, width).length) return [];
+    const least = Math.max(rules.minTrackWidth ?? 0, 0.1);
+    const widths: number[] = [];
+    for (let w = Math.round((width - 0.05) * 100) / 100; w > least + 1e-9; w = Math.round((w - 0.05) * 100) / 100) widths.push(w);
+    if (least < width - 1e-9) widths.push(least);
+    for (const w of widths) {
+      const stubs = padStubs(board, rules, items, at, c.net, w, width);
+      if (stubs.length) return stubs.map((st) => ({ ...st, width: w }));
+    }
+    return [];
   };
   const r = between(c.from, c.to);
   if (r || !alternates) return r;
@@ -1021,7 +1069,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
   const itemsOf = (r: MultiLayerRoute, net: string): CopperItem[] => {
     const cls = netClassOf(rules, net);
     return [
-      ...r.runs.map((run) => itemOf(net, run.layer, run.points, cls.trackWidth)),
+      ...r.runs.map((run) => itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth)),
       ...r.vias.map((v): CopperItem => {
         const h = cls.viaDiameter / 2;
         return { shapes: [{ kind: "seg", a: v, b: v, r: h }], layers: new Set(board.copperLayers), item: { kind: "via", net, description: `Via [${net}]` }, box: { x0: v.x - h, y0: v.y - h, x1: v.x + h, y1: v.y + h } };
@@ -1106,7 +1154,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
     if (!alone || length(alone) > REROUTE.gain * was) continue;
     const cls = netClassOf(rules, c.net);
     const crosses = (theirs: CopperItem[]) =>
-      alone.runs.some((run) => run.points.slice(1).some((p, k) => trackConflicts(theirs, rules, { a: run.points[k]!, b: p, width: cls.trackWidth, layer: run.layer, net: c.net }).length > 0)) ||
+      alone.runs.some((run) => run.points.slice(1).some((p, k) => trackConflicts(theirs, rules, { a: run.points[k]!, b: p, width: run.width ?? cls.trackWidth, layer: run.layer, net: c.net }).length > 0)) ||
       alone.vias.some((v) => board.copperLayers.some((l) => trackConflicts(theirs, rules, { a: v, b: v, width: cls.viaDiameter, layer: l, net: c.net }).length > 0));
     const inWay = [...made.keys()].filter((j) => j !== i && crosses(made.get(j)!));
     if (!inWay.length || inWay.length > REROUTE.lift) continue;
@@ -1205,7 +1253,7 @@ export function stitchToPours(board: Board, rules: DesignRules, net: string): Mu
     if (route) {
       out.push(route);
       for (const v of route.vias) placed.push({ shapes: [{ kind: "seg", a: v, b: v, r }], layers: new Set(board.copperLayers), item: { kind: "via", net, description: `Via [${net}]` }, box: { x0: v.x - r, y0: v.y - r, x1: v.x + r, y1: v.y + r } });
-      for (const run of route.runs) placed.push(itemOf(net, run.layer, run.points, cls.trackWidth));
+      for (const run of route.runs) placed.push(itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth));
     }
   }
   return out;
@@ -1467,13 +1515,16 @@ interface Stub {
   start: Point;
   end: Point;
   layer: string;
+  /** A neck's width (narrower than the net's track). */
+  width?: number;
 }
 
 /**
  * Straight stubs out of the pad at `at` along its long side, clear of other nets: away from its
  * part first, then inwards (under a connector's body, where there is room behind the pad row).
+ * Each is `width` wide and ends where a track `onward` wide clears the pad's neighbours.
  */
-function padStubs(board: Board, rules: DesignRules, items: CopperItem[], at: Point, net: string, width: number): Stub[] {
+function padStubs(board: Board, rules: DesignRules, items: CopperItem[], at: Point, net: string, width: number, onward = width): Stub[] {
   const out: Stub[] = [];
   const solid = items.filter((it) => it.item.kind !== "zone");
   for (const fp of board.footprints)
@@ -1483,7 +1534,7 @@ function padStubs(board: Board, rules: DesignRules, items: CopperItem[], at: Poi
       const along = pad.size.x >= pad.size.y ? { x: Math.cos(r), y: -Math.sin(r) } : { x: Math.sin(r), y: Math.cos(r) };
       const k = along.x * (pad.at.x - fp.at.x) + along.y * (pad.at.y - fp.at.y);
       if (Math.abs(k) < 1e-6) continue;
-      const len = Math.max(pad.size.x, pad.size.y) / 2 + netClassOf(rules, net).clearance + width / 2 + 0.05;
+      const len = Math.max(pad.size.x, pad.size.y) / 2 + netClassOf(rules, net).clearance + onward / 2 + 0.05;
       const layers = pad.layers.flatMap((l) => (board.copperLayers.includes(l) ? [l] : l === "*.Cu" || l === "F&B.Cu" ? [board.copperLayers[0]!] : []));
       for (const sign of k > 0 ? [1, -1] : [-1, 1]) {
         const end = { x: pad.at.x + sign * along.x * len, y: pad.at.y + sign * along.y * len };
