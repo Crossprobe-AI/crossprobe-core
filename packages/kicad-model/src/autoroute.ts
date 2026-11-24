@@ -1420,7 +1420,8 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
   // so far cost something to cross shows which of them are in its way. Those are lifted, it is
   // routed, and they are routed again; one that can't be then waits its own turn. Where routes were
   // fought over, crossing costs more the next time (history), so two connections don't take turns
-  // forever. The best state seen is kept: this never ends with fewer connections routed.
+  // forever. It ends on the best state seen: never with fewer connections routed, and as it started
+  // when it routed none more.
   {
     const history = new Map<string, Float32Array>();
     const grid = makeGrid(board, 0.1);
@@ -1480,12 +1481,12 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
         sinceBest = 0;
       }
     }
-    if (count() < best.n) {
-      routes.length = 0;
-      routes.push(...best.routes);
-      made.clear();
-      for (const [j, its] of best.made) made.set(j, its);
-    }
+    // The best state, which is where it started unless it routed more: routes lifted and routed again
+    // without a gain stay as they were.
+    routes.length = 0;
+    routes.push(...best.routes);
+    made.clear();
+    for (const [j, its] of best.made) made.set(j, its);
   }
 
   // Last, connections that got through but the long way round: the routes in the way of the path
