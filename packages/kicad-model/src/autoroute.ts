@@ -12,7 +12,7 @@
  * Results are checked again with the clearance checker before they are used.
  */
 import type { Board, Pad } from "./board.js";
-import { copperItems, netClassOf, shapeDistance, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
+import { copperItems, netClassOf, shapeBox, shapeDistance, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 import { boardArea } from "./zone-fill.js";
 import { netIslands, type CopperAnchor } from "./copper.js";
@@ -87,19 +87,149 @@ function buildGrid(board: Board, pitch: number): Grid | undefined {
   return { x0, y0, W, H, pitch, outline };
 }
 
+/** In an owner map: no copper keeps the disc out; or copper of more than one net, or of none, does. */
+const FREE = -1;
+const ANY = -2;
+/** The id of a net that owns no cell. */
+const NOBODY = -3;
+
 /**
- * Cells a copper disc of radius `half` can't be centred on, on one layer:
- * `blocked` (other nets' copper, text, edge) and `hard` (text and edge only,
- * which freeing space around the route's own pads must not undo).
+ * Where a copper disc of radius `half` can't be centred on one layer, for every net at once: per cell,
+ * whose copper or drilled hole keeps it out (FREE, the id of one net, or ANY), and `hard`, the cells
+ * that text, solder-mask openings, rule areas and the board edge shut for every net. A route of net n
+ * may use the cells that are FREE or n's own and not hard.
+ */
+interface Owners {
+  owner: Int32Array;
+  hard: Uint8Array;
+  ids: Map<string, number>;
+}
+
+/**
+ * Does point p come closer than `clr` to shape s? The test `shapeDistance(p, s, clr).dist < clr`,
+ * worked out directly for a segment (tracks, vias, round pads) by the same arithmetic.
+ */
+function within(p: Point, s: Shape, clr: number): boolean {
+  if (s.kind !== "seg") return shapeDistance({ kind: "seg", a: p, b: p, r: 0 }, s, clr).dist < clr;
+  const abx = s.b.x - s.a.x;
+  const aby = s.b.y - s.a.y;
+  const len2 = abx * abx + aby * aby;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - s.a.x) * abx + (p.y - s.a.y) * aby) / len2)) : 0;
+  const d = Math.min(Math.hypot(p.x - (s.a.x + abx * t), p.y - (s.a.y + aby * t)), Math.hypot(s.a.x - p.x, s.a.y - p.y), Math.hypot(s.b.x - p.x, s.b.y - p.y));
+  return d - s.r < clr;
+}
+
+/** Calls `mark` for each cell whose centre is closer than `clr` to one of the item's shapes, looking at each shape's own box. */
+function rasterize(g: Grid, it: CopperItem, clr: number, mark: (k: number) => void): void {
+  const { x0, y0, W, H, pitch } = g;
+  const p = { x: 0, y: 0 };
+  for (const s of it.shapes) {
+    const b = it.shapes.length === 1 ? it.box : shapeBox(s);
+    const i0 = Math.max(0, Math.floor((b.x0 - clr - x0) / pitch));
+    const i1 = Math.min(W - 1, Math.ceil((b.x1 + clr - x0) / pitch));
+    const j0 = Math.max(0, Math.floor((b.y0 - clr - y0) / pitch));
+    const j1 = Math.min(H - 1, Math.ceil((b.y1 + clr - y0) / pitch));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        p.x = x0 + i * pitch;
+        p.y = y0 + j * pitch;
+        if (within(p, s, clr)) mark(j * W + i);
+      }
+  }
+}
+
+/** Enough slack that a straight or diagonal step between two free cells stays clear. */
+const slackOf = (g: Grid) => g.pitch * 0.75;
+
+/** How far a disc of radius `half` of a net whose class clearance is `mine` keeps from another net's item. */
+const gap = (rules: DesignRules, it: CopperItem, mine: number, half: number, slack: number) => Math.max(it.override ?? 0, mine, netClassOf(rules, it.item.net).clearance, rules.minClearance) + half + slack;
+
+/**
+ * Copper items made of a base set (the board's) and the routes made on it so far (see `plus`): the
+ * obstacles of the base are worked out once, and only the routes are drawn again for each connection.
+ */
+const layered = new WeakMap<CopperItem[], { base: CopperItem[]; extra: CopperItem[] }>();
+function plus(base: CopperItem[], extra: CopperItem[]): CopperItem[] {
+  const all = [...base, ...extra];
+  layered.set(all, { base, extra });
+  return all;
+}
+
+/**
+ * Cells a copper disc of radius `half` of `net` can't be centred on, on one layer: `blocked` (other
+ * nets' copper, text, edge) and `hard` (text and edge only, which freeing space around the route's
+ * own pads must not undo).
  */
 function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], net: string, layer: string, half: number): { blocked: Uint8Array; hard: Uint8Array } {
+  const parts = layered.get(items);
+  const mine = netClassOf(rules, net).clearance;
+  const { owner, hard, ids } = cachedOwners(g, board, rules, parts?.base ?? items, layer, half, mine);
+  // A net with no copper in the base owns no cell; nor does the empty net, which all copper keeps out.
+  const id = net ? (ids.get(net) ?? NOBODY) : NOBODY;
+  const C = g.W * g.H;
+  const blocked = new Uint8Array(C);
+  for (let k = 0; k < C; k++) {
+    const o = owner[k]!;
+    if (hard[k] || (o !== FREE && o !== id)) blocked[k] = 1;
+  }
+  if (parts) {
+    const slack = slackOf(g);
+    for (const it of parts.extra) {
+      if (!it.layers.has(layer) || it.item.kind === "zone" || (it.item.net === net && net)) continue;
+      for (const k of cellsOf(g, it, gap(rules, it, mine, half, slack))) blocked[k] = 1;
+    }
+  }
+  return { blocked, hard };
+}
+
+/**
+ * The cells an item keeps a disc out of at distance `clr` (see rasterize), worked out once per item:
+ * a route made in Route all stays as it is until it is lifted, and is drawn for every connection after it.
+ */
+const cellsCache = new WeakMap<CopperItem, Map<string, Int32Array>>();
+function cellsOf(g: Grid, it: CopperItem, clr: number): Int32Array {
+  let m = cellsCache.get(it);
+  if (!m) cellsCache.set(it, (m = new Map()));
+  const key = `${clr}\0${g.pitch}\0${g.x0},${g.y0},${g.W},${g.H}`;
+  let cells = m.get(key);
+  if (!cells) {
+    const q = new Queue();
+    rasterize(g, it, clr, (k) => q.push(k));
+    m.set(key, (cells = q.items.slice(0, q.tail)));
+  }
+  return cells;
+}
+
+const ownersCache = new WeakMap<CopperItem[], Map<string, Owners>>();
+function cachedOwners(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], layer: string, half: number, mine: number): Owners {
+  let m = ownersCache.get(items);
+  if (!m) ownersCache.set(items, (m = new Map()));
+  const key = `${layer}\0${half}\0${mine}\0${g.pitch}\0${g.x0},${g.y0},${g.W},${g.H}`;
+  let o = m.get(key);
+  if (!o) m.set(key, (o = owners(g, board, rules, items, layer, half, mine)));
+  return o;
+}
+
+/** The owner map of a set of items on one layer, for a routing net whose class clearance is `mine` (see Owners). */
+function owners(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], layer: string, half: number, mine: number): Owners {
   const { x0, y0, W, H, pitch, outline } = g;
   const cx = (i: number) => x0 + i * pitch;
   const cy = (j: number) => y0 + j * pitch;
-  // Enough slack that a straight or diagonal step between two free cells stays clear.
-  const slack = pitch * 0.75;
-  const blocked = new Uint8Array(W * H);
+  const slack = slackOf(g);
+  const owner = new Int32Array(W * H).fill(FREE);
   const hard = new Uint8Array(W * H);
+  const ids = new Map<string, number>();
+  const idOf = (net: string) => {
+    if (!net) return ANY;
+    let id = ids.get(net);
+    if (id === undefined) ids.set(net, (id = ids.size));
+    return id;
+  };
+  const mark = (k: number, id: number) => {
+    const o = owner[k]!;
+    if (o === FREE) owner[k] = id;
+    else if (o !== id) owner[k] = ANY;
+  };
 
   // Board edge: outside the outline (scanline fill, even-odd) or too close to an edge segment.
   const edge = (rules.copperEdgeClearance ?? 0) + half + slack;
@@ -117,7 +247,7 @@ function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[
         inside = !inside;
         k++;
       }
-      if (!inside) blocked[j * W + i] = hard[j * W + i] = 1;
+      if (!inside) hard[j * W + i] = 1;
     }
   }
   for (const [a, b] of segs) {
@@ -133,54 +263,40 @@ function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[
         const px = cx(i);
         const py = cy(j);
         const t = l2 ? Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / l2)) : 0;
-        if (Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy)) < edge) blocked[j * W + i] = hard[j * W + i] = 1;
+        if (Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy)) < edge) hard[j * W + i] = 1;
       }
   }
 
-  // Other nets' copper on this layer.
-  const myClass = netClassOf(rules, net);
+  // Copper on this layer, each item marked with its net.
   for (const it of items) {
     if (!it.layers.has(layer) || it.item.kind === "zone") continue;
-    if (it.item.net === net && net) continue;
-    const other = netClassOf(rules, it.item.net);
-    const clr = Math.max(it.override ?? 0, myClass.clearance, other.clearance, rules.minClearance) + half + slack;
-    const i0 = Math.max(0, Math.floor((it.box.x0 - clr - x0) / pitch));
-    const i1 = Math.min(W - 1, Math.ceil((it.box.x1 + clr - x0) / pitch));
-    const j0 = Math.max(0, Math.floor((it.box.y0 - clr - y0) / pitch));
-    const j1 = Math.min(H - 1, Math.ceil((it.box.y1 + clr - y0) / pitch));
-    for (let j = j0; j <= j1; j++)
-      for (let i = i0; i <= i1; i++) {
-        const k = j * W + i;
-        if (blocked[k]) continue;
-        const probe = { kind: "seg" as const, a: { x: cx(i), y: cy(j) }, b: { x: cx(i), y: cy(j) }, r: 0 };
-        if (it.shapes.some((s) => shapeDistance(probe, s, clr).dist < clr)) blocked[k] = 1;
-      }
+    const id = idOf(it.item.net);
+    rasterize(g, it, gap(rules, it, mine, half, slack), (k) => {
+      if (!hard[k] && owner[k] !== ANY) mark(k, id);
+    });
   }
 
   // Rule areas that keep tracks out on this layer.
   // Hard: making room round a route's own pad must not open the area, or a pad beside it would be
   // left through it.
-  for (const z of board.zones)
-    if (z.noTracks && onLayer(board, z.layers, layer)) {
-      blockArea(g, blocked, z.outline, half);
-      blockArea(g, hard, z.outline, half);
-    }
+  for (const z of board.zones) if (z.noTracks && onLayer(board, z.layers, layer)) blockArea(g, hard, z.outline, half);
 
-  // Drilled holes of other nets (unplated ones too, which have no copper): the hole clearance.
+  // Drilled holes (unplated ones too, which have no copper), each its net's: the hole clearance.
   const hc = rules.holeClearance ?? 0;
   if (hc > 0) {
-    const holes: Array<{ at: Point; r: number }> = [];
+    const holes: Array<{ at: Point; r: number; net: string }> = [];
     for (const fp of board.footprints)
       for (const pad of fp.pads) {
         const d = pad.drillSize ? Math.max(pad.drillSize.x, pad.drillSize.y) : pad.drill;
-        if (d && !(pad.net && pad.net === net)) holes.push({ at: pad.at, r: d / 2 });
+        if (d) holes.push({ at: pad.at, r: d / 2, net: pad.net });
       }
-    for (const v of board.vias) if (!(v.net && v.net === net)) holes.push({ at: v.at, r: v.drill / 2 });
+    for (const v of board.vias) holes.push({ at: v.at, r: v.drill / 2, net: v.net });
     for (const h of holes) {
       const r = h.r + hc + half + slack;
+      const id = idOf(h.net);
       for (let j = Math.max(0, Math.floor((h.at.y - r - y0) / pitch)); j <= Math.min(H - 1, Math.ceil((h.at.y + r - y0) / pitch)); j++)
         for (let i = Math.max(0, Math.floor((h.at.x - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((h.at.x + r - x0) / pitch)); i++)
-          if (Math.hypot(cx(i) - h.at.x, cy(j) - h.at.y) < r) blocked[j * W + i] = 1;
+          if (Math.hypot(cx(i) - h.at.x, cy(j) - h.at.y) < r) mark(j * W + i, id);
     }
   }
 
@@ -189,13 +305,13 @@ function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[
   for (const t of texts) {
     const pts = t.outline?.length ? t.outline.flat() : textStrokes(t).flat();
     if (!pts.length) continue;
-    const r = textPen(t) / 2 + Math.max(myClass.clearance, rules.minClearance) + half + slack;
+    const r = textPen(t) / 2 + Math.max(mine, rules.minClearance) + half + slack;
     let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
     for (const p of pts) {
       bx0 = Math.min(bx0, p.x); bx1 = Math.max(bx1, p.x); by0 = Math.min(by0, p.y); by1 = Math.max(by1, p.y);
     }
     for (let j = Math.max(0, Math.floor((by0 - r - y0) / pitch)); j <= Math.min(H - 1, Math.ceil((by1 + r - y0) / pitch)); j++)
-      for (let i = Math.max(0, Math.floor((bx0 - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((bx1 + r - x0) / pitch)); i++) blocked[j * W + i] = hard[j * W + i] = 1;
+      for (let i = Math.max(0, Math.floor((bx0 - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((bx1 + r - x0) / pitch)); i++) hard[j * W + i] = 1;
   }
   // Solder-mask openings drawn on this side (exposed copper areas): a track under one would be
   // bared and bridge to whatever else is exposed there, so keep clear of their boxes.
@@ -209,16 +325,16 @@ function obstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[
         pts = [{ x: pts[0]!.x - rad, y: pts[0]!.y - rad }, { x: pts[0]!.x + rad, y: pts[0]!.y + rad }];
       }
       if (!pts.length) continue;
-      const r = gr.width / 2 + Math.max(myClass.clearance, rules.minClearance) + half + slack;
+      const r = gr.width / 2 + Math.max(mine, rules.minClearance) + half + slack;
       let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
       for (const p of pts) {
         bx0 = Math.min(bx0, p.x); bx1 = Math.max(bx1, p.x); by0 = Math.min(by0, p.y); by1 = Math.max(by1, p.y);
       }
       for (let j = Math.max(0, Math.floor((by0 - r - y0) / pitch)); j <= Math.min(H - 1, Math.ceil((by1 + r - y0) / pitch)); j++)
-        for (let i = Math.max(0, Math.floor((bx0 - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((bx1 + r - x0) / pitch)); i++) blocked[j * W + i] = hard[j * W + i] = 1;
+        for (let i = Math.max(0, Math.floor((bx0 - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((bx1 + r - x0) / pitch)); i++) hard[j * W + i] = 1;
     }
   }
-  return { blocked, hard };
+  return { owner, hard, ids };
 }
 
 /** Does copper of `net` on `layer` reach point p (so a route on that layer can end there)? */
@@ -237,39 +353,84 @@ const TURN = 2.5;
  * `via` (optional) marks cells where a via may sit, costing `viaCost`.
  * Returns the cell path as [layer, cell] pairs.
  */
-/** Can the goal be reached from the start at all, moving as the search does (vias where allowed)? */
+const DX = Int8Array.from(DIRS, (d) => d[0]);
+const DY = Int8Array.from(DIRS, (d) => d[1]);
+
+/** A first-in, first-out queue of states or cells, in a typed array that grows as needed. */
+class Queue {
+  items = new Int32Array(1024);
+  head = 0;
+  tail = 0;
+  push(st: number): void {
+    if (this.tail === this.items.length) {
+      const more = new Int32Array(this.items.length * 2);
+      more.set(this.items);
+      this.items = more;
+    }
+    this.items[this.tail++] = st;
+  }
+  get size(): number {
+    return this.tail - this.head;
+  }
+  pop(): number {
+    return this.items[this.head++]!;
+  }
+}
+
+/**
+ * Can the goal be reached from the start at all, moving as the search does (vias where allowed)?
+ * A flood fill from both ends at once, a state from each in turn, until the two meet or one side
+ * has nowhere left to go: so it costs about as much as the smaller of the two ends' rooms, and a
+ * goal shut in by other copper is found out at once, wherever the start is.
+ */
 function reachable(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, start: { cell: number; layers: number[] }, goal: { cell: number; layers: number[] }): boolean {
   const { W, H } = g;
   const C = W * H;
-  const seen = new Uint8Array(C * masks.length);
-  const stack: number[] = [];
-  for (const l of start.layers) if (!masks[l]![start.cell]) (seen[l * C + start.cell] = 1), stack.push(l * C + start.cell);
-  const goals = new Set(goal.layers.map((l) => l * C + goal.cell));
-  // A goal that is itself shut (a pad inside a keep-out) is known without flooding the board.
-  if (goal.layers.every((l) => masks[l]![goal.cell])) return false;
-  while (stack.length) {
-    const s = stack.pop()!;
-    if (goals.has(s)) return true;
-    const l = Math.floor(s / C);
+  const L = masks.length;
+  // 1: reached from the start, 2: from the goal.
+  const seen = new Uint8Array(C * L);
+  const sides = [new Queue(), new Queue()] as const;
+  for (const l of goal.layers) if (!masks[l]![goal.cell]) (seen[l * C + goal.cell] = 2), sides[1].push(l * C + goal.cell);
+  for (const l of start.layers) {
+    if (masks[l]![start.cell]) continue;
+    if (seen[l * C + start.cell] === 2) return true;
+    seen[l * C + start.cell] = 1;
+    sides[0].push(l * C + start.cell);
+  }
+  for (let side = 0; sides[0].size && sides[1].size; side ^= 1) {
+    const q = sides[side]!;
+    const mine = side + 1;
+    const theirs = 2 - side;
+    const s = q.pop();
+    const l = (s / C) | 0;
     const c = s - l * C;
     const i = c % W;
     const j = (c - i) / W;
     const mask = masks[l]!;
-    for (const [dx, dy] of DIRS) {
+    const off = l * C;
+    for (let d = 0; d < 8; d++) {
+      const dx = DX[d]!;
+      const dy = DY[d]!;
       const ni = i + dx;
       const nj = j + dy;
       if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
       const nc = nj * W + ni;
-      if (mask[nc] || seen[l * C + nc]) continue;
+      if (mask[nc]) continue;
       if (dx && dy && (mask[j * W + ni] || mask[nj * W + i])) continue;
-      seen[l * C + nc] = 1;
-      stack.push(l * C + nc);
+      const k = seen[off + nc];
+      if (k === theirs) return true;
+      if (k) continue;
+      seen[off + nc] = mine;
+      q.push(off + nc);
     }
     if (via && via[c])
-      for (let nl = 0; nl < masks.length; nl++) {
-        if (nl === l || masks[nl]![c] || seen[nl * C + c]) continue;
-        seen[nl * C + c] = 1;
-        stack.push(nl * C + c);
+      for (let nl = 0; nl < L; nl++) {
+        if (nl === l || masks[nl]![c]) continue;
+        const k = seen[nl * C + c];
+        if (k === theirs) return true;
+        if (k) continue;
+        seen[nl * C + c] = mine;
+        q.push(nl * C + c);
       }
   }
   return false;
@@ -279,8 +440,8 @@ function reachable(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, st
  * The cheapest way from start to goal: A* over (layer, cell, direction), see searchWith. It first
  * tries with the straight-line distance as its guide, which finds an open route at once. When that
  * has looked at QUICK states without arriving (something is in the way: a keep-out, a row of pads),
- * the true distance to the goal round every obstacle is worked out and the search is run again with
- * that as its guide, so it heads straight for the way round.
+ * the search is run again guided by the true distance to the goal round every obstacle, so it heads
+ * straight for the way round.
  */
 /**
  * When routing must stop (a `Date.now()` time): a search still running then gives up as if it had
@@ -300,14 +461,19 @@ function search(
   layerCost?: number[],
 ): Array<[number, number]> | undefined {
   if (Date.now() > stopAt) return undefined;
-  // A flood fill first (no directions, no costs): an unreachable goal is found out cheaply.
-  if (!reachable(g, masks, via, start, goal)) return undefined;
+  // A goal that is itself shut (a pad inside a keep-out) is known without looking further.
+  if (goal.layers.every((l) => masks[l]![goal.cell])) return undefined;
   if (maxExpanded !== undefined) {
+    // Routing as the pointer moves: a goal it can't reach is found out before looking at all it may.
+    if (!reachable(g, masks, via, start, goal)) return undefined;
     const within = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, maxExpanded);
     return within === "capped" ? undefined : within;
   }
   const quick = searchWith(g, masks, via, viaCost, start, goal, layerCost, undefined, QUICK);
   if (quick !== "capped" || Date.now() > stopAt) return quick === "capped" ? undefined : quick;
+  // Something is in the way. A flood fill (no directions, no costs) says cheaply whether there is a
+  // way at all, before the true distances to the goal are worked out.
+  if (!reachable(g, masks, via, start, goal)) return undefined;
   const map = distanceToGoal(g, masks, via, viaCost, goal, layerCost);
   const informed = searchWith(g, masks, via, viaCost, start, goal, layerCost, map, 8 * g.W * g.H * masks.length);
   return informed === "capped" ? undefined : informed;
@@ -317,59 +483,91 @@ function search(
 const QUICK = 60_000;
 
 /**
- * The cost of the cheapest way to the goal from every (layer, cell), without the cost of turns:
- * Dijkstra outwards from the goal. Never more than the real cost, so A* guided by it stays exact.
+ * A binary min-heap of states by key, in typed arrays: it takes keys and gives states back in the
+ * same order as the plain-array heap it replaced (the same comparisons and swaps).
  */
-function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, viaCost: number, goal: { cell: number; layers: number[] }, layerCost?: number[]): Float64Array {
-  const { W, H } = g;
-  const C = W * H;
-  const L = masks.length;
-  // In full precision: a distance rounded down on the way into the array would look stale when it comes off the heap.
-  const dist = new Float64Array(C * L).fill(Infinity);
-  const heapF: number[] = [];
-  const heapS: number[] = [];
-  const push = (f: number, st: number) => {
-    heapF.push(f);
-    heapS.push(st);
-    let n = heapF.length - 1;
+class Heap {
+  key = new Float64Array(1024);
+  state = new Int32Array(1024);
+  size = 0;
+  push(f: number, st: number): void {
+    if (this.size === this.key.length) {
+      const key = new Float64Array(this.size * 2);
+      const state = new Int32Array(this.size * 2);
+      key.set(this.key);
+      state.set(this.state);
+      this.key = key;
+      this.state = state;
+    }
+    const F = this.key;
+    const S = this.state;
+    let n = this.size++;
+    F[n] = f;
+    S[n] = st;
     while (n > 0) {
       const p = (n - 1) >> 1;
-      if (heapF[p]! <= heapF[n]!) break;
-      [heapF[p], heapF[n]] = [heapF[n]!, heapF[p]!];
-      [heapS[p], heapS[n]] = [heapS[n]!, heapS[p]!];
+      if (F[p]! <= F[n]!) break;
+      const tf = F[p]!, ts = S[p]!;
+      F[p] = F[n]!; S[p] = S[n]!;
+      F[n] = tf; S[n] = ts;
       n = p;
     }
-  };
-  const pop = (): [number, number] => {
-    const top: [number, number] = [heapF[0]!, heapS[0]!];
-    const lf = heapF.pop()!;
-    const ls = heapS.pop()!;
-    if (heapF.length) {
-      heapF[0] = lf;
-      heapS[0] = ls;
+  }
+  /** The smallest key (with `size` > 0). */
+  get top(): number {
+    return this.key[0]!;
+  }
+  /** Takes the state with the smallest key off (with `size` > 0). */
+  pop(): number {
+    const F = this.key;
+    const S = this.state;
+    const top = S[0]!;
+    const len = --this.size;
+    if (len) {
+      F[0] = F[len]!;
+      S[0] = S[len]!;
       let n = 0;
       for (;;) {
         const l = 2 * n + 1;
         const r = l + 1;
         let m = n;
-        if (l < heapF.length && heapF[l]! < heapF[m]!) m = l;
-        if (r < heapF.length && heapF[r]! < heapF[m]!) m = r;
+        if (l < len && F[l]! < F[m]!) m = l;
+        if (r < len && F[r]! < F[m]!) m = r;
         if (m === n) break;
-        [heapF[m], heapF[n]] = [heapF[n]!, heapF[m]!];
-        [heapS[m], heapS[n]] = [heapS[n]!, heapS[m]!];
+        const tf = F[m]!, ts = S[m]!;
+        F[m] = F[n]!; S[m] = S[n]!;
+        F[n] = tf; S[n] = ts;
         n = m;
       }
     }
     return top;
-  };
+  }
+}
+
+/**
+ * The cost of the cheapest way to the goal from a (layer, cell) state, without the cost of turns:
+ * Dijkstra outwards from the goal. Never more than the real cost, so A* guided by it stays exact.
+ * It runs only as far as it is asked: a state's cost is final once it comes off the heap, so the
+ * search it guides, which keeps near the cheapest way, rarely needs the far side of the board.
+ */
+function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefined, viaCost: number, goal: { cell: number; layers: number[] }, layerCost?: number[]): (st: number) => number {
+  const { W, H } = g;
+  const C = W * H;
+  const L = masks.length;
+  // In full precision: a distance rounded down on the way into the array would look stale when it comes off the heap.
+  const dist = new Float64Array(C * L).fill(Infinity);
+  const done = new Uint8Array(C * L);
+  const heap = new Heap();
   for (const l of goal.layers) {
     if (masks[l]![goal.cell]) continue;
     dist[l * C + goal.cell] = 0;
-    push(0, l * C + goal.cell);
+    heap.push(0, l * C + goal.cell);
   }
-  while (heapF.length) {
-    const [d, s] = pop();
-    if (d > dist[s]!) continue;
+  const step = () => {
+    const d = heap.top;
+    const s = heap.pop();
+    if (d > dist[s]!) return;
+    done[s] = 1;
     const l = Math.floor(s / C);
     const c = s - l * C;
     const i = c % W;
@@ -386,7 +584,7 @@ function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefine
       const nd = d + step * dear;
       if (nd < dist[l * C + nc]!) {
         dist[l * C + nc] = nd;
-        push(nd, l * C + nc);
+        heap.push(nd, l * C + nc);
       }
     }
     if (via && via[c])
@@ -395,11 +593,14 @@ function distanceToGoal(g: Grid, masks: Uint8Array[], via: Uint8Array | undefine
         const nd = d + viaCost;
         if (nd < dist[nl * C + c]!) {
           dist[nl * C + c] = nd;
-          push(nd, nl * C + c);
+          heap.push(nd, nl * C + c);
         }
       }
-  }
-  return dist;
+  };
+  return (st) => {
+    while (!done[st] && heap.size) step();
+    return dist[st]!;
+  };
 }
 
 function searchWith(
@@ -410,8 +611,8 @@ function searchWith(
   start: { cell: number; layers: number[] },
   goal: { cell: number; layers: number[] },
   layerCost: number[] | undefined,
-  /** The exact distance to the goal per (layer, cell), when it has been worked out; else the straight-line estimate is used. */
-  toGoal: Float64Array | undefined,
+  /** The exact distance to the goal of a (layer, cell) state, when it is being worked out (distanceToGoal); else the straight-line estimate is used. */
+  toGoal: ((st: number) => number) | undefined,
   /** Give up after this many states (and say so), to try again better informed. */
   cap: number,
 ): Array<[number, number]> | undefined | "capped" {
@@ -419,120 +620,117 @@ function searchWith(
   const C = W * H;
   const L = masks.length;
   const N = C * L * 8;
-  const gs = new Float32Array(N).fill(Infinity);
-  const came = new Int32Array(N).fill(-1);
-  const ti = goal.cell % W;
-  const tj = Math.floor(goal.cell / W);
-  const h = (l: number, c: number) => {
-    if (toGoal) return toGoal[l * C + c]!;
-    const dx = Math.abs((c % W) - ti);
-    const dy = Math.abs(Math.floor(c / W) - tj);
-    return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
-  };
-  const heapF: number[] = [];
-  const heapS: number[] = [];
-  const push = (f: number, st: number) => {
-    heapF.push(f);
-    heapS.push(st);
-    let n = heapF.length - 1;
-    while (n > 0) {
-      const p = (n - 1) >> 1;
-      if (heapF[p]! <= heapF[n]!) break;
-      [heapF[p], heapF[n]] = [heapF[n]!, heapF[p]!];
-      [heapS[p], heapS[n]] = [heapS[n]!, heapS[p]!];
-      n = p;
-    }
-  };
-  const pop = (): number => {
-    const top = heapS[0]!;
-    const lf = heapF.pop()!;
-    const ls = heapS.pop()!;
-    if (heapF.length) {
-      heapF[0] = lf;
-      heapS[0] = ls;
-      let n = 0;
-      for (;;) {
-        const l = 2 * n + 1;
-        const r = l + 1;
-        let m = n;
-        if (l < heapF.length && heapF[l]! < heapF[m]!) m = l;
-        if (r < heapF.length && heapF[r]! < heapF[m]!) m = r;
-        if (m === n) break;
-        [heapF[m], heapF[n]] = [heapF[n]!, heapF[m]!];
-        [heapS[m], heapS[n]] = [heapS[n]!, heapS[m]!];
-        n = m;
-      }
-    }
-    return top;
-  };
-  const state = (l: number, c: number, d: number) => (l * C + c) * 8 + d;
-  for (const l of start.layers) {
-    if (masks[l]![start.cell]) continue;
-    for (let d = 0; d < 8; d++) {
-      gs[state(l, start.cell, d)] = 0;
-      push(h(l, start.cell), state(l, start.cell, d));
-    }
+  // While Route all runs, the arrays of the last search, which it put back as it found them.
+  let gs: Float32Array, came: Int32Array;
+  const touched = pooling ? new Queue() : undefined;
+  if (touched) {
+    if (!pool || pool.gs.length < N) pool = { gs: new Float32Array(N).fill(Infinity), came: new Int32Array(N).fill(-1) };
+    ({ gs, came } = pool);
+  } else {
+    gs = new Float32Array(N).fill(Infinity);
+    came = new Int32Array(N).fill(-1);
   }
-  const goalLayers = new Set(goal.layers);
-  let found = -1;
-  let expanded = 0;
-  while (heapF.length) {
-    const st = pop();
-    const d = st % 8;
-    const lc = (st - d) / 8;
-    const l = Math.floor(lc / C);
-    const c = lc % C;
-    if (c === goal.cell && goalLayers.has(l)) {
-      found = st;
-      break;
-    }
-    if (++expanded > cap) return "capped";
-    if ((expanded & 4095) === 0 && Date.now() > stopAt) return "capped";
-    const base = gs[st]!;
-    const i = c % W;
-    const j = Math.floor(c / W);
-    const mask = masks[l]!;
-    const dear = layerCost?.[l] ?? 1;
-    for (let nd = 0; nd < 8; nd++) {
-      const [dx, dy, step] = DIRS[nd]!;
-      const cost = step * dear;
-      const ni = i + dx;
-      const nj = j + dy;
-      if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
-      const nc = nj * W + ni;
-      if (mask[nc]) continue;
-      // No squeezing diagonally between two blocked cells.
-      if (dx && dy && (mask[j * W + ni] || mask[nj * W + i])) continue;
-      const ng = base + cost + (nd === d ? 0 : TURN);
-      const ns = state(l, nc, nd);
-      if (ng < gs[ns]!) {
-        gs[ns] = ng;
-        came[ns] = st;
-        push(ng + h(l, nc), ns);
+  try {
+    return run();
+  } finally {
+    if (touched)
+      for (let k = 0; k < touched.tail; k++) {
+        gs[touched.items[k]!] = Infinity;
+        came[touched.items[k]!] = -1;
+      }
+  }
+  function run(): Array<[number, number]> | undefined | "capped" {
+    const ti = goal.cell % W;
+    const tj = Math.floor(goal.cell / W);
+    const h = (l: number, c: number) => {
+      if (toGoal) return toGoal(l * C + c);
+      const dx = Math.abs((c % W) - ti);
+      const dy = Math.abs(Math.floor(c / W) - tj);
+      return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
+    };
+    const heap = new Heap();
+    const push = (f: number, st: number) => heap.push(f, st);
+    const pop = () => heap.pop();
+    const state = (l: number, c: number, d: number) => (l * C + c) * 8 + d;
+    for (const l of start.layers) {
+      if (masks[l]![start.cell]) continue;
+      for (let d = 0; d < 8; d++) {
+        gs[state(l, start.cell, d)] = 0;
+        touched?.push(state(l, start.cell, d));
+        push(h(l, start.cell), state(l, start.cell, d));
       }
     }
-    // Change layers through a via here.
-    if (via && via[c]) {
-      for (let nl = 0; nl < L; nl++) {
-        if (nl === l || masks[nl]![c]) continue;
-        const ns = state(nl, c, d);
-        const ng = base + viaCost;
+    const goalLayers = new Set(goal.layers);
+    let found = -1;
+    let expanded = 0;
+    while (heap.size) {
+      const st = pop();
+      const d = st % 8;
+      const lc = (st - d) / 8;
+      const l = Math.floor(lc / C);
+      const c = lc % C;
+      if (c === goal.cell && goalLayers.has(l)) {
+        found = st;
+        break;
+      }
+      if (++expanded > cap) return "capped";
+      if ((expanded & 4095) === 0 && Date.now() > stopAt) return "capped";
+      const base = gs[st]!;
+      const i = c % W;
+      const j = Math.floor(c / W);
+      const mask = masks[l]!;
+      const dear = layerCost?.[l] ?? 1;
+      for (let nd = 0; nd < 8; nd++) {
+        const [dx, dy, step] = DIRS[nd]!;
+        const cost = step * dear;
+        const ni = i + dx;
+        const nj = j + dy;
+        if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
+        const nc = nj * W + ni;
+        if (mask[nc]) continue;
+        // No squeezing diagonally between two blocked cells.
+        if (dx && dy && (mask[j * W + ni] || mask[nj * W + i])) continue;
+        const ng = base + cost + (nd === d ? 0 : TURN);
+        const ns = state(l, nc, nd);
         if (ng < gs[ns]!) {
+          if (gs[ns] === Infinity) touched?.push(ns);
           gs[ns] = ng;
           came[ns] = st;
-          push(ng + h(nl, c), ns);
+          push(ng + h(l, nc), ns);
+        }
+      }
+      // Change layers through a via here.
+      if (via && via[c]) {
+        for (let nl = 0; nl < L; nl++) {
+          if (nl === l || masks[nl]![c]) continue;
+          const ns = state(nl, c, d);
+          const ng = base + viaCost;
+          if (ng < gs[ns]!) {
+            if (gs[ns] === Infinity) touched?.push(ns);
+            gs[ns] = ng;
+            came[ns] = st;
+            push(ng + h(nl, c), ns);
+          }
         }
       }
     }
+    if (found < 0) return undefined;
+    const out: Array<[number, number]> = [];
+    for (let st = found; st >= 0; st = came[st]!) {
+      const lc = Math.floor(st / 8);
+      out.push([Math.floor(lc / C), lc % C]);
+    }
+    return out.reverse();
   }
-  if (found < 0) return undefined;
-  const out: Array<[number, number]> = [];
-  for (let st = found; st >= 0; st = came[st]!) {
-    const lc = Math.floor(st / 8);
-    out.push([Math.floor(lc / C), lc % C]);
-  }
-  return out.reverse();
 }
+
+/**
+ * The search's arrays (a cost and a way back per state: eight states for every cell of every layer)
+ * are kept between searches while Route all runs, which is when they are many: filling them anew
+ * took longer than most searches. Each search puts back what it changed.
+ */
+let pooling = false;
+let pool: { gs: Float32Array; came: Int32Array } | undefined;
 
 /** Corners of a cell path on one layer, with exact end points. */
 function corners(g: Grid, cells: number[], from: Point, to: Point): Point[] {
@@ -551,16 +749,17 @@ function corners(g: Grid, cells: number[], from: Point, to: Point): Point[] {
 
 /** Free a small disc around a route end so it can leave its own pad (text and edge stay blocked). */
 /**
- * Obstacle maps for one set of copper items, kept while that set is in use (Route all tries many
- * connections, stubs and layers against the same copper): treat the result as read-only.
+ * Obstacle maps for one set of copper items and one net, kept while they are in use (a connection
+ * tries many stubs and layers against the same copper): treat the result as read-only. Only the
+ * last net's are kept; what nets share is in the owner maps (cachedOwners).
  */
-const obstacleCache = new WeakMap<CopperItem[], Map<string, { blocked: Uint8Array; hard: Uint8Array }>>();
+const obstacleCache = new WeakMap<CopperItem[], { net: string; maps: Map<string, { blocked: Uint8Array; hard: Uint8Array }> }>();
 function cachedObstacles(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], net: string, layer: string, half: number) {
   let m = obstacleCache.get(items);
-  if (!m) obstacleCache.set(items, (m = new Map()));
-  const key = `${net}\0${layer}\0${half}\0${g.pitch}\0${g.x0},${g.y0},${g.W},${g.H}`;
-  let o = m.get(key);
-  if (!o) m.set(key, (o = obstacles(g, board, rules, items, net, layer, half)));
+  if (!m || m.net !== net) obstacleCache.set(items, (m = { net, maps: new Map() }));
+  const key = `${layer}\0${half}\0${g.pitch}\0${g.x0},${g.y0},${g.W},${g.H}`;
+  let o = m.maps.get(key);
+  if (!o) m.maps.set(key, (o = obstacles(g, board, rules, items, net, layer, half)));
   return o;
 }
 
@@ -799,12 +998,15 @@ export function routingLayers(board: Board, net: string): string[] {
  * short; what is not routed by then stays unrouted. The routes made are kept.
  */
 export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity): Array<MultiLayerRoute | undefined> {
-  const before = stopAt;
+  const before = { stopAt, pooling };
   stopAt = Math.min(stopAt, deadline);
+  pooling = true;
   try {
     return routeAll(board, rules, connections, deadline);
   } finally {
-    stopAt = before;
+    stopAt = before.stopAt;
+    pooling = before.pooling;
+    if (!pooling) pool = undefined;
   }
 }
 
@@ -813,7 +1015,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
   const base = copperItems(board);
   const routes: Array<MultiLayerRoute | undefined> = [];
   const made = new Map<number, CopperItem[]>();
-  const all = () => [...base, ...[...made.values()].flat()];
+  const all = () => plus(base, [...made.values()].flat());
   const itemsOf = (r: MultiLayerRoute, net: string): CopperItem[] => {
     const cls = netClassOf(rules, net);
     return [
