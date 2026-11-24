@@ -203,3 +203,39 @@ export function pairObstacles(items: CopperItem[], net: string, partner: string,
     .filter((it) => it.item.net !== partner || (it.item.kind === "pad" && ends.has(it.item.uuid ?? "")))
     .map((it) => (it.item.kind === "pad" && ends.has(it.item.uuid ?? "") ? { ...it, item: { ...it.item, net: `${net}\u0000end` } } : it));
 }
+
+/**
+ * How well each differential pair on the board is routed as a pair: for each two nets of a pair that
+ * both have tracks, the share of the first net's track length that has the partner's track one pitch
+ * (the class's pair width and gap) away on its layer. Near 1 for a pair routed coupled; near 0 for
+ * two nets routed apart.
+ */
+export function pairCoupling(board: Board, rules: DesignRules): Array<{ nets: [string, string]; coupled: number }> {
+  const byNet = new Map<string, Board["tracks"]>();
+  for (const t of board.tracks) if (t.net) (byNet.get(t.net) ?? byNet.set(t.net, []).get(t.net)!).push(t);
+  const dist = (q: Point, a: Point, b: Point) => {
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l2)) : 0;
+    return Math.hypot(a.x + t * dx - q.x, a.y + t * dy - q.y);
+  };
+  const out: Array<{ nets: [string, string]; coupled: number }> = [];
+  for (const [net, mine] of byNet) {
+    const partner = [...byNet.keys()].find((n) => n !== net && diffPairBase(net, n) !== undefined);
+    if (!partner || partner < net) continue;
+    const theirs = byNet.get(partner)!;
+    const sz = diffPairSizes(rules, net);
+    const pitch = sz.width + sz.gap;
+    let total = 0, near = 0;
+    for (const t of mine) {
+      const len = Math.hypot(t.end.x - t.start.x, t.end.y - t.start.y);
+      const steps = Math.max(1, Math.round(len / 0.1));
+      for (let i = 0; i < steps; i++) {
+        const q = { x: t.start.x + ((t.end.x - t.start.x) * (i + 0.5)) / steps, y: t.start.y + ((t.end.y - t.start.y) * (i + 0.5)) / steps };
+        total += len / steps;
+        if (theirs.some((o) => o.layer === t.layer && Math.abs(dist(q, o.start, o.end) - pitch) < 0.02)) near += len / steps;
+      }
+    }
+    if (total > 0) out.push({ nets: [net, partner], coupled: Math.round((near / total) * 100) / 100 });
+  }
+  return out;
+}
