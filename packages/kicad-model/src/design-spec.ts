@@ -64,6 +64,13 @@ export interface DesignPart {
    * Without it the part is placed next to what it connects to.
    */
   place?: { x?: number; y?: number; rotate?: number; edge?: "left" | "right" | "top" | "bottom"; align?: "start" | "center" | "end"; overhang?: number; near?: string };
+  /**
+   * Vias in the pads that tracks can't leave between their neighbours (a fine-pitch BGA's inner
+   * balls), reached from the layers below. Balls of one net side by side share one via, joined on
+   * top. Each via is as large as its pad allows within the board's minimums (a net class with small
+   * vias brings those down). The board house fills and caps them (via-in-pad), which costs extra.
+   */
+  viaInPad?: boolean;
 }
 
 export interface DesignBoard {
@@ -461,6 +468,7 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (pl.overhang !== undefined && pl.edge === undefined) problems.push(`${ref}: "place.overhang" goes with "place.edge" (which edge to hang over)`);
       if (pl.near !== undefined && pl.x !== undefined) problems.push(`${ref}: "place.near" has no effect with a fixed x and y; give one or the other`);
     }
+    if (part.viaInPad !== undefined && typeof part.viaInPad !== "boolean") problems.push(`${ref}: "viaInPad" is true or false`);
   }
   for (const [net, pins] of netPins) if (pins.length < 2 && !uncounted.has(net)) problems.push(`Net ${net} has only one pin (${pins[0]}): connect it, or leave the pin out`);
   for (const net of spec.powerFlags ?? []) if (!netPins.has(net) && !uncounted.has(net)) problems.push(`"powerFlags" names ${net}, which no pin is on`);
