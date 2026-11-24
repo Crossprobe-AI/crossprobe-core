@@ -145,6 +145,9 @@ describe("plain controls", () => {
         <span id="dots">a.b,c:d</span> <span id="plain">abcd</span>
       </p>,
     );
+    // Measured in the app's own face, not a fallback shown while it loads (its punctuation is figure-wide).
+    const faces = await document.fonts.load('13px "Schibsted Grotesk Variable"', "a.b,c:d");
+    expect(faces.length, "the app's text face did not load").toBeGreaterThan(0);
     expect(getComputedStyle(document.body).fontVariantNumeric).toBe("normal");
     // Three punctuation marks add little to four letters; figure-wide ones would add about three digits' width.
     const added = box(document.getElementById("dots")!).width - box(document.getElementById("plain")!).width;
