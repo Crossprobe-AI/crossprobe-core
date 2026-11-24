@@ -61,6 +61,13 @@ describe.skipIf(!existsSync(SYMBOLS))("generated sheets", () => {
     expect(overlaps(sheetOf(name, designSheet(example(name))))).toEqual([]);
   });
 
+  it("leaves room for a value the library draws beside the body: two ESD arrays side by side", () => {
+    // TPD4E02B04's value sits right of its body, where the next part's labels would start.
+    const esd = (ref: string, a: string, b: string) => ({ ref, symbol: "Power_Protection:TPD4E02B04DQA", value: "TPD4E02B04", footprint: "", group: "HDMI input", pins: { "1": `${a}_P`, "2": `${a}_N`, "3": "GND", "4": `${b}_P`, "5": `${b}_N`, "6": `${b}_N`, "7": `${b}_P`, "8": "GND", "9": `${a}_N`, "10": `${a}_P` } });
+    const spec = { name: "esd", board: { width: 30, height: 20 }, parts: [esd("U2", "HDMI_D2", "HDMI_D1"), esd("U3", "HDMI_D0", "HDMI_CK")] } as DesignSpec;
+    expect(overlaps(sheetOf("esd", designSheet(spec)))).toEqual([]);
+  });
+
   const blocks = join(CORE, "blocks/library/crossprobe.kicad_blocks");
   it.each(readdirSync(blocks))("block %s: no text over another", (dir) => {
     const id = dir.replace(/\.kicad_block$/, "");
