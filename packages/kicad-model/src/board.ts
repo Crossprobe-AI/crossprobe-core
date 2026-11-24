@@ -1151,6 +1151,18 @@ export function padCorners(pad: Pad): Point[] {
 }
 
 /**
+ * Whether an unplated pad has copper on the copper layers it lists: a ring round its hole, as KiCad
+ * draws it. It has none when it is round with a round hole, or oval with a slot, centred on the hole
+ * and no larger than it; any other unplated pad has copper.
+ */
+export function unplatedCopper(pad: Pick<Pad, "shape" | "size" | "drill" | "drillSize" | "offset">): boolean {
+  const centred = !pad.offset || (Math.abs(pad.offset.x) < 1e-9 && Math.abs(pad.offset.y) < 1e-9);
+  if (pad.shape === "circle" && !pad.drillSize) return !(centred && (pad.drill ?? 0) >= pad.size.x - 1e-6);
+  if (pad.shape === "oval" && pad.drillSize) return !(centred && pad.drillSize.x >= pad.size.x - 1e-6 && pad.drillSize.y >= pad.size.y - 1e-6);
+  return true;
+}
+
+/**
  * Which copper layers a through-hole pad or via actually has copper on.
  * With unused-layer removal, KiCad keeps copper only on the end layers (if
  * asked), on layers where a zone connects, and where a track of its net

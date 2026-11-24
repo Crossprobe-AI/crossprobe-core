@@ -4,12 +4,11 @@
  * courtyards, and holes too close together (or drilled twice).
  */
 import ClipperLib from "clipper-lib";
-import type { Board, Footprint, Graphic, Pad, Via } from "./board.js";
+import { flashChecker, unplatedCopper, type Board, type Footprint, type Graphic, type Pad, type Via } from "./board.js";
 import { buildArea, copperItems, edgeChains, graphicShapes, padShapes, shapeBox, shapeDistance, type CopperItem, type DesignRules, type DrcItem, type Shape } from "./drc.js";
 import { hasCopper, knockoutText, onLayer, textOutline, textPen, textStrokes } from "./fab.js";
 import type { Point } from "./geometry.js";
 import { boardArea, connectionOf, padPolygons } from "./zone-fill.js";
-import { flashChecker } from "./board.js";
 import { customConstraint, type RuleItem } from "./drc-rules.js";
 import { checkLengthRules } from "./drc-length.js";
 import { checkDiffPairRules } from "./drc-diffpair.js";
@@ -1007,8 +1006,8 @@ function checkMaskBridges(board: Board, items: CopperItem[], out: BoardViolation
         const onMask = onLayer(pad.layers, mask);
         const onCu = onLayer(pad.layers, cu);
         if (!onMask && !onCu) continue;
-        // A non-plated hole with no copper (no copper layer, or no bigger than its hole) is neither.
-        if (pad.type === "np_thru_hole" && (!hasCopper(pad) || Math.max(pad.size.x, pad.size.y) <= (pad.drill ?? 0) + 1e-9)) continue;
+        // A non-plated hole with no copper (no copper layer, or no ring round the hole) is neither.
+        if (pad.type === "np_thru_hole" && (!hasCopper(pad) || !unplatedCopper(pad))) continue;
         const item: DrcItem = { kind: "pad", net: pad.net, reference: fp.reference, pad: pad.number, uuid: pad.uuid, description: `Pad ${pad.number} [${pad.net || "<no net>"}] of ${fp.reference}` };
         const logicalPad = pad.number ? `${fp.uuid}\0${pad.number}` : undefined;
         if (onMask) {

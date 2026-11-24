@@ -13,7 +13,7 @@
  * against the fills KiCad saved in its demo boards (see the test).
  */
 import ClipperLib from "clipper-lib";
-import { flashChecker, padCorners, type Board, type Footprint, type Graphic, type Pad, type Via, type Zone } from "./board.js";
+import { flashChecker, padCorners, unplatedCopper, type Board, type Footprint, type Graphic, type Pad, type Via, type Zone } from "./board.js";
 import { arcPoints, netClassOf, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 
@@ -404,7 +404,7 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
       // Holes knock out on every layer.
       if (pad.drill && pad.type === "np_thru_hole") {
         // A copper-less hole keeps the hole clearance; one with a copper ring is a pad like any other.
-        const ring = pad.size.x > (pad.drill ?? 0) + 1e-6 && expandLayers(pad.layers, copper).includes(layer);
+        const ring = unplatedCopper(pad) && expandLayers(pad.layers, copper).includes(layer);
         // A pad or footprint clearance override applies to the hole too.
         holes.push(...(ring ? padPaths(pad, clearanceTo(pad.net, pad.clearance ?? fp.clearance)) : holePaths(pad, Math.max(rules.holeClearance ?? 0, pad.clearance ?? fp.clearance ?? 0) + ARC_ERROR)));
       } else if (pad.drill && !same(pad.net)) holes.push(...holePaths(pad, Math.max(rules.holeClearance ?? 0, clearanceTo(pad.net, pad.clearance ?? fp.clearance))));
