@@ -281,18 +281,20 @@ function owners(g: Grid, board: Board, rules: DesignRules, items: CopperItem[], 
   // left through it.
   for (const z of board.zones) if (z.noTracks && onLayer(board, z.layers, layer)) blockArea(g, hard, z.outline, half);
 
-  // Drilled holes (unplated ones too, which have no copper), each its net's: the hole clearance.
+  // Drilled holes (unplated ones too, which have no copper), each its net's: the hole clearance, or
+  // an unplated hole's own clearance when that is more (holeClearanceOf).
   const hc = rules.holeClearance ?? 0;
-  if (hc > 0) {
-    const holes: Array<{ at: Point; r: number; net: string }> = [];
+  {
+    const holes: Array<{ at: Point; r: number; net: string; clr: number }> = [];
     for (const fp of board.footprints)
       for (const pad of fp.pads) {
         const d = pad.drillSize ? Math.max(pad.drillSize.x, pad.drillSize.y) : pad.drill;
-        if (d) holes.push({ at: pad.at, r: d / 2, net: pad.net });
+        if (d) holes.push({ at: pad.at, r: d / 2, net: pad.net, clr: holeClearanceOf(rules, pad, fp) });
       }
-    for (const v of board.vias) holes.push({ at: v.at, r: v.drill / 2, net: v.net });
+    for (const v of board.vias) holes.push({ at: v.at, r: v.drill / 2, net: v.net, clr: hc });
     for (const h of holes) {
-      const r = h.r + hc + half + slack;
+      if (h.clr <= 0) continue;
+      const r = h.r + h.clr + half + slack;
       const id = idOf(h.net);
       for (let j = Math.max(0, Math.floor((h.at.y - r - y0) / pitch)); j <= Math.min(H - 1, Math.ceil((h.at.y + r - y0) / pitch)); j++)
         for (let i = Math.max(0, Math.floor((h.at.x - r - x0) / pitch)); i <= Math.min(W - 1, Math.ceil((h.at.x + r - x0) / pitch)); i++)
@@ -1309,7 +1311,6 @@ function cutCorners(board: Board, rules: DesignRules, items: CopperItem[], solid
  */
 function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, width: number, net: string): boolean {
   const hc = rules.holeClearance ?? 0;
-  if (hc <= 0) return true;
   const dx = b.x - a.x, dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
   const dist = (p: Point) => {
@@ -1319,10 +1320,22 @@ function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, 
   for (const fp of board.footprints)
     for (const pad of fp.pads) {
       const d = pad.drillSize ? Math.max(pad.drillSize.x, pad.drillSize.y) : pad.drill;
-      if (d && !(pad.net && pad.net === net) && dist(pad.at) - d / 2 - width / 2 < hc - 1e-6) return false;
+      const clr = holeClearanceOf(rules, pad, fp);
+      if (d && clr > 0 && !(pad.net && pad.net === net) && dist(pad.at) - d / 2 - width / 2 < clr - 1e-6) return false;
     }
-  for (const v of board.vias) if (!(v.net && v.net === net) && dist(v.at) - v.drill / 2 - width / 2 < hc - 1e-6) return false;
+  if (hc > 0) for (const v of board.vias) if (!(v.net && v.net === net) && dist(v.at) - v.drill / 2 - width / 2 < hc - 1e-6) return false;
   return true;
+}
+
+/**
+ * How far other nets' copper keeps from a pad's hole: the board's hole clearance, or for an unplated
+ * hole its pad's (or footprint's) own clearance when that is more, as KiCad's DRC has it (a module's
+ * mounting holes often ask for room round the screw head). A plated pad's own clearance is kept
+ * from its copper already.
+ */
+function holeClearanceOf(rules: DesignRules, pad: Pad, fp: Board["footprints"][number]): number {
+  const hc = rules.holeClearance ?? 0;
+  return pad.type === "np_thru_hole" ? Math.max(hc, pad.clearance ?? fp.clearance ?? 0) : hc;
 }
 
 /** Every drilled pad hole on the board, of any net. */
