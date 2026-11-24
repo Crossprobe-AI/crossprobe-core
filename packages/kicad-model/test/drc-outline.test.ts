@@ -46,12 +46,21 @@ describe.skipIf(!cli)("board outline as KiCad's DRC", () => {
     ["a line 500 nm long", (t: string) => add(t, line(120, 90, 120.0005, 90, 2))],
     ["an open shape inside", (t: string) => add(t, line(100, 60, 110, 60, 4) + line(110, 60, 110, 70, 5))],
     ["a line drawn twice", (t: string) => add(t, line(73.66, 40.64, 173.99, 40.64, 3))],
-  ])("%s", (_, edit) => {
+  ])("%s", (name, edit) => {
     const text = edit(pcb());
     expect(text).not.toBe(pcb());
-    const theirs = kicad(text);
+    let theirs = kicad(text);
     expect(theirs.length).toBeGreaterThan(0);
-    expect(ours(text)).toEqual(theirs);
+    let mine = ours(text);
+    if (name === "a line drawn twice") {
+      // The two copies end at the same points, and which of them KiCad names there varies from run
+      // to run: either will do.
+      const copies = [...text.matchAll(/\(gr_line\s*\(start 73\.66 40\.64\)\s*\(end 173\.99 40\.64\)[\s\S]*?\(uuid "([^"]+)"\)/g)].map((m) => m[1]!);
+      expect(new Set(copies).size).toBe(2);
+      const either = (l: string[]) => l.map((v) => copies.reduce((t, u) => t.replaceAll(u, "<either copy>"), v)).sort();
+      [theirs, mine] = [either(theirs), either(mine)];
+    }
+    expect(mine).toEqual(theirs);
   });
 
   it("no outline at all", () => {
