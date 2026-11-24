@@ -49,6 +49,8 @@ export interface MultiLayerRequest {
   unchecked?: boolean;
   /** Layers that cost more to run on, as a factor of the length: another net's pour, which tracks cut up. */
   costly?: Record<string, number>;
+  /** Cells fought over in a negotiated rip-up, per layer: entering one costs what it holds (see crossings). */
+  history?: Map<string, Float32Array>;
 }
 
 export interface MultiLayerRoute {
@@ -872,7 +874,8 @@ export function routeWithVias(board: Board, rules: DesignRules, req: MultiLayerR
   let vias: Point[] = [];
   // Two vias of one route can still end up too close to each other: the second is then ruled out and the search run again.
   for (let tries = 0; ; tries++) {
-    const path = search(g, masks, via, 25, { cell: s, layers: startLayers }, { cell: t, layers: goalLayers }, undefined, req.costly && layers.map((l) => req.costly![l] ?? 1));
+    const fought = req.history && layers.some((l) => req.history!.has(l)) ? layers.map((l) => req.history!.get(l) ?? new Float32Array(g.W * g.H)) : undefined;
+    const path = search(g, masks, via, 25, { cell: s, layers: startLayers }, { cell: t, layers: goalLayers }, undefined, req.costly && layers.map((l) => req.costly![l] ?? 1), fought);
     if (!path) return undefined;
     // Split into runs at layer changes; each change is a via.
     runs = [];
@@ -1109,20 +1112,34 @@ export function crossings(
     const o = cachedObstacles(g, board, rules, hard, c.net, l, reach);
     for (let k = 0; k < C; k++) if (o.blocked[k]) via[k] = 0;
   }
+  // No new via where routeWithVias would refuse one: too near a hole that stays (the board's, or a
+  // hard route's via), or in a rule area that keeps vias out. A way through such a via would lift
+  // routes for nothing.
+  for (const hole of [...drilledHoles(board), ...viaHoles(rules, hard)]) {
+    const r = hole.r + cls.viaDrill / 2 + (rules.minHoleToHole ?? 0.25);
+    const n = Math.ceil(r / g.pitch);
+    const cx = Math.round((hole.at.x - g.x0) / g.pitch), cy = Math.round((hole.at.y - g.y0) / g.pitch);
+    for (let y = Math.max(0, cy - n); y <= Math.min(g.H - 1, cy + n); y++)
+      for (let x = Math.max(0, cx - n); x <= Math.min(g.W - 1, cx + n); x++)
+        if (Math.hypot(g.x0 + x * g.pitch - hole.at.x, g.y0 + y * g.pitch - hole.at.y) < r - 1e-9) via[y * g.W + x] = 0;
+  }
+  const off = new Uint8Array(C);
+  for (const z of board.zones) if (z.noVias) blockArea(g, off, z.outline, cls.viaDiameter / 2);
+  for (let k = 0; k < C; k++) if (off[k]) via[k] = 0;
   // The soft routes' cells: what entering one costs, and whose it is.
   const slack = slackOf(g);
   const cost = layers.map(() => new Float32Array(C));
-  const who = layers.map(() => new Int32Array(C).fill(-1));
+  // Each soft route's cells, per layer: several routes may hold one cell.
+  const held: Array<{ li: number; idx: number; ks: Int32Array }> = [];
   layers.forEach((l, li) => {
     const h = history.get(l);
     for (const { it, idx } of soft) {
       if (!it.layers.has(l) || it.item.kind === "zone" || (it.item.net === c.net && c.net)) continue;
       const sh = it.shapes[0];
       const hole = it.item.kind === "via" && sh?.kind === "seg" ? netClassOf(rules, it.item.net).viaDrill / 2 + (rules.holeClearance ?? 0) - sh.r + half + slack : 0;
-      for (const k of cellsOf(g, it, Math.max(gap(rules, it, cls.clearance, half, slack), hole))) {
-        cost[li]![k] = NEGOTIATE.penalty * (1 + (h?.[k] ?? 0));
-        who[li]![k] = idx;
-      }
+      const ks = cellsOf(g, it, Math.max(gap(rules, it, cls.clearance, half, slack), hole));
+      for (const k of ks) cost[li]![k] = NEGOTIATE.penalty * (1 + (h?.[k] ?? 0));
+      held.push({ li, idx, ks });
     }
   });
   const dear = layers.map((l) => (pouredLayers(board, c.net).includes(l) ? POUR_COST : 1));
@@ -1141,18 +1158,19 @@ export function crossings(
     if (path) break;
   }
   if (!path) return undefined;
+  // The cells the way takes, per layer (a via stands on every layer), and every route holding one.
+  const taken = layers.map(() => new Set<number>());
+  path.forEach(([li, k], n) => {
+    for (const x of n > 0 && path[n - 1]![0] !== li ? layers.map((_, y) => y) : [li]) taken[x]!.add(k);
+  });
   const victims = new Set<number>();
   const cells: Array<[string, number]> = [];
-  path.forEach(([li, k], n) => {
-    // A via stands on every layer.
-    const at = n > 0 && path[n - 1]![0] !== li ? layers.map((_, x) => x) : [li];
-    for (const x of at) {
-      const v = who[x]![k]!;
-      if (v < 0) continue;
-      victims.add(v);
-      cells.push([layers[x]!, k]);
-    }
-  });
+  for (const { li, idx, ks } of held)
+    for (const k of ks)
+      if (taken[li]!.has(k)) {
+        victims.add(idx);
+        cells.push([layers[li]!, k]);
+      }
   return { victims, cells };
 }
 
@@ -1169,7 +1187,15 @@ const NEGOTIATE = { penalty: 5, history: 2, victims: 6, steps: 60 };
  * starts from the stub's end. When the two nearest pads can't be joined, other pads of the same
  * two pieces of copper are tried.
  */
-export function autorouteConnection(board: Board, rules: DesignRules, c: { from: Point; to: Point; net: string }, items: CopperItem[] = copperItems(board), alternates = true): MultiLayerRoute | undefined {
+export function autorouteConnection(
+  board: Board,
+  rules: DesignRules,
+  c: { from: Point; to: Point; net: string },
+  items: CopperItem[] = copperItems(board),
+  alternates = true,
+  /** Cells fought over in a negotiated rip-up (MultiLayerRequest.history): ways round them cost less. */
+  history?: Map<string, Float32Array>,
+): MultiLayerRoute | undefined {
   const cls = netClassOf(rules, c.net);
   const width = cls.trackWidth;
   const via = { size: cls.viaDiameter, drill: cls.viaDrill };
@@ -1184,13 +1210,13 @@ export function autorouteConnection(board: Board, rules: DesignRules, c: { from:
     let single: MultiLayerRoute | undefined;
     for (const layer of front) {
       if ((fromLayers && !fromLayers.includes(layer)) || (toLayers && !toLayers.includes(layer))) continue;
-      single = routeWithVias(board, rules, { from, to, net: c.net, width, via, layers: [layer], fromLayers, toLayers }, items, false);
+      single = routeWithVias(board, rules, { from, to, net: c.net, width, via, layers: [layer], fromLayers, toLayers, history }, items, false);
       if (single) break;
     }
     // One layer is enough when the route is fairly direct. A long way round on one layer is compared
     // with changing layers to get past what is in the way.
     if (single && price(single) <= 1.5 * Math.hypot(from.x - to.x, from.y - to.y) + 4) return single;
-    const both = routeWithVias(board, rules, { from, to, net: c.net, width, via, layers: usable, fromLayers, toLayers, costly }, items);
+    const both = routeWithVias(board, rules, { from, to, net: c.net, width, via, layers: usable, fromLayers, toLayers, costly, history }, items);
     return single && (!both || price(single) <= price(both)) ? single : both;
   };
   const between = (from: Point, to: Point) => {
@@ -1431,10 +1457,42 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
     const count = () => routes.filter(Boolean).length;
     let best = { n: count(), routes: [...routes], made: new Map(made) };
     const queue = connections.map((_, i) => i).filter((i) => !routes[i]);
+    const splitLayers = (i: number, rivals: number[]): boolean => {
+      const c = connections[i]!;
+      const cls = netClassOf(rules, c.net);
+      const lifted = rivals.map((v) => ({ v, route: routes[v]!, items: made.get(v)! }));
+      for (const { v } of lifted) {
+        made.delete(v);
+        routes[v] = undefined;
+      }
+      for (const layer of routingLayers(board, c.net)) {
+        const ri = routeWithVias(board, rules, { from: c.from, to: c.to, net: c.net, width: cls.trackWidth, via: { size: cls.viaDiameter, drill: cls.viaDrill }, layers: [layer], fromLayers: [layer], toLayers: [layer] }, all(), false);
+        if (!ri) continue;
+        made.set(i, itemsOf(ri, c.net));
+        const again = lifted.map(({ v }) => {
+          const rv = autorouteConnection(board, rules, connections[v]!, all(), true, history);
+          if (rv) made.set(v, itemsOf(rv, connections[v]!.net));
+          return rv;
+        });
+        if (again.every(Boolean)) {
+          routes[i] = ri;
+          lifted.forEach(({ v }, k) => (routes[v] = again[k]));
+          return true;
+        }
+        made.delete(i);
+        for (const { v } of lifted) made.delete(v);
+      }
+      for (const { v, route, items } of lifted) {
+        routes[v] = route;
+        made.set(v, items);
+      }
+      return false;
+    };
     // It stops when it has gone a while without routing more than its best (connections taking turns).
-    const patience = 2 * queue.length + 4;
-    // Two connections that have each lifted the other want the same room: they would take turns for
-    // ever, so neither lifts the other again.
+    // A chain (one lifts a second, which lifts a third) takes a few tries even for one connection.
+    const patience = Math.max(12, 2 * queue.length + 4);
+    // Who has lifted whom: two connections that have each lifted the other want the same room, and
+    // would take turns for ever. Neither lifts the other again (see rivals).
     const lifts = new Set<string>();
     // A connection with no way even through other routes has none later either (the walls don't move).
     const walled = new Set<number>();
@@ -1445,10 +1503,22 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
       const c = connections[i]!;
       const hard = plus(base, [...made].filter(([j]) => fixed.has(j)).flatMap(([, its]) => its));
       const soft = [...made].filter(([j]) => !fixed.has(j)).flatMap(([j, its]) => its.map((it) => ({ it, idx: j })));
-      const way = crossings(board, rules, c, hard, soft, history);
+      let way = crossings(board, rules, c, hard, soft, history);
+      // Two that have each lifted the other want the same room: look for a way with the other as a
+      // wall, through a third route, which then moves.
+      const rivals = way ? [...way.victims].filter((v) => lifts.has(`${v}>${i}`) && lifts.has(`${i}>${v}`)) : [];
+      // Rivals may fit on different layers (ends with vias through every layer, a BGA's power balls):
+      // this one on one layer only, each in turn, and the rivals then where they can.
+      if (rivals.length && splitLayers(i, rivals)) {
+        if (count() > best.n) {
+          best = { n: count(), routes: [...routes], made: new Map(made) };
+          sinceBest = 0;
+        }
+        continue;
+      }
+      if (rivals.length) way = crossings(board, rules, c, plus(hard, rivals.flatMap((v) => made.get(v) ?? [])), soft.filter((x) => !rivals.includes(x.idx)), history);
       if (!way) walled.add(i);
       if (!way || !way.victims.size || way.victims.size > NEGOTIATE.victims) continue;
-      if ([...way.victims].some((v) => lifts.has(`${v}>${i}`) && lifts.has(`${i}>${v}`))) continue;
       for (const v of way.victims) lifts.add(`${i}>${v}`);
       // Fought over: the next way through here costs more.
       for (const [l, k] of way.cells) {
@@ -1461,7 +1531,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
         made.delete(v);
         routes[v] = undefined;
       }
-      const ri = autorouteConnection(board, rules, c, all());
+      const ri = autorouteConnection(board, rules, c, all(), true, history);
       if (!ri) {
         for (const { v, route, items } of lifted) {
           routes[v] = route;
@@ -1472,7 +1542,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
       routes[i] = ri;
       made.set(i, itemsOf(ri, c.net));
       for (const { v } of lifted) {
-        const rv = autorouteConnection(board, rules, connections[v]!, all());
+        const rv = autorouteConnection(board, rules, connections[v]!, all(), true, history);
         if (rv) {
           routes[v] = rv;
           made.set(v, itemsOf(rv, connections[v]!.net));
