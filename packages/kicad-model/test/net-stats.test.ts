@@ -51,22 +51,34 @@ describe("net inspector", () => {
       const path = `${DEMOS}/${file}`;
       const out = join(dir, "k.json");
       // A few runs, for the different results KiCad gives.
-      const runs = Array.from({ length: RUNS }, () => {
+      const run = () => {
         execFileSync(PY, [join(import.meta.dirname, "net-length.py"), path, out], { stdio: "ignore" });
         return JSON.parse(readFileSync(out, "utf8")) as Record<string, number[]>;
-      });
+      };
+      const runs = Array.from({ length: RUNS }, run);
       const kicad = runs[0]!;
       const board = parseBoard(readFileSync(path, "utf8"));
       const branches = branched(board);
       const ours = new Map(netStats(board).map((s) => [s.net, s.total]));
-      const bad: string[] = [];
-      const loose: string[] = [];
-      for (const [net, clusters] of Object.entries(kicad)) {
-        if (clusters.length !== 1) continue;
-        const ds = runs.map((r) => (ours.get(net) ?? 0) - (r[net]?.[0] ?? NaN));
-        const d = ds.reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a));
-        if (Math.abs(d) <= 0.01) continue;
-        (branches.has(net) ? loose : bad).push(`${net} ${d > 0 ? "+" : ""}${d.toFixed(3)}`);
+      let bad: string[] = [];
+      let loose: string[] = [];
+      const compare = () => {
+        bad = [];
+        loose = [];
+        for (const [net, clusters] of Object.entries(kicad)) {
+          if (clusters.length !== 1) continue;
+          const ds = runs.map((r) => (ours.get(net) ?? 0) - (r[net]?.[0] ?? NaN));
+          const d = ds.reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a));
+          if (Math.abs(d) <= 0.01) continue;
+          (branches.has(net) ? loose : bad).push(`${net} ${d > 0 ? "+" : ""}${d.toFixed(3)}`);
+        }
+      };
+      compare();
+      // KiCad gives one of two lengths on some nets (StickHub's USB pairs), about as often each: where
+      // ours is none of the runs so far, run it again a few times before calling it a difference.
+      for (let more = 0; bad.length && more < 8; more++) {
+        runs.push(run());
+        compare();
       }
       strict += Object.values(kicad).filter((c) => c.length === 1).length - loose.length;
       if (loose.length && process.env.ORACLE_VERBOSE) console.log(`${file}: branch nets off (KiCad varies there): ${loose.join(", ")}`);
