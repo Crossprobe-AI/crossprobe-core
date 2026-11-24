@@ -702,6 +702,24 @@ export function edgeChains(board: Board): Point[][] {
 }
 
 /**
+ * Whether a pad's hole is a slot: milled, as the board outline is, rather than drilled. KiCad keeps
+ * the board's edge clearance from an unplated one, in its DRC and its zone filler.
+ */
+export function slotted(pad: Pick<Pad, "drillSize">): boolean {
+  return !!pad.drillSize && Math.abs(pad.drillSize.x - pad.drillSize.y) > 1e-9;
+}
+
+/** A pad's hole as a shape: round, or a slot along its longer side, turned with the pad. */
+export function holeShape(pad: Pick<Pad, "at" | "drill" | "drillSize" | "rotation">): Shape | undefined {
+  if (!pad.drill && !pad.drillSize) return undefined;
+  const ds = pad.drillSize ?? { x: pad.drill!, y: pad.drill! };
+  const half = Math.abs(ds.x - ds.y) / 2;
+  const a = (pad.rotation * Math.PI) / 180;
+  const dir = ds.x >= ds.y ? { x: Math.cos(a), y: -Math.sin(a) } : { x: Math.sin(a), y: Math.cos(a) };
+  return { kind: "seg", a: { x: pad.at.x - dir.x * half, y: pad.at.y - dir.y * half }, b: { x: pad.at.x + dir.x * half, y: pad.at.y + dir.y * half }, r: Math.min(ds.x, ds.y) / 2 };
+}
+
+/**
  * Check copper clearances; one violation per offending item pair.
  * The required clearance follows KiCad's precedence: local overrides (pad,
  * then footprint) replace net classes; otherwise the larger of the two net
@@ -898,17 +916,40 @@ export function checkClearance(board: Board, rules: DesignRules, limit = 5000): 
   // Copper to board edge.
   // (With no edge clearance set, copper crossing the edge still counts.)
   const edgeClear = rules.copperEdgeClearance ?? 0;
-  if (board.outline.length) {
+  // An unplated slot is an edge too, as in KiCad: it is milled, as the outline is. (A round hole is
+  // drilled, and keeps the hole clearance only.)
+  const slots = board.footprints.flatMap((fp) =>
+    fp.pads.filter((p) => p.type === "np_thru_hole" && slotted(p)).map((p) => {
+      const shape = holeShape(p)!;
+      const item: DrcItem = { kind: "pad", net: "", reference: fp.reference, pad: p.number, uuid: p.uuid, description: `NPTH pad${p.number ? ` ${p.number}` : ""} of ${fp.reference || "?"}` };
+      return { shape, box: shapeBox(shape), item, at: p.at };
+    }),
+  );
+  if (board.outline.length || slots.length) {
     const edgeAreas = edgeChains(board).map((c) => buildArea(c, true));
     const edgeItem: DrcItem = { kind: "edge", net: "", description: "Board edge (Edge.Cuts)" };
     for (const A of items) {
       if (out.length >= limit) break;
       let best = { dist: Infinity, at: { x: 0, y: 0 } };
+      let edge = edgeItem;
       for (const E of edgeAreas) {
         if (A.box.x0 > E.box.x1 + edgeClear || E.box.x0 > A.box.x1 + edgeClear || A.box.y0 > E.box.y1 + edgeClear || E.box.y0 > A.box.y1 + edgeClear) continue;
         for (const sa of A.shapes) {
           const d = shapeDistance(sa, E, edgeClear);
           if (d.dist < best.dist) best = d;
+        }
+      }
+      for (const S of slots) {
+        if (A.box.x0 > S.box.x1 + edgeClear || S.box.x0 > A.box.x1 + edgeClear || A.box.y0 > S.box.y1 + edgeClear || S.box.y0 > A.box.y1 + edgeClear) continue;
+        // Not the slot's own pad, when it has copper round the hole.
+        const own = A.item.kind === "pad" && A.item.reference === S.item.reference && A.item.pad === S.item.pad && (A.item.uuid && S.item.uuid ? A.item.uuid === S.item.uuid : Math.abs((A.box.x0 + A.box.x1) / 2 - S.at.x) < 0.01 && Math.abs((A.box.y0 + A.box.y1) / 2 - S.at.y) < 0.01);
+        if (own) continue;
+        for (const sa of A.shapes) {
+          const d = shapeDistance(sa, S.shape, edgeClear);
+          if (d.dist < best.dist) {
+            best = d;
+            edge = S.item;
+          }
         }
       }
       if (best.dist >= edgeClear - 0.0005 && !(best.dist <= 0)) continue;
@@ -919,7 +960,7 @@ export function checkClearance(board: Board, rules: DesignRules, limit = 5000): 
         actual: Math.max(0, Math.round(best.dist * 1e4) / 1e4),
         required: edgeClear,
         nets: [A.item.net, ""],
-        items: [A.item, edgeItem],
+        items: [A.item, edge],
       });
     }
   }

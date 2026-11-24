@@ -12,7 +12,7 @@
  * Results are checked again with the clearance checker before they are used.
  */
 import type { Board, Pad } from "./board.js";
-import { copperItems, netClassOf, shapeBox, shapeDistance, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
+import { copperItems, netClassOf, shapeBox, shapeDistance, slotted, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 import { boardArea } from "./zone-fill.js";
 import { netIslands, type CopperAnchor } from "./copper.js";
@@ -1378,12 +1378,12 @@ function trackClearsHoles(board: Board, rules: DesignRules, a: Point, b: Point, 
 /**
  * How far other nets' copper keeps from a pad's hole: the board's hole clearance, or for an unplated
  * hole its pad's (or footprint's) own clearance when that is more, as KiCad's DRC has it (a module's
- * mounting holes often ask for room round the screw head). A plated pad's own clearance is kept
- * from its copper already.
+ * mounting holes often ask for room round the screw head). An unplated slot keeps the board's edge
+ * clearance too, as the outline does. A plated pad's own clearance is kept from its copper already.
  */
 function holeClearanceOf(rules: DesignRules, pad: Pad, fp: Board["footprints"][number]): number {
   const hc = rules.holeClearance ?? 0;
-  return pad.type === "np_thru_hole" ? Math.max(hc, pad.clearance ?? fp.clearance ?? 0) : hc;
+  return pad.type === "np_thru_hole" ? Math.max(hc, pad.clearance ?? fp.clearance ?? 0, slotted(pad) ? (rules.copperEdgeClearance ?? 0) : 0) : hc;
 }
 
 /** Every drilled pad hole on the board, of any net. */
@@ -1411,14 +1411,13 @@ function viaHoles(rules: DesignRules, items: CopperItem[]): Array<{ at: Point; r
 /** A via's hole keeps the hole-to-hole distance from every other hole, and its copper the hole clearance from bare holes. */
 function holesClear(board: Pick<Board, "footprints" | "vias">, rules: DesignRules, v: Point, via: { size: number; drill: number }, extra: Point[] = [], more: Array<{ at: Point; r: number }> = []): boolean {
   const h2h = rules.minHoleToHole ?? 0.25;
-  const hc = rules.holeClearance ?? 0;
   for (const fp of board.footprints)
     for (const pad of fp.pads) {
       const r = pad.drillSize ? Math.max(pad.drillSize.x, pad.drillSize.y) / 2 : (pad.drill ?? 0) / 2;
       if (!r) continue;
       const d = Math.hypot(pad.at.x - v.x, pad.at.y - v.y);
       if (d - r - via.drill / 2 < h2h) return false;
-      if (pad.type === "np_thru_hole" && d - r - via.size / 2 < hc) return false;
+      if (pad.type === "np_thru_hole" && d - r - via.size / 2 < holeClearanceOf(rules, pad, fp)) return false;
     }
   for (const o of [...board.vias.map((x) => ({ at: x.at, r: x.drill / 2 })), ...extra.map((at) => ({ at, r: via.drill / 2 })), ...more])
     if (Math.hypot(o.at.x - v.x, o.at.y - v.y) - o.r - via.drill / 2 < h2h) return false;

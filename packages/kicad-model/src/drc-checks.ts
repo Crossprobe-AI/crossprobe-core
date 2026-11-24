@@ -15,7 +15,7 @@ import { checkDiffPairRules } from "./drc-diffpair.js";
 import { checkConnectionWidth } from "./drc-connection-width.js";
 import { chainOutlines } from "./outline-chain.js";
 import { checkBoardOutline } from "./drc-outline.js";
-import { netClassOf } from "./drc.js";
+import { holeShape, netClassOf, slotted } from "./drc.js";
 
 export type BoardCheck = "drill_out_of_range" | "annular_width" | "track_dangling" | "via_dangling" | "courtyards_overlap" | "holes_co_located" | "hole_to_hole" | "starved_thermal" | "text_height" | "text_thickness" | "track_width" | "via_diameter" | "mirrored_text_on_front_layer" | "nonmirrored_text_on_back_layer" | "silk_edge_clearance" | "silk_over_copper" | "solder_mask_bridge" | "silk_overlap" | "items_not_allowed" | "pth_inside_courtyard" | "npth_inside_courtyard" | "zones_intersect" | "footprint_type_mismatch" | "length_out_of_range" | "skew_out_of_range" | "diff_pair_gap_out_of_range" | "diff_pair_uncoupled_length_too_long" | "connection_width" | "missing_courtyard" | "malformed_courtyard" | "invalid_outline";
 
@@ -794,23 +794,27 @@ export function silkItems(board: Board): Array<{ item: DrcItem; layer: string; s
 /** Silkscreen on or too near the board edge (fabs clip it there); one finding per item. */
 function checkSilkEdge(board: Board, rules: DesignRules, silk: ReturnType<typeof silkItems>, out: BoardViolation[]) {
   const clear = rules.minSilkClearance ?? 0;
-  const edges: Shape[] = edgeChains(board).flatMap((c) => c.slice(1).map((b, i): Shape => ({ kind: "seg", a: c[i]!, b, r: 0 })));
-  if (!edges.length) return;
   const edgeItem: DrcItem = { kind: "edge", net: "", description: "Board edge (Edge.Cuts)" };
+  const edges: Array<{ shape: Shape; item: DrcItem }> = edgeChains(board).flatMap((c) => c.slice(1).map((b, i) => ({ shape: { kind: "seg", a: c[i]!, b, r: 0 } as Shape, item: edgeItem })));
+  // An unplated slot is an edge too, as in KiCad (it is milled, as the outline is).
+  for (const fp of board.footprints)
+    for (const p of fp.pads)
+      if (p.type === "np_thru_hole" && slotted(p)) edges.push({ shape: holeShape(p)!, item: { kind: "pad", net: "", reference: fp.reference, pad: p.number, uuid: p.uuid, description: `NPTH pad${p.number ? ` ${p.number}` : ""} of ${fp.reference || "?"}` } });
+  if (!edges.length) return;
   for (const s of silk) {
-    let hit: { dist: number; at: Point } | undefined;
+    let hit: { dist: number; at: Point; edge: DrcItem } | undefined;
     for (const sh of s.shapes) {
       for (const e of edges) {
-        const d = shapeDistance(sh, e, clear + 1);
+        const d = shapeDistance(sh, e.shape, clear + 1);
         // KiCad: closer than the clearance (less its DRC epsilon); with none, actually overlapping.
         if (d.dist < Math.max(0, clear - 0.0005) - 1e-5) {
-          hit = d;
+          hit = { ...d, edge: e.item };
           break;
         }
       }
       if (hit) break;
     }
-    if (hit) out.push({ type: "silk_edge_clearance", severity: "warning", message: clear > 0 ? `Silkscreen too close to the board edge (min ${fmt(clear)} mm)` : "Silkscreen clipped by the board edge", at: hit.at, items: [edgeItem, s.item] });
+    if (hit) out.push({ type: "silk_edge_clearance", severity: "warning", message: clear > 0 ? `Silkscreen too close to the board edge (min ${fmt(clear)} mm)` : "Silkscreen clipped by the board edge", at: { x: hit.at.x, y: hit.at.y }, items: [hit.edge, s.item] });
   }
 }
 

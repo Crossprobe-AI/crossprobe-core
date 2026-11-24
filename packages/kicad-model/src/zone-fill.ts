@@ -401,6 +401,8 @@ function fillZoneLayer(zone: Zone, layer: string, ctx: FillContext): Paths {
   for (const fp of board.footprints) {
     for (const pad of fp.pads) {
       if (!near([pad.at], Math.max(pad.size.x, pad.size.y) + Math.hypot(pad.offset?.x ?? 0, pad.offset?.y ?? 0))) continue;
+      // An unplated slot keeps the board's edge clearance as well, as KiCad's filler has it: it is milled, as the outline is.
+      if (pad.type === "np_thru_hole" && pad.drillSize && Math.abs(pad.drillSize.x - pad.drillSize.y) > 1e-9 && (rules.copperEdgeClearance ?? 0) > 0) holes.push(...holePaths(pad, (rules.copperEdgeClearance ?? 0) + ARC_ERROR));
       // Holes knock out on every layer.
       if (pad.drill && pad.type === "np_thru_hole") {
         // A copper-less hole keeps the hole clearance; one with a copper ring is a pad like any other.
