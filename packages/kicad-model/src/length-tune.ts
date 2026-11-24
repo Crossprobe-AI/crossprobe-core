@@ -62,6 +62,13 @@ export interface MeanderOptions {
   /** Board edge segments, kept `edgeClearance` (plus half the width) away from. */
   edges?: Array<[Point, Point]>;
   edgeClearance?: number;
+  /**
+   * Drilled holes (vias, through-hole pads), kept `holeClearance` away from where they are of another
+   * net. With a thin via ring (a fine net class's 0.3/0.15 mm vias), keeping the copper clearance from
+   * the via isn't enough.
+   */
+  holes?: Array<{ at: Point; r: number; net: string }>;
+  holeClearance?: number;
 }
 
 /**
@@ -99,7 +106,8 @@ export function meanderTrack(t: Track, extra: number, rules: DesignRules, items:
       }
       pts.push(t.end);
       const nearEdge = (a: Point, b: Point) => (opts.edges ?? []).some(([c, d]) => segDist(a, b, c, d) < (opts.edgeClearance ?? 0) + t.width / 2);
-      const clear = pts.every((q, k) => k === 0 || (trackConflicts(solid, rules, { a: pts[k - 1]!, b: q, width: t.width, layer: t.layer, net: t.net }).length === 0 && !nearEdge(pts[k - 1]!, q)));
+      const nearHole = (a: Point, b: Point) => (opts.holes ?? []).some((h) => h.net !== t.net && segDist(a, b, h.at, h.at) < h.r + (opts.holeClearance ?? 0) + t.width / 2 - 1e-9);
+      const clear = pts.every((q, k) => k === 0 || (trackConflicts(solid, rules, { a: pts[k - 1]!, b: q, width: t.width, layer: t.layer, net: t.net }).length === 0 && !nearEdge(pts[k - 1]!, q) && !nearHole(pts[k - 1]!, q)));
       if (clear) return { points: pts, added: 2 * a * n };
     }
   }
@@ -123,6 +131,10 @@ export function tuneNetLength(
   let length = netLength(board, net);
   const replace: Array<{ uuid: string; points: Point[]; width: number; layer: string }> = [];
   const edges = edgeChains(board).flatMap((c) => c.slice(1).map((b, i): [Point, Point] => [c[i]!, b]));
+  const holes = [
+    ...board.vias.map((v) => ({ at: v.at, r: v.drill / 2, net: v.net })),
+    ...board.footprints.flatMap((f) => f.pads.map((p) => ({ at: p.at, r: (p.drillSize ? Math.max(p.drillSize.x, p.drillSize.y) : (p.drill ?? 0)) / 2, net: p.net })).filter((h) => h.r > 0)),
+  ];
   const candidates = board.tracks
     .filter((t) => t.net === net && t.kind !== "arc")
     .sort((a, b) => (a.uuid === prefer ? -1 : b.uuid === prefer ? 1 : trackLength(b) - trackLength(a)));
@@ -131,7 +143,7 @@ export function tuneNetLength(
     if (extra <= 1e-4) break;
     // Earlier meanders are obstacles too (same net, so only for neatness they're kept apart).
     // Bumps start only once the track has left any pad of its net.
-    const m = meanderTrack(t, extra, rules, items, { edges, edgeClearance: rules.copperEdgeClearance ?? 0, ...opts, keepStart: inPadRun(board, t, t.start, t.end), keepEnd: inPadRun(board, t, t.end, t.start) });
+    const m = meanderTrack(t, extra, rules, items, { edges, edgeClearance: rules.copperEdgeClearance ?? 0, holes, holeClearance: rules.holeClearance ?? 0, ...opts, keepStart: inPadRun(board, t, t.start, t.end), keepEnd: inPadRun(board, t, t.end, t.start) });
     if (!m) continue;
     replace.push({ uuid: t.uuid, points: m.points, width: t.width, layer: t.layer });
     length += m.added;
