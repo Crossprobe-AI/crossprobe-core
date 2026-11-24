@@ -19,7 +19,7 @@
  * is the reviewable source of a generated design: change it and build again.
  */
 import type { List } from "@crossprobe/kicad-sexpr";
-import { findChildren, arg } from "@crossprobe/kicad-sexpr";
+import { arg, findChild, findChildren, isList, list } from "@crossprobe/kicad-sexpr";
 import type { BlockPart, BlockSpec } from "./design-block.js";
 import { libPins, type LibPinGeom } from "./design-block.js";
 import { symbolUnits } from "./symbol-edit.js";
@@ -464,8 +464,35 @@ interface Cell {
 }
 
 /** The room a symbol needs with its stubs, labels and power symbols, from its anchor. */
-function cellOf(ref: string, group: string, value: string, pins: LibPinGeom[], nets: Record<string, string>, power: Record<string, string>): Cell {
+/**
+ * Where a symbol's reference and value are drawn, as its library places them (the part's own texts),
+ * as boxes round the anchor on the sheet (Y down). A field beside the body (a protection diode's value
+ * to its right) needs room there as much as a label does.
+ */
+function fieldBoxes(def: List, texts: Record<string, string>): Box[] {
+  const out: Box[] = [];
+  for (const p of findChildren(def, "property")) {
+    const text = texts[String(arg(p, 0))];
+    const at = findChild(p, "at"), effects = findChild(p, "effects");
+    const hidden = [p, effects].some((n) => n && arg(findChild(n, "hide"), 0) === "yes") || !!effects?.children.some((c) => !isList(c) && String((c as { raw?: string }).raw) === "hide");
+    if (!text || !at || hidden) continue;
+    const x = Number(arg(at, 0)), y = -Number(arg(at, 1)), upright = Number(arg(at, 2) ?? 0) % 180 === 90;
+    const justify = findChildren(effects ?? list("effects"), "justify").flatMap((j) => [0, 1].map((k) => String(arg(j, k) ?? "")));
+    const w = text.length * CHAR, h = 1.27;
+    const [lo, hi] = justify.includes("left") ? [0, w] : justify.includes("right") ? [-w, 0] : [-w / 2, w / 2];
+    out.push(upright ? { x0: x - h / 2, x1: x + h / 2, y0: y - hi, y1: y - lo } : { x0: x + lo, x1: x + hi, y0: y - h / 2, y1: y + h / 2 });
+  }
+  return out;
+}
+
+function cellOf(ref: string, group: string, value: string, pins: LibPinGeom[], nets: Record<string, string>, power: Record<string, string>, fields: Box[] = []): Cell {
   let l = 3.81, r = 3.81, t = 3.81, b = 3.81;
+  for (const f of fields) {
+    l = Math.max(l, -f.x0);
+    r = Math.max(r, f.x1);
+    t = Math.max(t, -f.y0);
+    b = Math.max(b, f.y1);
+  }
   let sideways = false;
   for (const p of pins) {
     // Sheet coordinates: Y down.
@@ -558,7 +585,8 @@ export function layoutDesignSheet(spec: DesignSpec, libs: Pick<DesignLibraries, 
   for (const part of spec.parts) {
     const def = resolve(part.symbol);
     if (!def) throw new Error(`No symbol ${part.symbol}`);
-    for (const u of partUnits(part, def)) cells.push(cellOf(u.key, group(part.group ?? ""), part.value, libPins(def, u.unit), u.pins, power));
+    const fields = fieldBoxes(def, { Reference: part.ref, Value: part.value });
+    for (const u of partUnits(part, def)) cells.push(cellOf(u.key, group(part.group ?? ""), part.value, libPins(def, u.unit), u.pins, power, fields));
   }
   const flag = resolve(`${POWER_LIB}:PWR_FLAG`);
   for (const f of designPowerFlags(spec)) {

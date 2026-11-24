@@ -2195,23 +2195,25 @@
 		(dnp no)
 		(uuid "38e430d8-dd71-4299-8c2a-dd60e9bf8f21")
 		(property "Reference" "D1"
-			(at 137.16 99.06 0)
+			(at 142.621 99.8855 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Value" "LED"
-			(at 142.24 99.06 0)
+			(at 142.621 101.5365 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
@@ -2446,13 +2448,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 144.78 82.55 0)
+			(at 140.97 78.74 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""

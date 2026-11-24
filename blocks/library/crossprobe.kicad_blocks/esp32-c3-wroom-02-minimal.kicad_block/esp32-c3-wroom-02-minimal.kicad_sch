@@ -3394,24 +3394,25 @@
 		(dnp no)
 		(uuid "e86f75f1-b658-4596-b770-7b846947bbe3")
 		(property "Reference" "SW1"
-			(at 60.96 96.52 0)
+			(at 57.277 94.4245 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Value" "RESET"
-			(at 56.896 95.25 0)
+			(at 57.277 96.0755 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" "Button_Switch_SMD:SW_Push_1P1T_NO_CK_KMR2"
@@ -4638,13 +4639,14 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 175.26 47.244 0)
+			(at 171.704 50.8 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify left)
 			)
 		)
 		(property "Footprint" ""
@@ -4713,13 +4715,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 175.26 62.23 0)
+			(at 171.45 58.42 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""
@@ -4948,13 +4951,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 175.26 125.73 0)
+			(at 171.45 121.92 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""

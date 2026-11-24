@@ -12,9 +12,10 @@
  * connectivity code the app uses. So a block's circuit is what the spec says,
  * and each claim in the spec can be traced back to a document.
  */
-import { arg, findChild, findChildren, format, headOf, insertAt, isList, list, parse, serialize, setArg, str, sym, type List } from "@crossprobe/kicad-sexpr";
+import { appendChild, arg, findChild, findChildren, format, headOf, insertAt, isList, list, parse, removeChild, serialize, setArg, str, sym, type List } from "@crossprobe/kicad-sexpr";
 import { buildNetlist } from "./connectivity.js";
 import { pointKey, transformLibPoint, type Point } from "./geometry.js";
+import { strokeAdvance } from "./stroke-font.js";
 import { resolveLibrarySymbol } from "./library.js";
 import { loadSchematic } from "./project.js";
 import { addJunction, addLabel, addNoConnect, addWire, duplicateItems, findItem, newSheetFile, newUuid, placeSymbol, setSymbolField, sheetRoot, TABLE_BY_CELL } from "./schematic-edit.js";
@@ -188,6 +189,169 @@ const labelAngle = (d: Point) => (d.x > 0 ? 0 : d.x < 0 ? 180 : d.y < 0 ? 90 : 2
 
 const STUB = 2.54;
 
+// Field layout, as KiCad's autoplace does it (its spacing, in mm).
+interface Box {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+const HPAD = 0.635;
+const VPAD = 0.381;
+const FIELD_GAP = 0.381;
+/** Within this of each other, texts and what they label read as touching. */
+const CLEAR = 0.2;
+const meets = (a: Box, b: Box) => a.x0 < b.x1 + CLEAR && b.x0 < a.x1 + CLEAR && a.y0 < b.y1 + CLEAR && b.y0 < a.y1 + CLEAR;
+const boxOfPoints = (pts: Point[]): Box | undefined =>
+  pts.length ? { x0: Math.min(...pts.map((p) => p.x)), y0: Math.min(...pts.map((p) => p.y)), x1: Math.max(...pts.map((p) => p.x)), y1: Math.max(...pts.map((p) => p.y)) } : undefined;
+
+/** The drawing of one unit of a library symbol (and its pins, with `pins`), as points in library coordinates (Y up). */
+function unitPoints(def: List, unit: number, pins: boolean): Point[] {
+  const pts: Point[] = [];
+  const xy = (n: List | undefined) => n && pts.push({ x: Number(arg(n, 0)), y: Number(arg(n, 1)) });
+  for (const u of findChildren(def, "symbol")) {
+    const m = /_(\d+)_(\d+)$/.exec(String(arg(u, 0)));
+    const n = m ? Number(m[1]) : 0;
+    if ((m && m[2] !== "0" && m[2] !== "1") || (n !== 0 && n !== unit)) continue;
+    for (const g of u.children) {
+      if (!isList(g)) continue;
+      const h = headOf(g);
+      if (h === "rectangle" || h === "arc") for (const k of ["start", "mid", "end"]) xy(findChild(g, k));
+      else if (h === "polyline" || h === "bezier") for (const q of findChildren(findChild(g, "pts") ?? list("pts"), "xy")) xy(q);
+      else if (h === "circle") {
+        const c = findChild(g, "center"), r = Number(arg(findChild(g, "radius"), 0) ?? 0);
+        if (c) pts.push({ x: Number(arg(c, 0)) - r, y: Number(arg(c, 1)) - r }, { x: Number(arg(c, 0)) + r, y: Number(arg(c, 1)) + r });
+      } else if (pins && h === "pin") {
+        const at = findChild(g, "at"), len = Number(arg(findChild(g, "length"), 0) ?? 0);
+        const tip = { x: Number(arg(at, 0)), y: Number(arg(at, 1)) }, a = (Number(arg(at, 2) ?? 0) * Math.PI) / 180;
+        pts.push(tip, { x: tip.x + Math.cos(a) * len, y: tip.y + Math.sin(a) * len });
+      }
+    }
+  }
+  return pts;
+}
+
+/** A field's text, size and whether it shows. */
+function fieldText(field: List): { text: string; size: number; shown: boolean } {
+  const effects = findChild(field, "effects");
+  const size = Number(arg(findChild(findChild(effects ?? list("effects"), "font") ?? list("font"), "size"), 1) ?? 1.27);
+  const hidden = (n: List | undefined) => !!n && (n.children.some((c) => !isList(c) && String((c as { raw?: string }).raw) === "hide") || arg(findChild(n, "hide"), 0) === "yes");
+  const text = String(arg(field, 1) ?? "");
+  return { text, size, shown: !!text && !hidden(field) && !hidden(effects) };
+}
+
+/**
+ * The box a text covers on the sheet, read across (or up the page, with `upright`): from `at` to the
+ * right when "left"-justified, to the left when "right"-justified, either side when centred.
+ */
+function textBox(at: Point, text: string, size: number, justify: "left" | "right" | "center", upright = false): Box {
+  const w = strokeAdvance(text) * size, h = size;
+  const [a, b] = justify === "left" ? [0, w] : justify === "right" ? [-w, 0] : [-w / 2, w / 2];
+  return upright ? { x0: at.x - h / 2, x1: at.x + h / 2, y0: at.y - b, y1: at.y - a } : { x0: at.x + a, x1: at.x + b, y0: at.y - h / 2, y1: at.y + h / 2 };
+}
+
+/**
+ * Write a field to read across the page at `at`, justified as asked, on a symbol turned by `rotation`.
+ * KiCad turns a field with its symbol: on a quarter turn it draws one at 90° across the page, and on a
+ * turn of 90° or 180° its left and right justification read the other way.
+ */
+function setFieldAcross(field: List, at: Point, justify: "left" | "right" | "center", rotation: number): void {
+  const fa = findChild(field, "at");
+  if (!fa) return;
+  setArg(fa, 0, round(at.x));
+  setArg(fa, 1, round(at.y));
+  setArg(fa, 2, rotation === 90 || rotation === 270 ? 90 : 0);
+  const stored = justify !== "center" && (rotation === 90 || rotation === 180) ? (justify === "left" ? "right" : "left") : justify;
+  const effects = findChild(field, "effects");
+  if (!effects) return;
+  for (const j of findChildren(effects, "justify")) removeChild(effects, j);
+  if (stored !== "center") appendChild(effects, list("justify", stored));
+}
+
+interface PowerSymbol {
+  node: List;
+  def: List;
+  at: Point;
+  /** The way it points, away from what it connects to. */
+  dir: Point;
+  rotation: number;
+}
+interface Turned {
+  node: List;
+  def: List;
+  unit: number;
+  at: Point;
+  rotation: number;
+  /** Its pins, by the side of the body they leave from ("x,y" of that direction). */
+  sides: Map<string, number>;
+  /** Its body and pins, which its own fields don't have to keep off. */
+  own?: Box;
+}
+type Justify = "left" | "right" | "center";
+
+/**
+ * Lay out the fields the generator turned, as KiCad's autoplace does, keeping off `taken` (bodies with
+ * their pins, wires, labels, the fields left where the library puts them) and adding what it places:
+ * - a part turned a quarter: its reference and value read across, stacked beside its body on the side
+ *   with fewest pins (in KiCad's order of preference), where they meet nothing if a side allows;
+ * - a power symbol: its value past its far end, or else across from it (above or below one pointing
+ *   sideways, right or left of one pointing up or down), where it meets nothing.
+ */
+function layoutFields(powers: PowerSymbol[], turned: Turned[], taken: Box[]): void {
+  const bodyOf = (def: List, unit: number, rotation: number, at: Point) => boxOfPoints(unitPoints(def, unit, false).map((q) => transformLibPoint(q, orient(rotation), at)));
+  const free = (b: Box, own?: Box) => !taken.some((t) => t !== own && meets(t, b));
+
+  for (const t of turned) {
+    const body = bodyOf(t.def, t.unit, t.rotation, t.at);
+    const fields = ["Reference", "Value"].map((n) => findChildren(t.node, "property").find((p) => arg(p, 0) === n)).filter((f): f is List => !!f && fieldText(f).shown);
+    if (!body || !fields.length) continue;
+    const texts = fields.map(fieldText);
+    const lines = texts.map((x) => x.size + FIELD_GAP);
+    const fw = Math.max(...texts.map((x) => strokeAdvance(x.text) * x.size)), fh = lines.reduce((a, b) => a + b, 0);
+    const cx = (body.x0 + body.x1) / 2, cy = (body.y0 + body.y1) / 2;
+    // KiCad's preference: right, above, left, below; above and below first for a long, low body.
+    const order: Point[] = body.x1 - body.x0 > 3 * (body.y1 - body.y0) ? [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }] : [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 1 }];
+    const pins = (d: Point) => t.sides.get(`${d.x},${d.y}`) ?? 0;
+    const sides = [...order].sort((a, b) => pins(a) - pins(b));
+    const place = (d: Point): Box => {
+      const x0 = d.x > 0 ? body.x1 + HPAD : d.x < 0 ? body.x0 - HPAD - fw : cx - fw / 2;
+      const y0 = d.y > 0 ? body.y1 + VPAD : d.y < 0 ? body.y0 - VPAD - fh : cy - fh / 2;
+      return { x0, y0, x1: x0 + fw, y1: y0 + fh };
+    };
+    const d = sides.find((d) => free(place(d), t.own)) ?? sides[0]!;
+    const box = place(d);
+    const justify: Justify = d.x > 0 ? "left" : d.x < 0 ? "right" : "center";
+    let y = box.y0;
+    fields.forEach((f, i) => {
+      setFieldAcross(f, { x: justify === "left" ? box.x0 : justify === "right" ? box.x1 : cx, y: y + lines[i]! / 2 }, justify, t.rotation);
+      y += lines[i]!;
+    });
+    taken.push(box);
+  }
+
+  const bodies = powers.map((p) => bodyOf(p.def, 1, p.rotation, p.at) ?? { x0: p.at.x, y0: p.at.y, x1: p.at.x, y1: p.at.y });
+  taken.push(...bodies);
+  powers.forEach((p, i) => {
+    const value = findChildren(p.node, "property").find((f) => arg(f, 0) === "Value");
+    const t = value && fieldText(value);
+    const la = findChild(findChildren(p.def, "property").find((f) => arg(f, 0) === "Value") ?? list("property"), "at");
+    if (!value || !t?.shown || !la) return;
+    const body = bodies[i]!;
+    const cx = (body.x0 + body.x1) / 2, cy = (body.y0 + body.y1) / 2;
+    const tried: Array<{ at: Point; justify: Justify }> = [
+      { at: transformLibPoint({ x: Number(arg(la, 0)), y: Number(arg(la, 1)) }, orient(p.rotation), p.at), justify: p.dir.x > 0 ? "left" : p.dir.x < 0 ? "right" : "center" },
+      ...(p.dir.x
+        ? [{ at: { x: cx, y: body.y0 - VPAD - t.size / 2 }, justify: "center" as const }, { at: { x: cx, y: body.y1 + VPAD + t.size / 2 }, justify: "center" as const }]
+        : [{ at: { x: body.x1 + HPAD, y: cy }, justify: "left" as const }, { at: { x: body.x0 - HPAD, y: cy }, justify: "right" as const }]),
+    ];
+    const boxOf = (c: (typeof tried)[number]) => textBox(c.at, t.text, t.size, c.justify);
+    const pick = tried.find((c) => free(boxOf(c), body)) ?? tried[0]!;
+    // Upright and in nobody's way, it stays as the library draws it.
+    if (pick !== tried[0] || p.rotation) setFieldAcross(value, pick.at, pick.justify, p.rotation);
+    taken.push(boxOf(pick));
+  });
+}
+
 /** Generate the block's schematic file text. `symbols` returns a .kicad_sym library's text by nickname. */
 export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryText | SymbolResolver): string {
   const rootUuid = newUuid();
@@ -225,7 +389,12 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
     const id = placeSymbol(root, d, { at, reference: `#PWR${String(++powerCount).padStart(4, "0")}`, sheetPaths, projectName: spec.id });
     const node = findItem(root, id)!;
     if (rotation) setArg(findChild(node, "at")!, 2, rotation);
+    powers.push({ node, def: d, at, dir, rotation });
   };
+  // What field layout keeps texts off, at the end (layoutFields): bodies, pins, wires and labels.
+  const powers: PowerSymbol[] = [];
+  const turned: Turned[] = [];
+  const taken: Box[] = [];
 
   // Wires are drawn through this, to find the points where three or more things meet (junction dots).
   const wireEnds = new Map<string, { at: Point; n: number }>();
@@ -237,6 +406,7 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
   const wire = (a: Point, b: Point) => {
     if (pointKey(a) === pointKey(b)) return; // touching pins need no wire
     addWire(root, [a, b]);
+    taken.push(boxOfPoints([a, b])!);
     countEnd(a);
     countEnd(b);
   };
@@ -268,8 +438,32 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
       }
     }
     if (part.dnp) setArg(findChild(node, "dnp")!, 0, sym("yes")); // a bare keyword, not a string
+    const body = boxOfPoints(unitPoints(d, part.unit ?? 1, true).map((q) => transformLibPoint(q, orient(rotation), at)));
+    if (body) taken.push(body);
+    const quarter = rotation === 90 || rotation === 270;
+    if (!quarter)
+      // Its fields stay where the library puts them: what other texts keep off.
+      for (const f of findChildren(node, "property")) {
+        const t = fieldText(f);
+        const fa = findChild(f, "at");
+        if (!t.shown || !fa) continue;
+        const j = findChildren(findChild(f, "effects") ?? list("effects"), "justify").flatMap((n) => [0, 1, 2].map((k) => String(arg(n, k) ?? "")));
+        const side = j.includes("left") ? "left" : j.includes("right") ? "right" : "center";
+        const shown = rotation === 180 && side !== "center" ? (side === "left" ? "right" : "left") : side;
+        taken.push(textBox({ x: Number(arg(fa, 0)), y: Number(arg(fa, 1)) }, t.text, t.size, shown, Number(arg(fa, 2) ?? 0) % 180 === 90));
+      }
 
     const pins = libPins(d, part.unit ?? 1);
+    if (quarter) {
+      // Its pins on each side, where its fields go on the side with fewest (layoutFields).
+      const sides = new Map<string, number>();
+      for (const pin of pins) {
+        const o = sheetDir({ x: -Math.cos((pin.angle * Math.PI) / 180), y: -Math.sin((pin.angle * Math.PI) / 180) }, rotation);
+        const k = `${o.x},${o.y}`;
+        sides.set(k, (sides.get(k) ?? 0) + 1);
+      }
+      turned.push({ node, def: d, unit: part.unit ?? 1, at, rotation, sides, own: body });
+    }
     const nets = new Map<string, string>(); // tip position → net, so stacked pins (several GND) connect once
     const wanted: Array<{ pin: LibPinGeom; net: string }> = [];
     for (const [key, net] of Object.entries(part.pins)) {
@@ -312,7 +506,12 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
       }
       wire(tip, end);
       if (spec.power[net]) power(net, end, out);
-      else addLabel(root, "label", net, end, labelAngle(out));
+      else {
+        addLabel(root, "label", net, end, labelAngle(out));
+        // A label reads along its wire, above it (left of it, upright).
+        const w = strokeAdvance(net) * 1.27 + 0.4, h = 1.27 + 0.3;
+        taken.push(out.x ? { x0: out.x > 0 ? end.x : end.x - w, x1: out.x > 0 ? end.x + w : end.x, y0: end.y - h, y1: end.y } : { x0: end.x - h, x1: end.x, y0: out.y < 0 ? end.y - w : end.y, y1: out.y < 0 ? end.y : end.y + w });
+      }
     }
   }
 
@@ -325,6 +524,8 @@ export function generateBlockSchematic(spec: BlockSpec, symbols: SymbolLibraryTe
     const sorted = [...tips].sort((a, b) => (sameY ? a.x - b.x : a.y - b.y));
     for (let k = 1; k < sorted.length; k++) wire(sorted[k - 1]!, sorted[k]!);
   });
+  layoutFields(powers, turned, taken);
+
   // KiCad draws a dot where three or more connections meet (a pin counts as one).
   for (const [k, { at, n }] of wireEnds) if (n + (tipsAt.has(k) ? 1 : 0) >= 3) addJunction(root, at);
 

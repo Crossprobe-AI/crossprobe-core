@@ -1417,13 +1417,14 @@
 			)
 		)
 		(property "Value" "VBUS"
-			(at 81.28 70.104 0)
+			(at 84.836 73.66 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify left)
 			)
 		)
 		(property "Footprint" ""
