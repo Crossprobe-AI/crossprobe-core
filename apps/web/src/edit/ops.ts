@@ -319,7 +319,7 @@ export type EditOp =
   | { op: "setZoneOutline"; file: string; uuid: string; points: Point[]; label?: string }
   /** Route connections with the grid router, one after another (each sees the ones before); unroutable ones are skipped. */
   /** `deadline` (a `Date.now()` time): connections not started by then are left unrouted. */
-  | { op: "autoroute"; file: string; connections: Array<{ from: Point; to: Point; net: string }>; deadline?: number }
+  | { op: "autoroute"; file: string; connections: Array<{ from: Point; to: Point; net: string }>; deadline?: number; /** Only the differential pairs among them (autorouteAll). */ pairsOnly?: boolean }
   /** A footprint's pad on the board: size, shape, drill, net (KiCad's pad properties). */
   | { op: "setPadProps"; file: string; footprint: string; pad: string; size?: { x: number; y: number }; shape?: string; drill?: number; net?: string }
   /** Lock or unlock footprints, tracks and vias (KiCad's (locked yes)). */
@@ -1039,7 +1039,7 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
       const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
       const board = parseBoard(serialize(doc));
       const span: [string, string] = [board.copperLayers[0]!, board.copperLayers[board.copperLayers.length - 1]!];
-      autorouteAll(board, rules, op.connections, op.deadline).forEach((r, i) => {
+      autorouteAll(board, rules, op.connections, op.deadline, { pairsOnly: op.pairsOnly }).forEach((r, i) => {
         const net = op.connections[i]!.net;
         if (!r) return;
         const cls = netClassOf(rules, net);

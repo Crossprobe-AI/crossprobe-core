@@ -12,11 +12,12 @@
  * Results are checked again with the clearance checker before they are used.
  */
 import type { Board, Pad } from "./board.js";
-import { copperItems, netClassOf, shapeBox, shapeDistance, slotted, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
+import { copperItems, diffPairBase, netClassOf, shapeBox, shapeDistance, slotted, trackConflicts, type CopperItem, type DesignRules, type Shape } from "./drc.js";
 import type { Point } from "./geometry.js";
 import { boardArea } from "./zone-fill.js";
 import { netIslands, type CopperAnchor } from "./copper.js";
 import { textPen, textStrokes } from "./fab.js";
+import { coupledRoute, diffPairSizes, diffPartnerOnBoard, pairEscape, pairObstacles, partnerPads } from "./diff-pair.js";
 
 export interface RouteRequest {
   from: Point;
@@ -904,6 +905,171 @@ export function routeWithVias(board: Board, rules: DesignRules, req: MultiLayerR
 }
 
 /**
+ * A differential pair's two connections routed as one, as a designer routes a pair: out from between
+ * its two pads at each end (pairEscape), along a centreline at the pair's whole width (two tracks and
+ * the gap) round everything but the pair's own copper, and back as two tracks at the net class's pair
+ * width and gap, with a pair of vias side by side at each layer change (coupledRoute). Each end's two
+ * pads must sit side by side on one part, and P and N must arrive in the same order at both ends
+ * (the tracks don't cross). The two tracks and their vias are checked exactly, as any route is.
+ * Undefined when the pair can't be routed so: its nets are then routed apart.
+ */
+export function autoroutePair(board: Board, rules: DesignRules, p: { from: Point; to: Point; net: string }, n: { from: Point; to: Point; net: string }, items: CopperItem[] = copperItems(board)): { p: MultiLayerRoute; n: MultiLayerRoute } | undefined {
+  const padAt = (at: Point, net: string) => {
+    for (const fp of board.footprints) for (const pad of fp.pads) if (pad.net === net && Math.hypot(pad.at.x - at.x, pad.at.y - at.y) < 1e-6) return { pad, fp };
+    return undefined;
+  };
+  const [p0, n0, p1, n1] = [padAt(p.from, p.net), padAt(n.from, n.net), padAt(p.to, p.net), padAt(n.to, n.net)];
+  if (!p0 || !n0 || !p1 || !n1 || p0.fp !== n0.fp || p1.fp !== n1.fp) return undefined;
+  const beside = (a: { pad: Pad }, b: { pad: Pad }) => partnerPads(board, a.pad, b.pad.net).some((o) => o.pad === b.pad);
+  if (!beside(p0, n0) || !beside(p1, n1)) return undefined;
+  const sz = diffPairSizes(rules, p.net);
+  const viaPitch = sz.via.size + sz.viaGap;
+  const clearance = netClassOf(rules, p.net).clearance;
+  const midOf = (a: Pad, b: Pad) => ({ x: (a.at.x + b.at.x) / 2, y: (a.at.y + b.at.y) / 2 });
+  // A pair's fan-out at each end. The tracks run from the pads into the pair's first stretch, which
+  // goes straight out from between them; or, where another pin sits between the pads (an HDMI
+  // connector's shield pin), each leaves its pad straight out past the row's ends by the clearance,
+  // and then turns in at 45°. The first stretch is made long enough for that.
+  const fanOf = (a: Pad, b: Pad, esc: { mid: Point; escape: Point }) => {
+    const l = Math.hypot(esc.escape.x - esc.mid.x, esc.escape.y - esc.mid.y) || 1;
+    const e = { x: (esc.escape.x - esc.mid.x) / l, y: (esc.escape.y - esc.mid.y) / l };
+    const out = Math.max(a.size.x, a.size.y, b.size.x, b.size.y) / 2 + clearance + sz.width / 2;
+    const turn = Math.max(0, Math.hypot(b.at.x - a.at.x, b.at.y - a.at.y) / 2 - (sz.width + sz.gap) / 2);
+    const len = Math.max(l, out + turn + 0.05);
+    return { e, out, turn, mid: esc.mid, escape: { x: esc.mid.x + e.x * len, y: esc.mid.y + e.y * len } };
+  };
+  const start = fanOf(p0.pad, n0.pad, pairEscape(p0.pad, n0.pad, p0.fp, sz.width, sz.gap, midOf(p1.pad, n1.pad), clearance));
+  const end = fanOf(p1.pad, n1.pad, pairEscape(p1.pad, n1.pad, p1.fp, sz.width, sz.gap, start.escape, clearance));
+  // Where the pair may start and end: an SMD pad's layer, a through-hole pad's every layer.
+  const on = (a: Pad, b: Pad) => board.copperLayers.filter((l) => [a, b].every((q) => q.type !== "smd" || q.layers.includes(l)));
+  const fromLayers = on(p0.pad, n0.pad), toLayers = on(p1.pad, n1.pad);
+  if (!fromLayers.length || !toLayers.length) return undefined;
+  const ends = [p0.pad, n0.pad, p1.pad, n1.pad].map((q) => q.uuid ?? "").filter(Boolean);
+  // The centreline at the pair's whole width; at a layer change, room for both vias side by side.
+  const center = routeWithVias(
+    board,
+    rules,
+    { from: start.escape, to: end.escape, net: p.net, width: 2 * sz.width + sz.gap, via: { size: viaPitch + sz.via.size, drill: sz.via.drill }, fromLayers, toLayers, unchecked: true },
+    pairObstacles(items, p.net, n.net, ends),
+  );
+  if (!center?.runs.length) return undefined;
+  const runs = center.runs.map((r) => ({ layer: r.layer, points: [...r.points] }));
+  runs[0]!.points.unshift(start.mid);
+  runs.at(-1)!.points.push(end.mid);
+  // The grid's last steps onto the exact escape points leave jogs shorter than the pair is wide,
+  // where its two tracks, offset to either side, would pinch together: those corners go. The step
+  // out from between the pads stays, at both ends.
+  runs.forEach((run, i) => (run.points = withoutJogs(run.points, sz.width + sz.gap, i === 0 ? 2 : 1, i === runs.length - 1 ? 2 : 1)));
+
+  const solid = items.filter((it) => it.item.kind !== "zone");
+  const made = viaHoles(rules, items);
+  const viaItem = (v: Point, net: string): CopperItem => {
+    const h = sz.via.size / 2;
+    return { shapes: [{ kind: "seg", a: v, b: v, r: h }], layers: new Set(board.copperLayers), item: { kind: "via", net, description: `Via [${net}]` }, box: { x0: v.x - h, y0: v.y - h, x1: v.x + h, y1: v.y + h } };
+  };
+  const attempt = (fanned: boolean): { p: MultiLayerRoute; n: MultiLayerRoute } | undefined => {
+    const pair = coupledRoute(runs, sz.width, sz.gap, viaPitch, { startP: p0.pad.at, startN: n0.pad.at, endP: p1.pad.at, endN: n1.pad.at });
+    if (pair.crossed) return undefined;
+    if (fanned) {
+      if (start.turn < 1e-6 && end.turn < 1e-6) return undefined;
+      const fan = (pts: Point[], f: typeof start) => {
+        if (f.turn < 1e-6 || pts.length < 3) return pts;
+        const at = (q: Point, k: number) => ({ x: q.x + f.e.x * k, y: q.y + f.e.y * k });
+        return [pts[0]!, at(pts[0]!, f.out), at(pts[1]!, f.out + f.turn), ...pts.slice(2)];
+      };
+      for (const t of pair.tracks.slice(0, 2)) t.points = fan(t.points, start);
+      for (const t of pair.tracks.slice(-2)) t.points = fan([...t.points].reverse(), end).reverse();
+    }
+    const side = (k: "p" | "n") => ({ net: k === "p" ? p.net : n.net, tracks: pair.tracks.filter((t) => t.side === k && t.points.length > 1), vias: pair.vias.map((v) => v[k]) });
+    const P = side("p"), N = side("n");
+    // Each track and via against everything else, the partner's new copper included (at the pair's gap).
+    for (const [s, o] of [[P, N], [N, P]] as const) {
+      const against = [...solid, ...o.tracks.map((t) => itemOf(o.net, t.layer, t.points, sz.width)), ...o.vias.map((v) => viaItem(v, o.net))];
+      for (const t of s.tracks)
+        for (let k = 1; k < t.points.length; k++) {
+          const a = t.points[k - 1]!, b = t.points[k]!;
+          if (trackConflicts(against, rules, { a, b, width: sz.width, layer: t.layer, net: s.net }).length) return undefined;
+          if (!trackClearsHoles(board, rules, a, b, sz.width, s.net, made) || inNoTrackArea(board, a, b, sz.width, t.layer)) return undefined;
+        }
+      for (const v of s.vias) {
+        if (board.copperLayers.some((l) => trackConflicts(against, rules, { a: v, b: v, width: sz.via.size, layer: l, net: s.net }).length)) return undefined;
+        const theirs = o.vias.map((at) => ({ at, r: sz.via.drill / 2, net: o.net }));
+        if (!holesClear(board, rules, v, sz.via, [], [...made, ...theirs]) || !holeClearOfCopper(against, rules, v, sz.via.drill, s.net) || inNoViaArea(board, v, sz.via.size / 2)) return undefined;
+      }
+    }
+    const routeOf = (s: typeof P): MultiLayerRoute => ({ runs: s.tracks.map((t) => ({ layer: t.layer, points: t.points, width: sz.width })), vias: s.vias });
+    return { p: routeOf(P), n: routeOf(N) };
+  };
+  return attempt(false) ?? attempt(true);
+}
+
+/** Whether a pad lies between two pads of its part that make a differential pair, on the line through them. */
+function betweenPair(fp: Board["footprints"][number], pad: Pad): boolean {
+  for (const a of fp.pads)
+    for (const b of fp.pads) {
+      if (a === pad || b === pad || a === b || !a.net || !b.net || a.net > b.net || diffPairBase(a.net, b.net) === undefined) continue;
+      const dx = b.at.x - a.at.x, dy = b.at.y - a.at.y, l2 = dx * dx + dy * dy;
+      if (!l2 || l2 > 9) continue;
+      const t = ((pad.at.x - a.at.x) * dx + (pad.at.y - a.at.y) * dy) / l2;
+      const off = Math.abs((pad.at.x - a.at.x) * dy - (pad.at.y - a.at.y) * dx) / Math.sqrt(l2);
+      if (t > 0 && t < 1 && off < 0.05) return true;
+    }
+  return false;
+}
+
+/**
+ * A polyline without corners next to a segment shorter than `min` (nor straight-through ones),
+ * keeping its first `head` and last `tail` points as they are.
+ */
+function withoutJogs(points: Point[], min: number, head: number, tail: number): Point[] {
+  const pts = points.filter((q, i) => i === 0 || Math.hypot(q.x - points[i - 1]!.x, q.y - points[i - 1]!.y) > 1e-9);
+  const len = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let k = head; k < pts.length - tail; ) {
+    const a = pts[k - 1]!, b = pts[k]!, c = pts[k + 1]!;
+    const straight = Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) < 1e-9 * len(a, b) * len(b, c);
+    if (straight || len(a, b) < min || len(b, c) < min) pts.splice(k, 1);
+    else k++;
+  }
+  return pts;
+}
+
+/**
+ * The connections of differential pairs (nets named …_P and …_N, or …+ and …-, as KiCad's DRC finds
+ * them): each P connection with the partner's connection whose ends lie next to its own (within
+ * 3 mm, the pads side by side), turned to run the same way. Indices into `connections`.
+ */
+export function pairConnections(board: Board, connections: Array<{ from: Point; to: Point; net: string }>): Array<{ p: number; n: number; flip: boolean }> {
+  const partnerOf = new Map<string, string | undefined>();
+  const partner = (net: string) => {
+    if (!partnerOf.has(net)) partnerOf.set(net, diffPartnerOnBoard(board, net));
+    return partnerOf.get(net);
+  };
+  const d = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  const used = new Set<number>();
+  const out: Array<{ p: number; n: number; flip: boolean }> = [];
+  connections.forEach((c, i) => {
+    if (used.has(i)) return;
+    const other = partner(c.net);
+    // One pair per two nets: the net whose name sorts first leads.
+    if (!other || other < c.net) return;
+    let best: { j: number; flip: boolean; score: number } | undefined;
+    connections.forEach((o, j) => {
+      if (j === i || used.has(j) || o.net !== other) return;
+      for (const flip of [false, true]) {
+        const [f, t] = flip ? [o.to, o.from] : [o.from, o.to];
+        const score = d(c.from, f) + d(c.to, t);
+        if (d(c.from, f) < 3 && d(c.to, t) < 3 && (!best || score < best.score)) best = { j, flip, score };
+      }
+    });
+    if (!best) return;
+    used.add(i);
+    used.add(best.j);
+    out.push({ p: i, n: best.j, flip: best.flip });
+  });
+  return out;
+}
+
+/**
  * One connection as "Route all" does it: on one layer (the front first), else through vias. A pad
  * too fine-pitched for the grid (a USB-C contact, a QFP pin between its neighbours) first gets a
  * straight fan-out stub along its length, away from its part, checked exactly; the grid route
@@ -1056,12 +1222,12 @@ export function routingLayers(board: Board, net: string): string[] {
  * `deadline` (a `Date.now()` time): no connection is started after it, and the rip-up round is cut
  * short; what is not routed by then stays unrouted. The routes made are kept.
  */
-export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity): Array<MultiLayerRoute | undefined> {
+export function autorouteAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline = Infinity, o: { pairsOnly?: boolean } = {}): Array<MultiLayerRoute | undefined> {
   const before = { stopAt, pooling };
   stopAt = Math.min(stopAt, deadline);
   pooling = true;
   try {
-    return routeAll(board, rules, connections, deadline);
+    return routeAll(board, rules, connections, deadline, o.pairsOnly);
   } finally {
     stopAt = before.stopAt;
     pooling = before.pooling;
@@ -1069,7 +1235,7 @@ export function autorouteAll(board: Board, rules: DesignRules, connections: Arra
   }
 }
 
-function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline: number): Array<MultiLayerRoute | undefined> {
+function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: Point; to: Point; net: string }>, deadline: number, pairsOnly = false): Array<MultiLayerRoute | undefined> {
   const late = () => Date.now() > deadline;
   const base = copperItems(board);
   const routes: Array<MultiLayerRoute | undefined> = [];
@@ -1085,8 +1251,25 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
       }),
     ];
   };
+  // Differential pairs first, each as one (autoroutePair). They stay as they are: lifting one to make
+  // room would bring it back as two separate routes. What doesn't fit as a pair is routed apart below.
+  const fixed = new Set<number>();
+  for (const pr of pairConnections(board, connections)) {
+    if (late()) break;
+    const cn = connections[pr.n]!;
+    const r = autoroutePair(board, rules, connections[pr.p]!, pr.flip ? { from: cn.to, to: cn.from, net: cn.net } : cn, all());
+    if (!r) continue;
+    routes[pr.p] = r.p;
+    routes[pr.n] = r.n;
+    made.set(pr.p, itemsOf(r.p, connections[pr.p]!.net));
+    made.set(pr.n, itemsOf(r.n, cn.net));
+    fixed.add(pr.p);
+    fixed.add(pr.n);
+  }
+  // Pairs only: routed before a pour's pins are fanned out, so the fan-out vias keep clear of them.
+  if (pairsOnly) return routes;
   connections.forEach((c, i) => {
-    if (late()) return;
+    if (late() || routes[i]) return;
     const r = autorouteConnection(board, rules, c, all());
     routes[i] = r;
     if (r) made.set(i, itemsOf(r, c.net));
@@ -1098,7 +1281,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
     // lifting other routes: say so at once, without trying.
     // (Through any pad of its two pieces, as it would be routed: the nearest pair may be shut in.)
     if (!autorouteConnection(board, rules, c, base)) return;
-    const others = [...made.keys()].sort((a, b) => Math.min(near(routes[a]!, c.from), near(routes[a]!, c.to)) - Math.min(near(routes[b]!, c.from), near(routes[b]!, c.to))).slice(0, 4);
+    const others = [...made.keys()].filter((j) => !fixed.has(j)).sort((a, b) => Math.min(near(routes[a]!, c.from), near(routes[a]!, c.to)) - Math.min(near(routes[b]!, c.from), near(routes[b]!, c.to))).slice(0, 4);
     for (const j of others) {
       const lifted = made.get(j)!;
       made.delete(j);
@@ -1119,7 +1302,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
       made.set(j, lifted);
     }
     // Then everything routed close to its ends at once, rerouted after it in the original order.
-    const crowd = [...made.keys()].filter((j) => Math.min(near(routes[j]!, c.from), near(routes[j]!, c.to)) < 3);
+    const crowd = [...made.keys()].filter((j) => !fixed.has(j) && Math.min(near(routes[j]!, c.from), near(routes[j]!, c.to)) < 3);
     if (crowd.length < 2) return;
     const saved = new Map(crowd.map((j) => [j, made.get(j)!]));
     for (const j of crowd) made.delete(j);
@@ -1151,7 +1334,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
   const direct = (i: number) => Math.hypot(connections[i]!.from.x - connections[i]!.to.x, connections[i]!.from.y - connections[i]!.to.y);
   const isLong = (i: number) => !!routes[i] && length(routes[i]!) > REROUTE.ratio * direct(i) && length(routes[i]!) - direct(i) > REROUTE.excess;
   const excess = (i: number) => length(routes[i]!) - direct(i);
-  const queue = connections.map((_, i) => i).filter(isLong).sort((p, q) => excess(q) - excess(p));
+  const queue = connections.map((_, i) => i).filter((i) => !fixed.has(i) && isLong(i)).sort((p, q) => excess(q) - excess(p));
   // A route lifted to make room may come back long itself: it is then tried in its turn. Every change
   // kept makes the total shorter, so this ends; `most` bounds the work all the same.
   for (let tries = 0; queue.length && tries < REROUTE.most; tries++) {
@@ -1166,6 +1349,7 @@ function routeAll(board: Board, rules: DesignRules, connections: Array<{ from: P
       alone.runs.some((run) => run.points.slice(1).some((p, k) => trackConflicts(theirs, rules, { a: run.points[k]!, b: p, width: run.width ?? cls.trackWidth, layer: run.layer, net: c.net }).length > 0)) ||
       alone.vias.some((v) => board.copperLayers.some((l) => trackConflicts(theirs, rules, { a: v, b: v, width: cls.viaDiameter, layer: l, net: c.net }).length > 0));
     const inWay = [...made.keys()].filter((j) => j !== i && crosses(made.get(j)!));
+    if (inWay.some((j) => fixed.has(j))) continue;
     if (!inWay.length || inWay.length > REROUTE.lift) continue;
     const lifted = [i, ...inWay];
     const saved = new Map(lifted.map((j) => [j, made.get(j)!]));
@@ -1309,6 +1493,9 @@ export function fanoutPours(board: Board, rules: DesignRules, net: string): Mult
     for (const pad of fp.pads) {
       if (pad.net !== net || pad.type !== "smd" || used(pad.at)) continue;
       if (!fp.pads.some((q) => q !== pad && Math.hypot(q.at.x - pad.at.x, q.at.y - pad.at.y) < 1)) continue;
+      // A pin between a differential pair's two (an HDMI connector's shield pin): its via would sit
+      // where the pair fans out. Stitching to the pour after routing reaches it if it needs one.
+      if (betweenPair(fp, pad)) continue;
       const others = [...items, ...placed];
       const ok = (v: Point, layer: string) =>
         zones.some((z) => z.layers.some((l) => l !== layer && board.copperLayers.includes(l)) && insidePolygon(z.outline, v)) &&
