@@ -5,7 +5,7 @@
  * matched to symbols the way KiCad does: by symbol path, then reference.
  */
 import { arg, findChild, findChildren, format, headOf, insertAt, isAtom, isList, list, parse, removeChild, serialize, setArg, str, sym, type List } from "@crossprobe/kicad-sexpr";
-import { parseBoard, type Board, type Footprint } from "./board.js";
+import { arcThreePoints, parseBoard, type Board, type Footprint } from "./board.js";
 import { flipFootprint, newBoardUuid, rotateBoardItem, setFootprintAttributes, setFootprintField, setPadNet } from "./board-edit.js";
 import type { Point } from "./geometry.js";
 import type { Netlist } from "./connectivity.js";
@@ -161,6 +161,29 @@ export interface PlaceFootprintOptions {
  * written in the board's footprint form: named by lib id, positioned, with
  * fresh UUIDs, the symbol link and pad nets. Returns the new UUID.
  */
+/**
+ * KiCad 5 arcs in a footprint (its centre, the point it begins at and the angle it sweeps) as later
+ * versions write them: start, mid and end. A board of this version is read that way, and KiCad
+ * refuses one with an arc of the older form in it.
+ */
+function modernArcs(n: List): void {
+  const r6 = (v: number) => Math.round(v * 1e6) / 1e6;
+  for (const c of n.children) {
+    if (!isList(c)) continue;
+    const head = headOf(c);
+    if ((head === "fp_arc" || head === "gr_arc") && findChild(c, "angle") && !findChild(c, "mid")) {
+      const [a, m, b] = arcThreePoints(c);
+      const start = findChild(c, "start")!;
+      const i = c.children.indexOf(start);
+      c.children[i] = list("start", r6(a.x), r6(a.y));
+      insertAt(c, i + 1, list("mid", r6(m.x), r6(m.y)));
+      const end = findChild(c, "end");
+      if (end) c.children[c.children.indexOf(end)] = list("end", r6(b.x), r6(b.y));
+      removeChild(c, findChild(c, "angle")!);
+    } else if (head === "pad" || head === "primitives") modernArcs(c);
+  }
+}
+
 export function placeFootprint(root: List, modText: string, o: PlaceFootprintOptions): string {
   const doc = parse(modText, { recover: true });
   const fp = doc.children.find((c): c is List => isList(c) && (headOf(c) === "footprint" || headOf(c) === "module"));
@@ -169,6 +192,7 @@ export function placeFootprint(root: List, modText: string, o: PlaceFootprintOpt
   for (const c of doc.children.slice(doc.children.indexOf(fp) + 1)) if (isList(c)) fp.children.push(c), fp.trivia.push("\n\t");
   fp.children[0] = sym("footprint");
   setArg(fp, 0, str(o.libId));
+  modernArcs(fp);
   // Library-only header items.
   for (const h of ["version", "generator", "generator_version", "tedit"]) {
     const n = findChild(fp, h);

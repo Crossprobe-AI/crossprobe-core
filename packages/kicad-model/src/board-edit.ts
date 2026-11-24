@@ -531,8 +531,10 @@ export function setFootprintField(node: List, name: string, value: string): void
     list("uuid", str(newBoardUuid())),
     list("effects", list("font", list("size", 1, 1), list("thickness", 0.15))),
   );
-  const last = findChildren(node, "property").pop();
-  insertAt(node, last ? node.children.indexOf(last) + 1 : 1, prop);
+  // After the fields there are: properties, a KiCad 5 footprint's texts, or else the header (never
+  // before the footprint's name, which KiCad then can't read).
+  const after = findChildren(node, "property").pop() ?? findChildren(node, "fp_text").pop() ?? ["tags", "descr", "at", "uuid", "layer"].map((h) => findChild(node, h)).find(Boolean);
+  insertAt(node, after ? node.children.indexOf(after) + 1 : 2, prop);
 }
 
 /** Set (or clear, with "") the net of a footprint pad. */
