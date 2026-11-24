@@ -91,11 +91,29 @@ export interface DesignBoard {
    */
   netClasses?: DesignNetClass[];
   /**
+   * Nets kept to about the same length (an HDMI link's lanes, each pair's P and N). Each entry becomes
+   * a KiCad skew rule in the project's .kicad_dru, which KiCad's DRC checks; the builder adds
+   * meanders to the shorter nets after routing. `nets` may use * and ?. `maxSkew`: how much shorter
+   * than the longest a net may be, mm (KiCad's measure: tracks and each via's depth). `pairs`: compare
+   * only each differential pair's two nets with each other (KiCad's within_diff_pairs), not all the
+   * nets. A net may be in one group only: KiCad holds a net to the last skew rule it matches.
+   */
+  lengthMatch?: DesignLengthMatch[];
+  /**
    * Areas to keep clear, in mm from the board's top-left corner: under a module, around an antenna.
    * `keepOut` lists what stays out: "parts", "tracks", "vias", "pour". `side` limits tracks and pour to
    * the front or back copper (default both); parts and vias are kept out whatever the side.
    */
   keepouts?: DesignKeepout[];
+}
+
+/** Nets matched in length (board.lengthMatch), in mm. */
+export interface DesignLengthMatch {
+  /** The rule's name in KiCad (default "Length match 1", "Length match 2", … in order). */
+  name?: string;
+  nets: string[];
+  maxSkew: number;
+  pairs?: boolean;
 }
 
 /** A net class in a design spec (board.netClasses), in mm. */
@@ -375,6 +393,14 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (c.viaDrill !== undefined && c.viaDiameter !== undefined && !(c.viaDrill < c.viaDiameter)) problems.push(`${at}: "viaDrill" must be smaller than "viaDiameter"`);
       if (c.name !== undefined && (typeof c.name !== "string" || !c.name.trim() || c.name === "Default")) problems.push(`${at}: "name" is a class name other than Default`);
     });
+    (b.lengthMatch ?? []).forEach((g, i) => {
+      const at = `"board.lengthMatch[${i}]"`;
+      // The names go into a rule's condition, between quotes.
+      if (!g || !Array.isArray(g.nets) || !g.nets.length || g.nets.some((n) => typeof n !== "string" || !n || /['"\\]/.test(n))) return void problems.push(`${at} needs "nets", a list of net names (without quotes)`);
+      if (typeof g.maxSkew !== "number" || !(g.maxSkew > 0)) problems.push(`${at}: "maxSkew" is a length in mm, more than 0`);
+      if (g.pairs !== undefined && typeof g.pairs !== "boolean") problems.push(`${at}: "pairs" is true or false`);
+      if (g.name !== undefined && (typeof g.name !== "string" || !g.name.trim() || /['"\\]/.test(g.name))) problems.push(`${at}: "name" is a rule name, without quotes`);
+    });
   }
   if (!Array.isArray(spec.parts) || !spec.parts.length) return [...problems, `"parts" must list at least one part`];
   if (spec.parts.length > DESIGN_LIMITS.parts) problems.push(`At most ${DESIGN_LIMITS.parts} parts`);
@@ -463,6 +489,17 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
     }
   }
   for (const [net, pins] of netPins) if (pins.length < 2 && !uncounted.has(net)) problems.push(`Net ${net} has only one pin (${pins[0]}): connect it, or leave the pin out`);
+  // KiCad holds a net to the last skew rule it matches only: a net in two groups would be held to one.
+  const groups = (b?.lengthMatch ?? []).filter((g) => Array.isArray(g?.nets));
+  if (groups.length > 1) {
+    const glob = (p: string) => new RegExp("^" + p.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", "i");
+    const twice = [...netPins.keys()].map((net) => ({ net, in: groups.map((g, i) => (g.nets.some((p) => glob(p).test(net)) ? g.name ?? `Length match ${i + 1}` : undefined)).filter((x): x is string => !!x) })).filter((x) => x.in.length > 1);
+    if (twice.length)
+      problems.push(
+        `"board.lengthMatch": ${twice.slice(0, 4).map((x) => `${x.net} is in ${x.in.join(" and ")}`).join("; ")}${twice.length > 4 ? "; …" : ""}. KiCad holds a net to one skew rule only (the last it matches), so give each net one group. ` +
+          `For differential pairs, matching each pair's two nets ("pairs": true) is usually the tighter need.`,
+      );
+  }
   for (const net of spec.powerFlags ?? []) if (!netPins.has(net) && !uncounted.has(net)) problems.push(`"powerFlags" names ${net}, which no pin is on`);
   if (b && typeof b.pour === "string" && !netPins.has(b.pour) && !uncounted.has(b.pour)) problems.push(`"board.pour" names ${b.pour}, which no pin is on`);
   return problems;
