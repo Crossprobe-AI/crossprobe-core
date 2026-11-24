@@ -5205,13 +5205,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 162.56 87.63 0)
+			(at 158.75 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""
@@ -7956,7 +7957,7 @@
 			)
 		)
 		(property "Value" "VBUS"
-			(at 55.88 95.504 0)
+			(at 57.15 97.282 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8249,7 +8250,7 @@
 		(dnp no)
 		(uuid "4333e42e-890b-45f2-9ee2-d80414da99d8")
 		(property "Reference" "R4"
-			(at 106.68 146.558 0)
+			(at 106.68 144.7165 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8259,7 +8260,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 106.68 148.59 0)
+			(at 106.68 146.3675 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8414,13 +8415,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 120.65 154.94 0)
+			(at 116.84 151.13 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""
@@ -8719,7 +8721,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 151.13 87.63 0)
+			(at 152.4 81.534 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8874,13 +8876,14 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 133.35 186.69 0)
+			(at 129.54 182.88 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify right)
 			)
 		)
 		(property "Footprint" ""

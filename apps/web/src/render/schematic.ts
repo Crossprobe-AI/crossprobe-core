@@ -333,13 +333,15 @@ function pinGraphics(pin: List, o: Orientation, origin: Point, nameOffset: numbe
     } else {
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const off = up(0.25);
-      prims.push(text(mid.x + off.x, mid.y + off.y, name, { ...ne, h: "middle", v: "bottom" }, sa, "pinName"));
+      // Above the pin on the page (left of an upright one): at the reading angle, so that "bottom" isn't flipped below it.
+      prims.push(text(mid.x + off.x, mid.y + off.y, name, { ...ne, h: "middle", v: "bottom" }, sa % 180, "pinName"));
     }
   }
   if (!hideNumbers && number && !nume.hidden) {
     const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const off = nameOffset > 0 ? up(0.25) : { x: -up(0.25).x, y: -up(0.25).y };
-    prims.push(text(mid.x + off.x, mid.y + off.y, number, { ...nume, h: "middle", v: nameOffset > 0 ? "bottom" : "top" }, sa, "pinNumber"));
+    // Above the pin on the page, or below it when the name is there: at the reading angle, so neither is flipped.
+    prims.push(text(mid.x + off.x, mid.y + off.y, number, { ...nume, h: "middle", v: nameOffset > 0 ? "bottom" : "top" }, sa % 180, "pinNumber"));
   }
   void perp;
   return { number, prims, tip: a, outward: (sa + 180) % 360 };
