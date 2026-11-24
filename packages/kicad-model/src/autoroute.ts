@@ -1081,7 +1081,7 @@ export function pairConnections(board: Board, connections: Array<{ from: Point; 
  * (`history`, per layer). Pads, the board's own copper and `hard` routes stay walls. Returns the
  * routes the way crosses, and the cells where it does; undefined when there is no way even so.
  */
-function crossings(
+export function crossings(
   board: Board,
   rules: DesignRules,
   c: { from: Point; to: Point; net: string },
