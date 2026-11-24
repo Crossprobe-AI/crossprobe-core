@@ -85,11 +85,31 @@ export interface DesignBoard {
   /** Wider tracks for nets, e.g. [{ "nets": ["+5V", "+3V3"], "width": 0.5 }]. Net names may use * and ?. */
   trackWidths?: Array<{ nets: string[]; width: number }>;
   /**
+   * Net classes, for nets that need other rules than the board's: finer tracks, clearance and vias
+   * to reach a fine-pitch BGA's inner balls, or a differential pair's width and gap. Each becomes a
+   * KiCad net class; what it leaves out comes from the default class. Net names may use * and ?.
+   */
+  netClasses?: DesignNetClass[];
+  /**
    * Areas to keep clear, in mm from the board's top-left corner: under a module, around an antenna.
    * `keepOut` lists what stays out: "parts", "tracks", "vias", "pour". `side` limits tracks and pour to
    * the front or back copper (default both); parts and vias are kept out whatever the side.
    */
   keepouts?: DesignKeepout[];
+}
+
+/** A net class in a design spec (board.netClasses), in mm. */
+export interface DesignNetClass {
+  /** Its name in KiCad (default "Class_1", "Class_2", … in order). */
+  name?: string;
+  nets: string[];
+  trackWidth?: number;
+  clearance?: number;
+  viaDiameter?: number;
+  viaDrill?: number;
+  /** A differential pair's track width and the gap between its two tracks (nets named …_P and …_N, or …+ and …-). */
+  diffPairWidth?: number;
+  diffPairGap?: number;
 }
 
 export interface DesignKeepout {
@@ -345,6 +365,16 @@ export function checkDesignSpec(spec: DesignSpec, libs: DesignLibraries): string
       if (k.side !== undefined && !["front", "back", "both"].includes(k.side)) problems.push(`${at}: "side" is front, back or both`);
     });
     for (const t of b.trackWidths ?? []) if (!Array.isArray(t?.nets) || !(t.width > 0)) problems.push(`"board.trackWidths" entries need "nets" and a "width" in mm`);
+    const fields = ["trackWidth", "clearance", "viaDiameter", "viaDrill", "diffPairWidth", "diffPairGap"] as const;
+    (b.netClasses ?? []).forEach((c, i) => {
+      const at = `"board.netClasses[${i}]"`;
+      if (!c || !Array.isArray(c.nets) || !c.nets.length || c.nets.some((n) => typeof n !== "string" || !n)) return void problems.push(`${at} needs "nets", a list of net names`);
+      const given = fields.filter((f) => c[f] !== undefined);
+      if (!given.length) problems.push(`${at} sets none of ${fields.join(", ")}`);
+      for (const f of given) if (typeof c[f] !== "number" || !(c[f]! > 0)) problems.push(`${at}: "${f}" is a size in mm, more than 0`);
+      if (c.viaDrill !== undefined && c.viaDiameter !== undefined && !(c.viaDrill < c.viaDiameter)) problems.push(`${at}: "viaDrill" must be smaller than "viaDiameter"`);
+      if (c.name !== undefined && (typeof c.name !== "string" || !c.name.trim() || c.name === "Default")) problems.push(`${at}: "name" is a class name other than Default`);
+    });
   }
   if (!Array.isArray(spec.parts) || !spec.parts.length) return [...problems, `"parts" must list at least one part`];
   if (spec.parts.length > DESIGN_LIMITS.parts) problems.push(`At most ${DESIGN_LIMITS.parts} parts`);
