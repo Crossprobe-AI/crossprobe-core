@@ -38,6 +38,18 @@ describe("a route through chosen points", () => {
     expect(route.runs.some((run) => run.layer === "F.Cu" && run.points.some((p) => Math.hypot(p.x - 25, p.y - 14) < 1e-6))).toBe(true);
   });
 
+  it("keeps the hole to hole between its own vias, when two points on different layers are close", () => {
+    const r = routeThrough(board, rules, "A", [{ at: a1 }, { at: { x: 20, y: 20 }, layer: "B.Cu" }, { at: { x: 20.3, y: 20 }, layer: "F.Cu" }, { at: a2 }]);
+    const route = (r as { route: { runs: Array<{ layer: string; points: Array<{ x: number; y: number }> }>; vias: Array<{ x: number; y: number }> } }).route;
+    // 0.3 mm drills and the 0.25 mm minimum between holes: centres at least 0.55 mm apart.
+    for (const [i, v] of route.vias.entries()) for (const w of route.vias.slice(i + 1)) expect(Math.hypot(v.x - w.x, v.y - w.y)).toBeGreaterThanOrEqual(0.55 - 1e-9);
+    const on = (x: number, y: number, layer: string) =>
+      route.runs.some((run) => run.layer === layer && run.points.some((p) => Math.hypot(p.x - x, p.y - y) < 1e-6)) || route.vias.some((v) => Math.hypot(v.x - x, v.y - y) < 1e-6);
+    expect(on(20, 20, "B.Cu") && on(20.3, 20, "F.Cu")).toBe(true);
+    // Each via joins tracks on both layers: none is left dangling.
+    for (const v of route.vias) for (const layer of ["F.Cu", "B.Cu"]) expect(route.runs.some((run) => run.layer === layer && run.points.some((p) => Math.hypot(p.x - v.x, p.y - v.y) < 1e-6))).toBe(true);
+  });
+
   it("says which stretch finds no way", () => {
     // Onto another net's pad on its own layer: the second stretch can't end there.
     expect(routeThrough(board, rules, "A", [{ at: a1 }, { at: { x: 20, y: 20 } }, { at: { x: 25, y: 26 }, layer: "F.Cu" }, { at: a2 }])).toEqual({ failed: 1 });
