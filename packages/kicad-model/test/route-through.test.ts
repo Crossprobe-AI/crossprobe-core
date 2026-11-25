@@ -28,8 +28,22 @@ describe("a route through chosen points", () => {
     expect(b.vias.length).toBe(2);
   });
 
+  it("goes on from a point on the layer it asked for, even when a via lands on the point", () => {
+    // Down at the second point, up again at the third: two vias, each with a track on both layers.
+    const r = routeThrough(board, rules, "A", [{ at: a1 }, { at: { x: 25, y: 20 }, layer: "B.Cu" }, { at: { x: 25, y: 14 }, layer: "F.Cu" }, { at: a2 }]);
+    const route = (r as { route: { runs: Array<{ layer: string; points: Array<{ x: number; y: number }> }>; vias: Array<{ x: number; y: number }> } }).route;
+    expect(route.vias.length).toBe(2);
+    const on = (v: { x: number; y: number }, layer: string) => route.runs.some((run) => run.layer === layer && run.points.some((p) => Math.hypot(p.x - v.x, p.y - v.y) < 1e-6));
+    for (const v of route.vias) expect(on(v, "F.Cu") && on(v, "B.Cu")).toBe(true);
+    expect(route.runs.some((run) => run.layer === "F.Cu" && run.points.some((p) => Math.hypot(p.x - 25, p.y - 14) < 1e-6))).toBe(true);
+  });
+
   it("says which stretch finds no way", () => {
     // Onto another net's pad on its own layer: the second stretch can't end there.
     expect(routeThrough(board, rules, "A", [{ at: a1 }, { at: { x: 20, y: 20 } }, { at: { x: 25, y: 26 }, layer: "F.Cu" }, { at: a2 }])).toEqual({ failed: 1 });
+    // Past its deadline, the stretch it was on fails as late.
+    expect(routeThrough(board, rules, "A", [{ at: a1 }, { at: a2 }], undefined, Date.now() - 1)).toEqual({ failed: 0, late: true });
+    // The deadline ends with the call: the next one without it routes.
+    expect("route" in routeThrough(board, rules, "A", [{ at: a1 }, { at: a2 }])).toBe(true);
   });
 });

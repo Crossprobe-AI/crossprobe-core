@@ -1279,6 +1279,9 @@ export function autorouteConnection(board: Board, rules: DesignRules, c: { from:
  * leaves the layer to the router, and the next stretch goes on from the layer it arrived on. The
  * ends are normally pads of the net. Returns the route, or which stretch found no way (from point
  * `failed` to the next).
+ *
+ * `deadline` (a `Date.now()` time): a search still running then gives up, and the stretch it was on
+ * counts as failed, with `late` set.
  */
 export function routeThrough(
   board: Board,
@@ -1286,7 +1289,18 @@ export function routeThrough(
   net: string,
   points: Array<{ at: Point; layer?: string }>,
   items: CopperItem[] = copperItems(board),
-): { route: MultiLayerRoute } | { failed: number } {
+  deadline = Infinity,
+): { route: MultiLayerRoute } | { failed: number; late?: true } {
+  const before = stopAt;
+  stopAt = Math.min(stopAt, deadline);
+  try {
+    return through(board, rules, net, points, items, deadline);
+  } finally {
+    stopAt = before;
+  }
+}
+
+function through(board: Board, rules: DesignRules, net: string, points: Array<{ at: Point; layer?: string }>, items: CopperItem[], deadline: number): { route: MultiLayerRoute } | { failed: number; late?: true } {
   const cls = netClassOf(rules, net);
   const layers = routingLayers(board, net);
   const runs: MultiLayerRoute["runs"] = [];
@@ -1298,7 +1312,7 @@ export function routeThrough(
     const fromLayers = arrived ? [arrived] : a.layer ? [a.layer] : k > 0 ? layers : undefined;
     const toLayers = b.layer ? [b.layer] : k + 2 < points.length ? layers : undefined;
     const leg = routeWithVias(board, rules, { from: a.at, to: b.at, net, width: cls.trackWidth, via: { size: cls.viaDiameter, drill: cls.viaDrill }, layers, fromLayers, toLayers }, plus(items, made));
-    if (!leg) return { failed: k };
+    if (!leg) return Date.now() > deadline ? { failed: k, late: true } : { failed: k };
     // A stretch that goes on on the layer the last one ended on continues its run.
     for (const run of leg.runs) {
       const last = runs.at(-1);
@@ -1306,7 +1320,8 @@ export function routeThrough(
       else runs.push({ ...run, points: [...run.points] });
     }
     vias.push(...leg.vias);
-    arrived = leg.runs.at(-1)?.layer ?? arrived;
+    // On the point's own layer when it has one: a via that lands on the point leaves no run there.
+    arrived = b.layer ?? leg.runs.at(-1)?.layer ?? arrived;
     made = [...made, ...leg.runs.map((run) => itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth))];
   }
   return { route: { runs, vias } };
