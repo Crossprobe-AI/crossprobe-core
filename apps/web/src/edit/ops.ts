@@ -29,6 +29,7 @@ import {
   type SchGraphic,
   deleteItem,
   tuneNetLength,
+  routeThrough,
   addDimension,
   pasteBoardItems,
   setLocked,
@@ -320,6 +321,11 @@ export type EditOp =
   /** Route connections with the grid router, one after another (each sees the ones before); unroutable ones are skipped. */
   /** `deadline` (a `Date.now()` time): connections not started by then are left unrouted. */
   | { op: "autoroute"; file: string; connections: Array<{ from: Point; to: Point; net: string }>; deadline?: number }
+  /**
+   * One route of a net through points chosen by hand, each optionally on a layer (routeThrough);
+   * fails if a stretch finds no way, or none by `deadline` (a `Date.now()` time).
+   */
+  | { op: "routeThrough"; file: string; net: string; points: Array<{ at: Point; layer?: string }>; deadline?: number }
   /** A footprint's pad on the board: size, shape, drill, net (KiCad's pad properties). */
   | { op: "setPadProps"; file: string; footprint: string; pad: string; size?: { x: number; y: number }; shape?: string; drill?: number; net?: string }
   /** Lock or unlock footprints, tracks and vias (KiCad's (locked yes)). */
@@ -541,6 +547,7 @@ export function describeOp(op: EditOp): string {
     case "setSchematicDrawing": return "Schematic formatting";
     case "setErcExclusions": return op.exclude ? "Exclude ERC finding" : "Include ERC finding";
     case "tuneLength": return `Tune ${op.net} to ${op.target} mm`;
+    case "routeThrough": return `Route ${op.net} by hand`;
     case "teardrops": return op.remove ? "Remove teardrops" : "Teardrops";
     case "addDimension": return "Add dimension";
     case "setLocked": return op.locked ? "Lock" : "Unlock";
@@ -1046,6 +1053,18 @@ function applyBoardOp(root: List, op: EditOp, doc: Document, read: (file: string
         for (const run of r.runs) for (let k = 1; k < run.points.length; k++) addTrack(root, { start: run.points[k - 1]!, end: run.points[k]!, width: run.width ?? cls.trackWidth, layer: run.layer, net });
         for (const v of r.vias) addVia(root, { at: v, size: cls.viaDiameter, drill: cls.viaDrill, layers: span, net });
       });
+      break;
+    }
+    case "routeThrough": {
+      const rules = projectDesignRules(read(op.file.replace(/\.kicad_pcb$/, ".kicad_pro")));
+      const board = parseBoard(serialize(doc));
+      const span: [string, string] = [board.copperLayers[0]!, board.copperLayers[board.copperLayers.length - 1]!];
+      const r = routeThrough(board, rules, op.net, op.points, undefined, op.deadline);
+      if ("failed" in r && r.late) throw new Error(`Out of time routing ${op.net} from point ${r.failed + 1} to point ${r.failed + 2}`);
+      if ("failed" in r) throw new Error(`No way for ${op.net} from point ${r.failed + 1} to point ${r.failed + 2} with the board's rules`);
+      const cls = netClassOf(rules, op.net);
+      for (const run of r.route.runs) for (let k = 1; k < run.points.length; k++) addTrack(root, { start: run.points[k - 1]!, end: run.points[k]!, width: run.width ?? cls.trackWidth, layer: run.layer, net: op.net });
+      for (const v of r.route.vias) addVia(root, { at: v, size: cls.viaDiameter, drill: cls.viaDrill, layers: span, net: op.net });
       break;
     }
     case "addDimension":
