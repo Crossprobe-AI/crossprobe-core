@@ -4112,7 +4112,8 @@ button[aria-haspopup][aria-expanded="true"] {
   padding: 0 8px 0 12px;
   height: 46px;
 }
-.app.compact .topbar > :not(.brand, .crumb-sep, .project-name, .source-link) {
+/* With a project open, the top bar has the project's name only; on the start screen it keeps what it has (opening, signing in). */
+.app.compact:has(> .workspace) .topbar > :not(.brand, .crumb-sep, .project-name, .source-link) {
   display: none;
 }
 .app.compact .brand {
