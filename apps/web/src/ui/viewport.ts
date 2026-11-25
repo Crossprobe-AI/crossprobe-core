@@ -15,7 +15,8 @@ export interface View {
 
 /**
  * Pan/zoom state for a view of millimetre content: wheel zooms around the
- * cursor, drag pans, `fit` frames a box. Shared by the schematic (SVG) and
+ * cursor, drag pans, `fit` frames a box. On a touch screen, two fingers pinch
+ * to zoom (and pan), and a double tap fits. Shared by the schematic (SVG) and
  * board (canvas) views.
  */
 export function useViewport(contentIn: Box | undefined, fitKey?: string) {
@@ -35,6 +36,7 @@ export function useViewport(contentIn: Box | undefined, fitKey?: string) {
   viewRef.current = view;
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const touched = useRef(false); // the user has panned or zoomed since the last fit
+  const pinching = useRef(false); // two fingers are down: they zoom, and one-finger panning waits
   const size = useRef({ w: 0, h: 0 });
 
   const fit = useCallback((box: Box | undefined = latest.current) => {
@@ -109,6 +111,81 @@ export function useViewport(contentIn: Box | undefined, fitKey?: string) {
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  // Touch: two fingers pinch (zoom around their midpoint, and pan with it); a double tap fits.
+  // Listened to on the element itself, beside the views' own pointer handlers.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const touches = new Map<number, { x: number; y: number; x0: number; y0: number; t0: number }>();
+    let last: { x: number; y: number; d: number } | undefined;
+    let lastTap = { t: 0, x: 0, y: 0 };
+    const pair = () => {
+      const [a, b] = [...touches.values()];
+      const r = el.getBoundingClientRect();
+      return { x: (a!.x + b!.x) / 2 - r.left, y: (a!.y + b!.y) / 2 - r.top, d: Math.hypot(a!.x - b!.x, a!.y - b!.y) };
+    };
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== "touch") return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: e.timeStamp });
+      if (touches.size === 2) {
+        pinching.current = true;
+        // The lift that ends a pinch is not a tap on whatever is under the finger.
+        drag.current = { x: e.clientX, y: e.clientY, moved: true };
+        last = pair();
+      }
+    };
+    const move = (e: PointerEvent) => {
+      const t = touches.get(e.pointerId);
+      if (!t) return;
+      t.x = e.clientX;
+      t.y = e.clientY;
+      if (touches.size !== 2 || !last) return;
+      const now = pair();
+      const k = last.d > 0 ? now.d / last.d : 1;
+      const from = last;
+      last = now;
+      touched.current = true;
+      setView((v) => {
+        const scale = Math.min(Math.max(v.scale * k, 0.05), 2000);
+        const kk = scale / v.scale;
+        return { scale, tx: now.x - (from.x - v.tx) * kk, ty: now.y - (from.y - v.ty) * kk };
+      });
+    };
+    const up = (e: PointerEvent) => {
+      const t = touches.get(e.pointerId);
+      if (!t) return;
+      touches.delete(e.pointerId);
+      if (pinching.current) {
+        if (touches.size === 1) {
+          // One finger stays: it pans on from where it is, and its lift is still not a tap.
+          const [rest] = [...touches.values()];
+          drag.current = { x: rest!.x, y: rest!.y, moved: true };
+          last = undefined;
+        }
+        if (touches.size === 0) pinching.current = false;
+        lastTap.t = 0;
+        return;
+      }
+      if (e.type !== "pointerup" || touches.size) return;
+      const still = Math.hypot(e.clientX - t.x0, e.clientY - t.y0) < 10 && e.timeStamp - t.t0 < 300;
+      if (!still) return;
+      if (e.timeStamp - lastTap.t < 300 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+        lastTap.t = 0;
+        fit();
+      } else lastTap = { t: e.timeStamp, x: e.clientX, y: e.clientY };
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+  }, [fit]);
+
   const handlers = {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return;
@@ -116,7 +193,7 @@ export function useViewport(contentIn: Box | undefined, fitKey?: string) {
     },
     onPointerMove: (e: React.PointerEvent) => {
       const d = drag.current;
-      if (!d) return;
+      if (!d || pinching.current) return;
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
       if (!d.moved && Math.hypot(dx, dy) < 3) return;
@@ -129,6 +206,8 @@ export function useViewport(contentIn: Box | undefined, fitKey?: string) {
       setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
     },
     onPointerUp: () => {
+      // A finger lifted mid-pinch: the other still holds the gesture (the touch effect above).
+      if (pinching.current) return;
       setTimeout(() => (drag.current = null), 0);
     },
   };

@@ -211,9 +211,9 @@ export function Board3DView({
   return (
     <div className="viewport board3d" ref={host}>
       <div className="view-tools">
-        <button onClick={() => api.current?.setPreset("top")} title="View from top"><Icon name="viewTop" /> Top</button>
-        <button onClick={() => api.current?.setPreset("bottom")} title="View from bottom"><Icon name="viewBottom" /> Bottom</button>
-        <button onClick={() => api.current?.setPreset("iso")} title="Angled view"><Icon name="cube" /> 3D</button>
+        <button className="preset" onClick={() => api.current?.setPreset("top")} title="View from top"><Icon name="viewTop" /> Top</button>
+        <button className="preset" onClick={() => api.current?.setPreset("bottom")} title="View from bottom"><Icon name="viewBottom" /> Bottom</button>
+        <button className="preset" onClick={() => api.current?.setPreset("iso")} title="Angled view"><Icon name="cube" /> 3D</button>
         <label className="toggle">
           <input
             type="checkbox"

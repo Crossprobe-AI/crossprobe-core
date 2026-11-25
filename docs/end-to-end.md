@@ -60,7 +60,7 @@ run at twice the speed. No ffmpeg is needed:
 2. A blank page replays them onto a canvas, and the browser's MediaRecorder encodes the WebM
    (`scripts/lib/record.mjs`).
 
-## The README's GIF
+## The README's pictures
 
 `scripts/readme-demo.mjs <project folder>` records `docs/media/demo.gif` from a board in
 progress: the USB-C board below, stopped before "Route all"
@@ -69,6 +69,12 @@ project folder from the start screen, selects the microcontroller in the schemat
 runs "Route all" and turns the 3D view, with a short caption on each step. The frames are screenshots, and
 `scripts/lib/gif.mjs` encodes them, so this needs no ffmpeg either. Run it again when the
 app's look changes.
+
+`scripts/readme-mobile.mjs` takes `docs/media/mobile.png`: the viewer the editor becomes on a
+phone, on an emulated iPhone, with the RP2040 design block open. It shows the schematic with a
+part tapped, then the board, then the 3D view, side by side. The design blocks and the 3D models
+come from the dev server; `ASSETS_URL` (e.g. `https://core.crossprobe.ai`) takes them from a
+site that has them instead.
 
 ## Fabrication outputs
 
