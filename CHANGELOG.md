@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.4.0](https://github.com/Crossprobe-AI/crossprobe-core/compare/v0.3.0...v0.4.0) (2026-11-25)
+
+
+### Features
+
+* a viewer on phones: the views as tabs, a tapped part's details, pinch to zoom ([#152](https://github.com/Crossprobe-AI/crossprobe-core/issues/152)) ([f97a991](https://github.com/Crossprobe-AI/crossprobe-core/commit/f97a9911ea78fcf82f0835b0e5c61425b1e00d94))
+* board.lengthMatch in a design spec; the length tuner keeps the hole clearance ([#145](https://github.com/Crossprobe-AI/crossprobe-core/issues/145)) ([03967c7](https://github.com/Crossprobe-AI/crossprobe-core/commit/03967c7e5319099ce57ff403da6c34cc2f322693))
+* design specs place multi-unit symbols; routing can be given a deadline ([#120](https://github.com/Crossprobe-AI/crossprobe-core/issues/120)) ([5c72145](https://github.com/Crossprobe-AI/crossprobe-core/commit/5c72145af462c8a52d6331e06d984431b745f348))
+* negotiated rip-up in Route all, for what the first passes leave open ([#148](https://github.com/Crossprobe-AI/crossprobe-core/issues/148)) ([c6eeedb](https://github.com/Crossprobe-AI/crossprobe-core/commit/c6eeedb41a9c6da2ded20b6998dc25df667127d1))
+* net classes in a design spec; the router keeps the hole clearance from vias it made ([#141](https://github.com/Crossprobe-AI/crossprobe-core/issues/141)) ([9b19999](https://github.com/Crossprobe-AI/crossprobe-core/commit/9b19999b9f49dd53a0fa73277e3c5330761104a7))
+* place.along, a part's position along its edge ([#146](https://github.com/Crossprobe-AI/crossprobe-core/issues/146)) ([f340cc0](https://github.com/Crossprobe-AI/crossprobe-core/commit/f340cc09f85fb248ecfdde0d447ed2ac5009cfdc))
+* Route all routes a differential pair as one, coupled at the class's pair width and gap ([#143](https://github.com/Crossprobe-AI/crossprobe-core/issues/143)) ([321484d](https://github.com/Crossprobe-AI/crossprobe-core/commit/321484d5ca20f57471c57893fab254715afe8279))
+* routeThrough, a route through points chosen by hand ([#149](https://github.com/Crossprobe-AI/crossprobe-core/issues/149)) ([2e8475b](https://github.com/Crossprobe-AI/crossprobe-core/commit/2e8475b49b48f93d7489d4ed9e18cf12dfa951d7))
+* the autorouter leaves a fine-pitch pad by a neck when its net's track is too wide ([#130](https://github.com/Crossprobe-AI/crossprobe-core/issues/130)) ([6d4db9b](https://github.com/Crossprobe-AI/crossprobe-core/commit/6d4db9b54f6fd66f70c36219530e5cfbe8cc7ab8))
+* the design placer keeps parts apart by a courtyard's shape, not its box ([#114](https://github.com/Crossprobe-AI/crossprobe-core/issues/114)) ([#135](https://github.com/Crossprobe-AI/crossprobe-core/issues/135)) ([d65dad0](https://github.com/Crossprobe-AI/crossprobe-core/commit/d65dad0c9e2716106848e231acf64190d19e88b4))
+* viaInPad on a design spec's part ([#144](https://github.com/Crossprobe-AI/crossprobe-core/issues/144)) ([e28036a](https://github.com/Crossprobe-AI/crossprobe-core/commit/e28036ae0d97104ed04ef0cd151325e753e68dec))
+
+
+### Bug Fixes
+
+* an unplated hole's own clearance is kept from it, as in KiCad ([#129](https://github.com/Crossprobe-AI/crossprobe-core/issues/129)) ([344b9d7](https://github.com/Crossprobe-AI/crossprobe-core/commit/344b9d75fd4d7bb15954370c3743d7eb84b05d6d))
+* an unplated pad with a ring of copper is copper, and items without a net are on one net, as in KiCad ([#128](https://github.com/Crossprobe-AI/crossprobe-core/issues/128)) ([#132](https://github.com/Crossprobe-AI/crossprobe-core/issues/132)) ([ec35f39](https://github.com/Crossprobe-AI/crossprobe-core/commit/ec35f39908792c3bb148a833175759fc52077f69))
+* an unplated slot is a board edge, as in KiCad ([#131](https://github.com/Crossprobe-AI/crossprobe-core/issues/131)) ([#133](https://github.com/Crossprobe-AI/crossprobe-core/issues/133)) ([cf07729](https://github.com/Crossprobe-AI/crossprobe-core/commit/cf077294133591e0574b211a640433606706ba83))
+* generated sheets keep their texts apart, and pin numbers sit where KiCad draws them ([#136](https://github.com/Crossprobe-AI/crossprobe-core/issues/136)) ([8016a36](https://github.com/Crossprobe-AI/crossprobe-core/commit/8016a36602bec2137333e93985247ecf4b0eb028))
+* KiCad 5 footprints read and placed as KiCad does; parts kept off holes outside a footprint's body ([#126](https://github.com/Crossprobe-AI/crossprobe-core/issues/126)) ([ad77a83](https://github.com/Crossprobe-AI/crossprobe-core/commit/ad77a837c49b325e7c0792c7349b798a2a71f0cf))
+* routeThrough keeps the hole to hole between its own vias ([#151](https://github.com/Crossprobe-AI/crossprobe-core/issues/151)) ([00bd23e](https://github.com/Crossprobe-AI/crossprobe-core/commit/00bd23ed5d825df95457228ea99a9cfa6c02d810))
+* the phone viewer's top bar and round buttons ([#154](https://github.com/Crossprobe-AI/crossprobe-core/issues/154)) ([4b1b98b](https://github.com/Crossprobe-AI/crossprobe-core/commit/4b1b98bb7e2de65cca8492073a3fa28d9f0bb042))
+
+
+### Performance Improvements
+
+* the autorouter does the same work in a fraction of the time ([#125](https://github.com/Crossprobe-AI/crossprobe-core/issues/125)) ([f3e6e0b](https://github.com/Crossprobe-AI/crossprobe-core/commit/f3e6e0b70e04bb73a929826e1281e9f85f8c64c3)), closes [#121](https://github.com/Crossprobe-AI/crossprobe-core/issues/121)
+* the router checks there is a way at all before its first search ([#147](https://github.com/Crossprobe-AI/crossprobe-core/issues/147)) ([404802b](https://github.com/Crossprobe-AI/crossprobe-core/commit/404802bfc379688e7bc712caa014f75b697882fc))
+
 ## [0.3.0](https://github.com/Crossprobe-AI/crossprobe-core/compare/v0.2.0...v0.3.0) (2026-11-23)
 
 
