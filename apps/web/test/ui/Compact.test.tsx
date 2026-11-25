@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "vitest-browser-react";
 import "../../src/styles.css";
 import { CompactPartSheet, CompactSheetPicker, CompactTabs, type CompactMode } from "../../src/ui/Compact";
+import { Icon } from "../../src/ui/icons";
 import type { ComponentInfo } from "../../src/render/types";
 import { useViewport } from "../../src/ui/viewport";
 
@@ -87,6 +88,27 @@ describe("CompactSheetPicker", () => {
     await render(<CompactSheetPicker sheets={sheets.slice(0, 1)} current="/" onOpen={onOpen} />);
     expect(document.querySelector(".compact-sheet")!.textContent).toBe("Root sheet");
     expect(document.querySelector(".compact-sheet select")).toBeNull();
+  });
+});
+
+describe("the view's round buttons", () => {
+  it("have their icon in the middle (the label is hidden)", async () => {
+    await render(
+      <div className="app compact">
+        <div className="viewport" style={{ width: 400, height: 400 }}>
+          <div className="view-tools">
+            <button title="Fit">
+              <Icon name="fit" /> Fit
+            </button>
+          </div>
+        </div>
+      </div>,
+    );
+    const b = document.querySelector(".view-tools button")!.getBoundingClientRect();
+    const i = document.querySelector(".view-tools button svg")!.getBoundingClientRect();
+    expect([b.width, b.height]).toEqual([44, 44]);
+    expect(i.x + i.width / 2).toBeCloseTo(b.x + b.width / 2, 1);
+    expect(i.y + i.height / 2).toBeCloseTo(b.y + b.height / 2, 1);
   });
 });
 
