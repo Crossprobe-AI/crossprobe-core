@@ -1307,6 +1307,11 @@ function through(board: Board, rules: DesignRules, net: string, points: Array<{ 
   const vias: Point[] = [];
   let made: CopperItem[] = [];
   let arrived: string | undefined;
+  // The route's vias so far, as copper: a later stretch keeps the hole to hole from them (viaHoles).
+  const viaItem = (v: Point): CopperItem => {
+    const h = cls.viaDiameter / 2;
+    return { shapes: [{ kind: "seg", a: v, b: v, r: h }], layers: new Set(board.copperLayers), item: { kind: "via", net, description: `Via [${net}]` }, box: { x0: v.x - h, y0: v.y - h, x1: v.x + h, y1: v.y + h } };
+  };
   for (let k = 0; k + 1 < points.length; k++) {
     const a = points[k]!, b = points[k + 1]!;
     const fromLayers = arrived ? [arrived] : a.layer ? [a.layer] : k > 0 ? layers : undefined;
@@ -1322,7 +1327,7 @@ function through(board: Board, rules: DesignRules, net: string, points: Array<{ 
     vias.push(...leg.vias);
     // On the point's own layer when it has one: a via that lands on the point leaves no run there.
     arrived = b.layer ?? leg.runs.at(-1)?.layer ?? arrived;
-    made = [...made, ...leg.runs.map((run) => itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth))];
+    made = [...made, ...leg.runs.map((run) => itemOf(net, run.layer, run.points, run.width ?? cls.trackWidth)), ...leg.vias.map(viaItem)];
   }
   return { route: { runs, vias } };
 }
