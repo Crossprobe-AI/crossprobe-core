@@ -4113,7 +4113,9 @@ button[aria-haspopup][aria-expanded="true"] {
   height: 46px;
 }
 /* With a project open, the top bar has the project's name only; on the start screen it keeps what it has (opening, signing in). */
-.app.compact:has(> .workspace) .topbar > :not(.brand, .crumb-sep, .project-name, .source-link) {
+/* Extensions' items sit in their slot's span (display: contents, set inline), so they are hidden one by one. */
+.app.compact:has(> .workspace) .topbar > :not(.brand, .crumb-sep, .project-name, .source-link),
+.app.compact:has(> .workspace) .topbar > span > * {
   display: none;
 }
 .app.compact .brand {
@@ -4156,6 +4158,8 @@ button[aria-haspopup][aria-expanded="true"] {
   bottom: 12px;
 }
 .app.compact .viewport .view-tools button {
+  /* The label is hidden (font-size 0) but still a flex item: no gap, or the icon sits off centre. */
+  gap: 0;
   width: 44px;
   height: 44px;
   padding: 0;
