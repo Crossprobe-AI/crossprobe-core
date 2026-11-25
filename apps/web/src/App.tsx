@@ -4,6 +4,7 @@ import { arg as sexprArg, parse as parseSexpr, setArg as setSexprArg, str as sex
 import { SymbolEditor } from "./ui/SymbolEditor";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { SourceLink } from "./ui/SourceLink";
+import { CompactPartSheet, CompactSheetPicker, CompactTabs, useCompact } from "./ui/Compact";
 import { assistant, Fill, installed, Slot, SlotProvider, type AppHost, type Cited, type Contribution, type DraftPart, type SaveAction, type ProjectLinks } from "./extensions";
 import {
   canWriteFolders,
@@ -229,6 +230,11 @@ export function App() {
   /** Path of the open project's .kicad_pro. */
   const projectPath = useRef("");
   const [editing, setEditing] = useState(false);
+  // A phone: the app is a viewer (ui/Compact.tsx), so nothing is edited by a stray tap.
+  const compact = useCompact();
+  useEffect(() => {
+    if (compact) setEditing(false);
+  }, [compact]);
   const [tool, setTool] = useState<Tool>("select");
   // Bumped whenever a tool is chosen (again), so A reopens the full part picker.
   const [pickerOpen, setPickerOpen] = useState(0);
@@ -890,7 +896,7 @@ export function App() {
   return (
     <SlotProvider>
     <div
-      className={`app${dragging ? " dragging" : ""}`}
+      className={`app${dragging ? " dragging" : ""}${compact ? " compact" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -1263,10 +1269,14 @@ export function App() {
           <main className="canvas">
             {mode === "schematic" && sheet && (
               <>
-                <div className="breadcrumb">
-                  {sheet.namePath === "/" ? "Root sheet" : sheet.namePath}
-                  <span className="muted small"> · {sheet.file}</span>
-                </div>
+                {compact ? (
+                  <CompactSheetPicker sheets={project.sheets} current={sheet.path} onOpen={setSheetPath} />
+                ) : (
+                  <div className="breadcrumb">
+                    {sheet.namePath === "/" ? "Root sheet" : sheet.namePath}
+                    <span className="muted small"> · {sheet.file}</span>
+                  </div>
+                )}
                 <ToolRail<Tool>
                   label="Schematic tools"
                   editing={editing}
@@ -1657,7 +1667,32 @@ export function App() {
           </SidePanel>
         </div>
       )}
-      {project && (
+      {project && compact && (() => {
+        const part = selection?.kind === "component" ? project.components.find((c) => c.reference === selection.reference) : undefined;
+        const other = mode === "schematic" ? (project.board && part?.onBoard !== false ? "board" : undefined) : part && part.sheets.length ? "schematic" : undefined;
+        return (
+          <>
+            {part && (
+              <CompactPartSheet
+                key={part.reference}
+                part={part}
+                sheetName={(p) => {
+                  const n = project.sheets.find((x) => x.path === p)?.namePath;
+                  return !n || n === "/" ? "Root" : n;
+                }}
+                other={other}
+                onOther={() => {
+                  setMode(other!);
+                  selectAndFocus({ kind: "component", reference: part.reference });
+                }}
+                onClose={() => select(null)}
+              />
+            )}
+            <CompactTabs mode={mode} hasSchematic={project.sheets.length > 0} hasBoard={!!project.board} onMode={setMode} />
+          </>
+        );
+      })()}
+      {project && !compact && (
         <StatusBar
           project={project}
           mode={mode}

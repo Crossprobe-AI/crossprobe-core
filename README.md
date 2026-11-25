@@ -15,6 +15,11 @@ repository as it is. Files stay on your computer there too.
 
 ![A board in progress in Crossprobe: a KiCad project folder is opened, a part selected in the schematic is shown on the board among the unrouted connections, one track is routed by hand, Route all finishes the rest, and the 3D view turns the result](docs/media/demo.gif)
 
+On a phone, the editor is a viewer: the schematic, the board and the 3D view, a tap on a part
+for what it is, pinch to zoom.
+
+<img src="docs/media/mobile.png" width="720" alt="Crossprobe on a phone: the schematic with a part tapped and its details in a sheet at the bottom, the board, and the 3D view, with tabs at the bottom to switch between them">
+
 ## What it does
 
 - Schematic, PCB and 3D views, with cross-probing between them.

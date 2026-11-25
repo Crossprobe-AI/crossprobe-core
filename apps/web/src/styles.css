@@ -4101,3 +4101,185 @@ button[aria-haspopup][aria-expanded="true"] {
   -webkit-mask-size: contain;
   -webkit-mask-repeat: no-repeat;
 }
+
+/* The editor on a phone (ui/Compact.tsx): a viewer. The view fills the screen between a short top
+   bar and tabs at the bottom; editing, the side panels, the toolbars and the status bar are left out. */
+.app.compact {
+  --compact-tabs-h: 60px;
+}
+.app.compact .topbar {
+  gap: 8px;
+  padding: 0 8px 0 12px;
+  height: 46px;
+}
+/* With a project open, the top bar has the project's name only; on the start screen it keeps what it has (opening, signing in). */
+.app.compact:has(> .workspace) .topbar > :not(.brand, .crumb-sep, .project-name, .source-link) {
+  display: none;
+}
+.app.compact .brand {
+  font-size: 0;
+  gap: 0;
+}
+.app.compact .project-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.app.compact .workspace {
+  /* The columns are set inline by the panel layout; the view takes them all. */
+  grid-template-columns: 1fr !important;
+}
+.app.compact .side-panel,
+.app.compact .tool-rail,
+.app.compact .edit-toolbar {
+  display: none;
+}
+.app.compact .breadcrumb {
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+}
+.app.compact .compact-sheet select {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0 2px;
+  max-width: 100%;
+}
+/* Fit, as a round button within the thumb's reach. */
+.app.compact .view-tools {
+  right: 12px;
+  bottom: 12px;
+}
+.app.compact .viewport .view-tools button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 22px;
+  font-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+}
+/* In 3D: the loading line and the note about missing models go to the top, clear of the buttons. */
+.app.compact .board3d .progress {
+  top: 8px;
+  bottom: auto;
+  left: 8px;
+  right: 8px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+}
+/* In 3D: the three viewpoints, as round buttons; the components toggle and the exports are left out. */
+.app.compact .view-tools > :not(button),
+.app.compact .board3d .view-tools > :not(.preset) {
+  display: none;
+}
+.app.compact .viewport .view-tools button svg {
+  width: 20px;
+  height: 20px;
+}
+.compact-tabs {
+  flex: none;
+  display: flex;
+  height: var(--compact-tabs-h);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+.compact-tabs button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.compact-tabs button.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+.compact-tabs button:disabled {
+  opacity: 0.4;
+}
+.compact-part {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--compact-tabs-h);
+  z-index: 40;
+  max-height: 55vh;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -4px 18px rgb(0 0 0 / 0.12);
+}
+.compact-part header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.compact-part header > div {
+  flex: 1;
+  min-width: 0;
+}
+.compact-part h2 {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.compact-part header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.compact-part header .icon-btn {
+  width: 36px;
+  height: 36px;
+  margin: -6px -6px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.compact-part dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+.compact-part dt {
+  color: var(--muted);
+}
+.compact-part dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.compact-part-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.compact-part-actions > * {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: none;
+  color: var(--text);
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+}
